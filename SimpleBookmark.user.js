@@ -1,23 +1,20 @@
 // ==UserScript==
 // @name         SimpleBookmark - 移动端标签导航
 // @name:en      SimpleBookmark - Mobile Tag Navigator
-// @namespace    https://github.com/your-username/simplebookmark
+// @namespace    https://github.com/unixliang/simplebookmark
 // @version      1.0.7
 // @description  移动端网页标签导航工具，支持悬浮标签、拖拽移动、本地存储等功能
 // @description:en Mobile web bookmark navigator with floating tags, drag & drop, local storage
 // @author       Your Name
-// @match        *://*/*
-// @exclude      *://greasyfork.org/*
-// @exclude      *://github.com/*
-// @exclude      *://localhost:*/manager.html*
+// @match        *://game.granbluefantasy.jp/*
+// @match        *://gbf.game.mbga.jp/*
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
 // @license      MIT
-// @homepageURL  https://github.com/your-username/simplebookmark
-// @supportURL   https://github.com/your-username/simplebookmark/issues
-// @updateURL    https://github.com/your-username/simplebookmark/raw/main/SimpleBookmark.user.js
-// @downloadURL  https://github.com/your-username/simplebookmark/raw/main/SimpleBookmark.user.js
+// @homepageURL  https://github.com/unixliang/simplebookmark
+// @supportURL   https://github.com/unixliang/simplebookmark/issues
+// @updateURL    https://unixliang.github.io/gbf-bookmark/gbf-bookmark.user.js
 // ==/UserScript==
 
 (function() {
@@ -627,7 +624,7 @@
                     const id = bookmark.getAttribute('data-bookmark-id');
                     touchTimer = setTimeout(() => {
                         this.showMenu(e, parseInt(id));
-                    }, 500);
+                    }, 1000);
                 }
             });
             
@@ -637,7 +634,7 @@
                     clearTimeout(touchTimer);
                     const touchDuration = Date.now() - this.touchStartTime;
                     
-                    if (touchDuration < 500 && !this.isContextMenuOpen) {
+                    if (touchDuration < 1000 && !this.isContextMenuOpen) {
                         const url = bookmark.getAttribute('data-bookmark-url');
                         this.handleBookmarkClick(url);
                     }
