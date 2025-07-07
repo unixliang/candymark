@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SimpleBookmark - 移动端标签导航油猴脚本</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 60px 20px 40px;
+        }
+        
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+        
+        .title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 40px;
+        }
+        
+        .install-section {
+            max-width: 800px;
+            margin: 0 auto 60px;
+            padding: 0 20px;
+        }
+        
+        .install-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+        }
+        
+        .install-title {
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+        
+        .install-desc {
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+        
+        .install-button {
+            display: inline-block;
+            background: #ff6b6b;
+            color: white;
+            padding: 18px 36px;
+            text-decoration: none;
+            border-radius: 12px;
+            font-size: 1.3rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+            margin-bottom: 20px;
+        }
+        
+        .install-button:hover {
+            background: #ff5252;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.5);
+        }
+        
+        .version-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            margin-left: 10px;
+        }
+        
+        .requirements {
+            background: rgba(255, 193, 7, 0.2);
+            border: 1px solid rgba(255, 193, 7, 0.4);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 30px 0;
+            text-align: left;
+        }
+        
+        .requirements h4 {
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+        
+        .requirements ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .requirements li {
+            margin-bottom: 10px;
+            padding-left: 25px;
+            position: relative;
+        }
+        
+        .requirements li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .features {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px 60px;
+        }
+        
+        .features-title {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 40px;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .feature-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+        
+        .feature-title {
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .feature-desc {
+            font-size: 1rem;
+            opacity: 0.9;
+            line-height: 1.5;
+        }
+        
+        .usage-section {
+            max-width: 800px;
+            margin: 0 auto 60px;
+            padding: 0 20px;
+        }
+        
+        .usage-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .usage-title {
+            font-size: 2rem;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .usage-steps {
+            counter-reset: step-counter;
+        }
+        
+        .usage-step {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            position: relative;
+            padding-left: 80px;
+            counter-increment: step-counter;
+        }
+        
+        .usage-step:before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 25px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #ff6b6b;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        
+        .usage-step h4 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+        
+        .usage-step p {
+            opacity: 0.9;
+            line-height: 1.5;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .footer-link {
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .footer-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        @media (max-width: 768px) {
+            .title {
+                font-size: 2rem;
+            }
+            
+            .subtitle {
+                font-size: 1rem;
+            }
+            
+            .install-card {
+                padding: 30px 20px;
+            }
+            
+            .install-button {
+                padding: 15px 30px;
+                font-size: 1.1rem;
+            }
+            
+            .usage-step {
+                padding-left: 60px;
+            }
+            
+            .usage-step:before {
+                width: 30px;
+                height: 30px;
+                font-size: 1rem;
+                left: 15px;
+            }
+            
+            .footer-links {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">🔖</div>
+        <h1 class="title">SimpleBookmark</h1>
+        <p class="subtitle">移动端标签导航油猴脚本 - 在任意网站自动运行</p>
+    </div>
+    
+    <div class="install-section">
+        <div class="install-card">
+            <h2 class="install-title">📥 一键安装</h2>
+            <p class="install-desc">
+                点击下方按钮安装油猴脚本，自动在所有网站启用标签功能<br>
+                无需手动激活，安装一次永久使用！
+            </p>
+            <a href="SimpleBookmark.user.js" class="install-button">
+                🚀 安装脚本
+                <span class="version-badge">v1.0.1</span>
+            </a>
+            
+            <div class="requirements">
+                <h4>📋 安装要求</h4>
+                <ul>
+                    <li>安装 <a href="https://www.tampermonkey.net/" target="_blank" style="color: #FFE082;">Tampermonkey</a> 或其他油猴插件</li>
+                    <li>支持 Chrome、Firefox、Safari、Edge 等主流浏览器</li>
+                    <li>支持电脑端和移动端浏览器</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="features">
+        <h2 class="features-title">✨ 核心功能</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🎯</div>
+                <h3 class="feature-title">自动运行</h3>
+                <p class="feature-desc">安装一次，在所有网站自动启用标签功能，无需手动激活</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">📱</div>
+                <h3 class="feature-title">移动端优化</h3>
+                <p class="feature-desc">完美适配移动端触摸操作，支持长按菜单和拖拽手势</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🖱️</div>
+                <h3 class="feature-title">拖拽自由</h3>
+                <p class="feature-desc">标签可拖拽到页面任意位置，支持精确定位和批量排列</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">⚙️</div>
+                <h3 class="feature-title">智能配置</h3>
+                <p class="feature-desc">支持网站黑名单、快捷键、触发器显隐等个性化设置</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">💾</div>
+                <h3 class="feature-title">数据同步</h3>
+                <p class="feature-desc">标签数据跨网站同步，支持导入导出和备份恢复</p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">⌨️</div>
+                <h3 class="feature-title">快捷操作</h3>
+                <p class="feature-desc">支持Ctrl+B快捷键添加标签，右键菜单快速管理</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="usage-section">
+        <div class="usage-card">
+            <h2 class="usage-title">🚀 使用指南</h2>
+            <div class="usage-steps">
+                <div class="usage-step">
+                    <h4>安装油猴插件</h4>
+                    <p>在浏览器中安装 Tampermonkey 或 Greasemonkey 等油猴插件</p>
+                </div>
+                
+                <div class="usage-step">
+                    <h4>安装脚本</h4>
+                    <p>点击上方"安装脚本"按钮，在弹出页面点击"安装"确认</p>
+                </div>
+                
+                <div class="usage-step">
+                    <h4>开始使用</h4>
+                    <p>访问任意网站，点击左上角蓝色区域或按 Ctrl+B 添加标签</p>
+                </div>
+                
+                <div class="usage-step">
+                    <h4>管理标签</h4>
+                    <p>长按标签（移动端）或右键点击（PC端）打开菜单进行管理</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <div class="footer-links">
+            <a href="manager.html" class="footer-link">📊 标签管理器</a>
+            <a href="https://github.com/your-username/simplebookmark" class="footer-link" target="_blank">📁 GitHub 源码</a>
+            <a href="https://greasyfork.org/scripts/xxxxx" class="footer-link" target="_blank">🌟 Greasyfork</a>
+        </div>
+        <p>© 2025 SimpleBookmark. All rights reserved.</p>
+    </div>
+</body>
+</html>
