@@ -4,9 +4,9 @@
 
 ## 🚀 在线体验
 
-- **主页安装**：[https://your-username.github.io/simplebookmark/](https://your-username.github.io/simplebookmark/)
-- **直接安装**：[https://your-username.github.io/simplebookmark/SimpleBookmark.user.js](https://your-username.github.io/simplebookmark/SimpleBookmark.user.js)
-- **标签管理器**：[https://your-username.github.io/simplebookmark/manager.html](https://your-username.github.io/simplebookmark/manager.html)
+- **主页安装**：[https://unixliang.github.io/simplebookmark/](https://unixliang.github.io/simplebookmark/)
+- **直接安装**：[https://unixliang.github.io/simplebookmark/SimpleBookmark.user.js](https://unixliang.github.io/simplebookmark/SimpleBookmark.user.js)
+- **标签管理器**：[https://unixliang.github.io/simplebookmark/manager.html](https://unixliang.github.io/simplebookmark/manager.html)
 
 ## ✨ 核心功能
 
@@ -42,7 +42,7 @@
    - Safari: [App Store](https://apps.apple.com/app/tampermonkey/id1482490089)
 
 2. **安装脚本**
-   - 访问：[https://your-username.github.io/simplebookmark/](https://your-username.github.io/simplebookmark/)
+   - 访问：[https://unixliang.github.io/simplebookmark/](https://unixliang.github.io/simplebookmark/)
    - 点击"🚀 安装脚本"按钮
    - 在弹出页面点击"安装"确认
 
@@ -55,7 +55,7 @@
 
 1. **克隆项目**
    ```bash
-   git clone https://github.com/your-username/simplebookmark.git
+   git clone https://github.com/unixliang/simplebookmark.git
    cd simplebookmark
    ```
 
@@ -83,11 +83,11 @@
    ```
 
 2. **修改URL配置**
-   - 编辑 `bookmarklet.html` 中的 `your-username` 为你的GitHub用户名
+   - 编辑相关文件中的用户名为你的GitHub用户名
    - 编辑 `README.md` 中的链接地址
 
 3. **访问在线版本**
-   - 访问：`https://your-username.github.io/simplebookmark/`
+   - 访问：`https://unixliang.github.io/simplebookmark/`
 
 ## 📱 使用指南
 
@@ -201,9 +201,9 @@ simplebookmark/
 
 ## 📥 安装渠道
 
-- **GitHub**: [https://github.com/your-username/simplebookmark](https://github.com/your-username/simplebookmark)
+- **GitHub**: [https://github.com/unixliang/simplebookmark](https://github.com/unixliang/simplebookmark)
 - **Greasyfork**: [https://greasyfork.org/scripts/xxxxx](https://greasyfork.org/scripts/xxxxx)
-- **项目主页**: [https://your-username.github.io/simplebookmark/](https://your-username.github.io/simplebookmark/)
+- **项目主页**: [https://unixliang.github.io/simplebookmark/](https://unixliang.github.io/simplebookmark/)
 
 ## 🔮 未来计划
 
@@ -239,8 +239,8 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 ## 📞 支持与反馈
 
 如有问题或建议，请通过以下方式联系：
-- **Issues**: [GitHub Issues](https://github.com/your-username/simplebookmark/issues)
-- **讨论**: [GitHub Discussions](https://github.com/your-username/simplebookmark/discussions)
+- **Issues**: [GitHub Issues](https://github.com/unixliang/simplebookmark/issues)
+- **讨论**: [GitHub Discussions](https://github.com/unixliang/simplebookmark/discussions)
 - **邮箱**: your-email@example.com
 
 ## 🏆 致谢

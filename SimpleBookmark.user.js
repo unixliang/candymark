@@ -14,7 +14,7 @@
 // @license      MIT
 // @homepageURL  https://github.com/unixliang/simplebookmark
 // @supportURL   https://github.com/unixliang/simplebookmark/issues
-// @updateURL    https://unixliang.github.io/gbf-bookmark/gbf-bookmark.user.js
+// @updateURL    https://unixliang.github.io/simplebookmark/SimpleBookmark.user.js
 // ==/UserScript==
 
 (function() {
