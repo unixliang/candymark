@@ -1,35 +1,81 @@
 // ==UserScript==
 // @name         SimpleBookmark - 移动端标签导航
-// @name:en      SimpleBookmark - Mobile Tag Navigator
 // @namespace    https://github.com/unixliang/simplebookmark
-// @version      1.0.7
+// @version      2.0.0
 // @description  移动端网页标签导航工具，支持悬浮标签、拖拽移动、本地存储等功能
-// @description:en Mobile web bookmark navigator with floating tags, drag & drop, local storage
-// @author       Your Name
+// @author       unixliang
 // @match        *://game.granbluefantasy.jp/*
 // @match        *://gbf.game.mbga.jp/*
-// @grant        GM_setValue
-// @grant        GM_getValue
-// @grant        GM_registerMenuCommand
-// @license      MIT
-// @homepageURL  https://github.com/unixliang/simplebookmark
+// @run-at       document-start
+// @updateURL    https://unixliang.github.io/simplebookmark/simplebookmark.js
 // @supportURL   https://github.com/unixliang/simplebookmark/issues
-// @updateURL    https://unixliang.github.io/simplebookmark/SimpleBookmark.user.js
 // ==/UserScript==
-
 (function() {
     'use strict';
+
+    // 避免重复执行
+    if (window.SimpleBookmarkLoaded) return;
+    window.SimpleBookmarkLoaded = true;
     
-    // 配置选项
-    const CONFIG = {
-        enabled: GM_getValue('sb_enabled', true),
-        showTrigger: GM_getValue('sb_show_trigger', true),
-        triggerPosition: GM_getValue('sb_trigger_position', 'top-left'),
-        maxBookmarks: GM_getValue('sb_max_bookmarks', 20),
-        shortcutKey: GM_getValue('sb_shortcut_key', 'KeyB'),
-        blacklist: GM_getValue('sb_blacklist', ['greasyfork.org', 'github.com']),
-        autoHideTrigger: GM_getValue('sb_auto_hide_trigger', true)
+
+    // localStorage 存储工具函数
+    const storage = {
+        setValue: (key, value) => {
+            try {
+                return localStorage.setItem(key, value);
+            } catch (error) {
+                return false;
+            }
+        },
+        
+        getValue: (key, defaultValue = null) => {
+            try {
+                const value = localStorage.getItem(key);
+                return value !== null ? value : defaultValue;
+            } catch (error) {
+                return defaultValue;
+            }
+        },
+        
+        removeValue: (key) => {
+            try {
+                return localStorage.removeItem(key);
+            } catch (error) {
+                return false;
+            }
+        },
+        
+        getAllKeys: () => {
+            try {
+                return Object.keys(localStorage).filter(key => key.startsWith('sb_'));
+            } catch (error) {
+                return [];
+            }
+        }
     };
+    
+    // 配置选项 - 支持动态加载
+    const loadConfig = () => {
+        let blacklist;
+        try {
+            blacklist = JSON.parse(storage.getValue('sb_blacklist', '["greasyfork.org", "github.com"]'));
+        } catch (e) {
+            blacklist = ['greasyfork.org', 'github.com'];
+        }
+        
+        return {
+            enabled: storage.getValue('sb_enabled', 'true') === 'true',
+            showTrigger: storage.getValue('sb_show_trigger', 'true') === 'true',
+            triggerPosition: storage.getValue('sb_trigger_position', 'top-left'),
+            maxBookmarks: parseInt(storage.getValue('sb_max_bookmarks', '20')),
+            shortcutKey: storage.getValue('sb_shortcut_key', 'KeyB'),
+            blacklist: blacklist,
+            autoHideTrigger: storage.getValue('sb_auto_hide_trigger', 'true') === 'true'
+        };
+    };
+    
+    const CONFIG = loadConfig();
+
     
     // 检查是否在黑名单中
     function isBlacklisted() {
@@ -404,16 +450,19 @@
     style.textContent = CSS;
     document.head.appendChild(style);
     
+
+
     // 创建HTML结构
     const container = document.createElement('div');
     container.id = 'sb-container';
     container.innerHTML = `
-        <div id="sb-trigger" title="点击添加标签 (${CONFIG.shortcutKey.replace('Key', 'Ctrl+')})"></div>
+        <div id="sb-trigger" title="点击添加标签 (${CONFIG.shortcutKey.replace('Key', 'Ctrl+')})
+双击打开设置"></div>
         <div id="sb-menu">
-            <div class="sb-menu-item" data-action="drag">🖱️ 拖拽移动</div>
-            <div class="sb-menu-item" data-action="set-url">🔗 设置当前页面</div>
-            <div class="sb-menu-item" data-action="edit">✏️ 修改名称</div>
-            <div class="sb-menu-item" data-action="delete">🗑️ 删除标签</div>
+            <div class="sb-menu-item" data-action="drag">拖拽移动</div>
+            <div class="sb-menu-item" data-action="set-url">设置当前页面</div>
+            <div class="sb-menu-item" data-action="edit">修改名称</div>
+            <div class="sb-menu-item" data-action="delete">删除标签</div>
         </div>
         <div id="sb-add-modal" class="sb-modal">
             <div class="sb-modal-content">
@@ -456,17 +505,40 @@
             <div style="margin-top: 15px; text-align: center;">
                 <button class="sb-btn-primary" id="sb-save-settings">保存设置</button>
             </div>
+            <div style="margin-top: 10px; text-align: center; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="sb-btn-secondary" id="sb-export-data" style="flex: 1; min-width: 80px;">导出数据</button>
+                <button class="sb-btn-secondary" id="sb-clear-all" style="flex: 1; min-width: 80px;">清空标签</button>
+            </div>
         </div>
     `;
     
-    document.body.appendChild(container);
+    // 确保body存在后再添加容器
+    const appendContainer = () => {
+        if (document.body) {
+            document.body.appendChild(container);
+        } else {
+            // 等待body创建
+            const observer = new MutationObserver((mutations, obs) => {
+                if (document.body) {
+                    obs.disconnect();
+                    document.body.appendChild(container);
+                }
+            });
+            observer.observe(document.documentElement, { childList: true });
+        }
+    };
     
+    appendContainer();
+    
+
     // 标签管理器类
     class SimpleBookmarkManager {
         constructor() {
+
+            
             this.bookmarks = [];
             this.currentBookmarkId = null;
-            this.storageKey = 'simple-bookmarks-userscript';
+            this.storageKey = 'simple-bookmarks-javascript';
             this.isContextMenuOpen = false;
             this.touchStartTime = 0;
             this.longPressTimeout = null;
@@ -501,29 +573,33 @@
         }
         
         registerMenuCommands() {
-            GM_registerMenuCommand('打开设置面板', () => {
-                this.toggleSettings();
-            });
-            
-            GM_registerMenuCommand('清空所有标签', () => {
-                if (confirm('确定要清空所有标签吗？此操作不可撤销！')) {
-                    this.bookmarks = [];
-                    this.saveBookmarks(true); // 立即保存
-                    this.renderBookmarks(true); // 强制完全重新渲染
-                    this.updateTriggerVisibility();
-                }
-            });
-            
-            GM_registerMenuCommand('导出标签数据', () => {
-                const data = JSON.stringify(this.bookmarks, null, 2);
-                const blob = new Blob([data], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'simplebookmark-data.json';
-                a.click();
-                URL.revokeObjectURL(url);
-            });
+            // 为非油猴环境创建替代菜单
+            this.createAlternativeMenu();
+        }
+        
+        // 创建替代菜单访问方式
+        createAlternativeMenu() {
+            // 添加双击触发器显示设置的功能
+            const trigger = document.getElementById('sb-trigger');
+            if (trigger) {
+                trigger.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    this.toggleSettings();
+                });
+                trigger.title += '\n双击打开设置';
+            }
+        }
+        
+        // 导出标签数据
+        exportBookmarks() {
+            const data = JSON.stringify(this.bookmarks, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'simplebookmark-data.json';
+            a.click();
+            URL.revokeObjectURL(url);
         }
         
         bindEvents() {
@@ -579,6 +655,20 @@
                 this.saveSettings();
             });
             
+            document.getElementById('sb-export-data').addEventListener('click', () => {
+                this.exportBookmarks();
+            });
+            
+            document.getElementById('sb-clear-all').addEventListener('click', () => {
+                if (confirm('确定要清空所有标签吗？此操作不可撤销！')) {
+                    this.bookmarks = [];
+                    this.saveBookmarks(true);
+                    this.renderBookmarks(true);
+                    this.updateTriggerVisibility();
+                    this.hideSettings();
+                }
+            });
+            
             // 全局点击关闭菜单
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('#sb-menu') && !e.target.closest('#sb-settings-panel')) {
@@ -601,6 +691,11 @@
             container.addEventListener('click', (e) => {
                 const bookmark = e.target.closest('.sb-bookmark');
                 if (bookmark && !this.isContextMenuOpen) {
+                    // 如果元素有onclick属性，让onclick自己处理
+                    if (bookmark.hasAttribute('onclick')) {
+                        return; // 不阻止事件，让onclick执行
+                    }
+                    
                     e.stopPropagation();
                     const url = bookmark.getAttribute('data-bookmark-url');
                     this.handleBookmarkClick(url);
@@ -635,6 +730,11 @@
                     const touchDuration = Date.now() - this.touchStartTime;
                     
                     if (touchDuration < 1000 && !this.isContextMenuOpen) {
+                        // 如果元素有onclick属性，让onclick自己处理
+                        if (bookmark.hasAttribute('onclick')) {
+                            return; // 不阻止事件，让onclick执行
+                        }
+                        
                         const url = bookmark.getAttribute('data-bookmark-url');
                         this.handleBookmarkClick(url);
                     }
@@ -650,11 +750,9 @@
         }
         
         handleBookmarkClick(url) {
-            if (url === 'back') {
-                window.history.back();
-            } else {
-                window.location.href = url;
-            }
+            // 特殊URL（back, reload等）已通过onclick属性处理
+            // 这里只处理普通URL
+            window.location.href = url;
         }
         
         showTrigger() {
@@ -691,9 +789,9 @@
             const maxBookmarks = parseInt(document.getElementById('sb-setting-max').value);
             const autoHide = document.getElementById('sb-setting-auto-hide').checked;
             
-            GM_setValue('sb_show_trigger', showTrigger);
-            GM_setValue('sb_max_bookmarks', maxBookmarks);
-            GM_setValue('sb_auto_hide_trigger', autoHide);
+            storage.setValue('sb_show_trigger', showTrigger.toString());
+            storage.setValue('sb_max_bookmarks', maxBookmarks.toString());
+            storage.setValue('sb_auto_hide_trigger', autoHide.toString());
             
             CONFIG.showTrigger = showTrigger;
             CONFIG.maxBookmarks = maxBookmarks;
@@ -1172,6 +1270,18 @@
             }
             if (element.getAttribute('data-bookmark-url') !== bookmark.url) {
                 element.setAttribute('data-bookmark-url', bookmark.url);
+                
+                // 更新onclick属性
+                if (bookmark.url === 'back') {
+                    element.setAttribute('onclick', 'history.back()');
+                    element.style.cursor = 'pointer';
+                } else if (bookmark.url === 'reload') {
+                    element.setAttribute('onclick', 'location.reload()');
+                    element.style.cursor = 'pointer';
+                } else {
+                    element.removeAttribute('onclick');
+                    element.style.cursor = '';
+                }
             }
         }
         
@@ -1185,6 +1295,15 @@
             element.textContent = bookmark.name;
             element.title = `${bookmark.name}\n${bookmark.url}`;
             
+            // 为特殊URL设置直接的onclick处理
+            if (bookmark.url === 'back') {
+                element.setAttribute('onclick', 'history.back()');
+                element.style.cursor = 'pointer';
+            } else if (bookmark.url === 'reload') {
+                element.setAttribute('onclick', 'location.reload()');
+                element.style.cursor = 'pointer';
+            }
+            
             return element;
         }
         
@@ -1195,7 +1314,7 @@
                     clearTimeout(this.saveTimeout);
                     this.saveTimeout = null;
                 }
-                GM_setValue(this.storageKey, JSON.stringify(this.bookmarks));
+                localStorage.setItem(this.storageKey, JSON.stringify(this.bookmarks));
                 this.pendingSave = false;
             } else {
                 // 防抖保存
@@ -1205,7 +1324,7 @@
                 }
                 this.saveTimeout = setTimeout(() => {
                     if (this.pendingSave) {
-                        GM_setValue(this.storageKey, JSON.stringify(this.bookmarks));
+                        localStorage.setItem(this.storageKey, JSON.stringify(this.bookmarks));
                         this.pendingSave = false;
                     }
                     this.saveTimeout = null;
@@ -1214,7 +1333,7 @@
         }
         
         loadBookmarks() {
-            const saved = GM_getValue(this.storageKey, '[]');
+            const saved = localStorage.getItem(this.storageKey) || '[]';
             try {
                 this.bookmarks = JSON.parse(saved);
             } catch (e) {
@@ -1223,13 +1342,27 @@
         }
     }
     
-    // 等待页面加载完成后初始化
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            new SimpleBookmarkManager();
-        });
-    } else {
+
+    // 主函数 - 确保DOM就绪后执行
+    function main() {
+        
+        // 确保容器已添加到DOM
+        if (!document.getElementById('sb-container')) {
+            if (document.body) {
+                document.body.appendChild(container);
+            } else {
+                return; // body不存在就不继续
+            }
+        }
+        
         new SimpleBookmarkManager();
+    }
+    
+    // 等待页面加载完成后初始化
+    if (document.readyState != 'loading') {
+        main();
+    } else {
+        document.addEventListener('DOMContentLoaded', main);
     }
     
     
