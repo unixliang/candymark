@@ -377,6 +377,29 @@
             transform: translateZ(0);
             will-change: transform;
         }
+        
+        /* 性能优化CSS类 */
+        .sb-bookmark--dragging-prep {
+            cursor: grab !important;
+            will-change: transform, left, top;
+        }
+        
+        .sb-bookmark--dragging-active {
+            cursor: grabbing !important;
+            transform: scale(1.05) !important;
+            z-index: 999997 !important;
+            transition: none !important;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3) !important;
+        }
+        
+        .sb-bookmark--updating {
+            transition: all 0.2s ease;
+        }
+        
+        .sb-bookmark--hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
     `;
     
     // 创建样式表
@@ -452,6 +475,22 @@
             this.longPressTimeout = null;
             this.hasBookmarks = false;
             
+            // 预绑定拖拽事件处理函数以避免重复创建
+            this.boundDragHandlers = {
+                mouseDown: null,
+                mouseMove: null,
+                mouseUp: null,
+                touchStart: null,
+                touchMove: null,
+                touchEnd: null,
+                outsideClick: null,
+                keyDown: null
+            };
+            
+            // 防抖存储
+            this.saveTimeout = null;
+            this.pendingSave = false;
+            
             this.init();
         }
         
@@ -472,8 +511,8 @@
             GM_registerMenuCommand('清空所有标签', () => {
                 if (confirm('确定要清空所有标签吗？此操作不可撤销！')) {
                     this.bookmarks = [];
-                    this.saveBookmarks();
-                    this.renderBookmarks();
+                    this.saveBookmarks(true); // 立即保存
+                    this.renderBookmarks(true); // 强制完全重新渲染
                     this.updateTriggerVisibility();
                 }
             });
@@ -551,7 +590,74 @@
                 }
             });
             
+            // 标签事件委托
+            this.setupBookmarkEventDelegation();
+            
             // 自动隐藏触发器功能已禁用
+        }
+        
+        setupBookmarkEventDelegation() {
+            const container = document.getElementById('sb-container');
+            let touchTimer;
+            
+            // 统一的点击处理
+            container.addEventListener('click', (e) => {
+                const bookmark = e.target.closest('.sb-bookmark');
+                if (bookmark && !this.isContextMenuOpen) {
+                    e.stopPropagation();
+                    const url = bookmark.getAttribute('data-bookmark-url');
+                    this.handleBookmarkClick(url);
+                }
+            });
+            
+            // 统一的右键菜单处理
+            container.addEventListener('contextmenu', (e) => {
+                const bookmark = e.target.closest('.sb-bookmark');
+                if (bookmark) {
+                    const id = bookmark.getAttribute('data-bookmark-id');
+                    this.showMenu(e, parseInt(id));
+                }
+            });
+            
+            // 统一的触摸事件处理
+            container.addEventListener('touchstart', (e) => {
+                const bookmark = e.target.closest('.sb-bookmark');
+                if (bookmark) {
+                    this.touchStartTime = Date.now();
+                    const id = bookmark.getAttribute('data-bookmark-id');
+                    touchTimer = setTimeout(() => {
+                        this.showMenu(e, parseInt(id));
+                    }, 500);
+                }
+            });
+            
+            container.addEventListener('touchend', (e) => {
+                const bookmark = e.target.closest('.sb-bookmark');
+                if (bookmark && touchTimer) {
+                    clearTimeout(touchTimer);
+                    const touchDuration = Date.now() - this.touchStartTime;
+                    
+                    if (touchDuration < 500 && !this.isContextMenuOpen) {
+                        const url = bookmark.getAttribute('data-bookmark-url');
+                        this.handleBookmarkClick(url);
+                    }
+                }
+            });
+            
+            container.addEventListener('touchmove', () => {
+                if (touchTimer) {
+                    clearTimeout(touchTimer);
+                    touchTimer = null;
+                }
+            });
+        }
+        
+        handleBookmarkClick(url) {
+            if (url === 'back') {
+                window.history.back();
+            } else {
+                window.location.href = url;
+            }
         }
         
         showTrigger() {
@@ -710,7 +816,7 @@
             };
             
             this.bookmarks.push(bookmark);
-            this.saveBookmarks();
+            this.saveBookmarks(true); // 新增标签立即保存
             this.renderBookmarks();
             this.hideAddModal();
             this.updateTriggerVisibility();
@@ -747,7 +853,7 @@
                 }
                 
                 this.bookmarks = this.bookmarks.filter(b => b.id !== this.currentBookmarkId);
-                this.saveBookmarks();
+                this.saveBookmarks(true); // 删除标签立即保存
                 this.renderBookmarks();
                 this.updateTriggerVisibility();
             }
@@ -772,13 +878,21 @@
         
         enableDrag(element) {
             // 进入拖拽模式
-            element.classList.add('dragging');
-            element.style.cursor = 'grab';
+            element.classList.add('dragging', 'sb-bookmark--dragging-prep');
             
-            // 创建一个视觉提示，表明原始位置
-            const originalPos = document.createElement('div');
-            originalPos.className = 'sb-bookmark-ghost';
-            originalPos.style.cssText = `
+            // 创建拖拽状态对象
+            const dragState = {
+                element: element,
+                isDragging: false,
+                dragOffset: { x: 0, y: 0 },
+                originalPos: null,
+                hint: document.getElementById('sb-drag-hint')
+            };
+            
+            // 创建原始位置指示器
+            dragState.originalPos = document.createElement('div');
+            dragState.originalPos.className = 'sb-bookmark-ghost';
+            dragState.originalPos.style.cssText = `
                 position: absolute;
                 left: ${element.style.left};
                 top: ${element.style.top};
@@ -790,261 +904,192 @@
                 pointer-events: none;
                 z-index: 999996;
             `;
-            document.getElementById('sb-container').appendChild(originalPos);
+            document.getElementById('sb-container').appendChild(dragState.originalPos);
+            dragState.hint.classList.add('show');
             
-            const hint = document.getElementById('sb-drag-hint');
-            hint.classList.add('show');
-            
-            let isDragging = false;
-            let dragOffset = { x: 0, y: 0 };
-            let originalClickHandler = null;
+            // 创建并绑定预优化的事件处理函数
+            this.createDragHandlers(dragState);
+            this.bindDragEvents(dragState);
+        }
+        
+        createDragHandlers(dragState) {
+            const { element } = dragState;
             
             // 暂时禁用标签的点击事件
-            const disableClick = (e) => {
+            this.boundDragHandlers.disableClick = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 return false;
             };
             
-            // 禁用原有的点击功能
-            element.style.pointerEvents = 'auto';
-            element.addEventListener('click', disableClick, true);
-            
-            // 鼠标按下开始拖拽 - 直接绑定到标签元素
-            const onElementMouseDown = (e) => {
+            this.boundDragHandlers.mouseDown = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                isDragging = true;
+                dragState.isDragging = true;
                 
                 const rect = element.getBoundingClientRect();
-                dragOffset.x = e.clientX - rect.left;
-                dragOffset.y = e.clientY - rect.top;
+                dragState.dragOffset.x = e.clientX - rect.left;
+                dragState.dragOffset.y = e.clientY - rect.top;
                 
-                element.style.cursor = 'grabbing';
+                element.classList.add('sb-bookmark--dragging-active');
                 document.body.style.userSelect = 'none';
                 document.body.style.cursor = 'grabbing';
             };
             
-            // 全局鼠标移动事件
-            const onDocumentMouseMove = (e) => {
-                if (isDragging) {
+            this.boundDragHandlers.mouseMove = (e) => {
+                if (dragState.isDragging) {
                     e.preventDefault();
-                    const x = e.clientX - dragOffset.x;
-                    const y = e.clientY - dragOffset.y;
-                    
-                    const maxX = window.innerWidth - element.offsetWidth;
-                    const maxY = window.innerHeight - element.offsetHeight;
-                    
-                    element.style.left = `${Math.max(0, Math.min(x, maxX))}px`;
-                    element.style.top = `${Math.max(0, Math.min(y, maxY))}px`;
+                    this.updateElementPosition(element, e.clientX, e.clientY, dragState.dragOffset);
                 }
             };
             
-            // 全局鼠标松开事件
-            const onDocumentMouseUp = (e) => {
-                if (isDragging) {
-                    isDragging = false;
-                    
-                    // 立即清除拖拽样式并强制重排
-                    element.style.cursor = 'grab';
-                    element.style.transform = 'none'; // 完全清除transform
-                    element.style.opacity = '1';
-                    element.style.transition = 'none'; // 暂时禁用过渡效果
-                    
-                    // 强制重排以清除合成层缓存
-                    element.offsetHeight;
-                    
-                    // 重新启用过渡效果
-                    element.style.transition = 'all 0.2s ease';
-                    
-                    document.body.style.userSelect = '';
-                    document.body.style.cursor = '';
-                    
-                    // 保存位置
-                    const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
-                    if (bookmark) {
-                        bookmark.x = parseInt(element.style.left);
-                        bookmark.y = parseInt(element.style.top);
-                        this.saveBookmarks();
-                        
-                        // 强制清除合成层缓存
-                        element.style.willChange = 'auto';
-                        element.offsetHeight; // 触发重排
-                        element.style.willChange = 'transform';
-                    }
+            this.boundDragHandlers.mouseUp = (e) => {
+                if (dragState.isDragging) {
+                    dragState.isDragging = false;
+                    this.finalizeDragPosition(element);
                 }
             };
             
-            // 触摸事件处理
-            const onElementTouchStart = (e) => {
+            this.boundDragHandlers.touchStart = (e) => {
                 e.preventDefault();
                 const touch = e.touches[0];
-                isDragging = true;
+                dragState.isDragging = true;
                 
                 const rect = element.getBoundingClientRect();
-                dragOffset.x = touch.clientX - rect.left;
-                dragOffset.y = touch.clientY - rect.top;
+                dragState.dragOffset.x = touch.clientX - rect.left;
+                dragState.dragOffset.y = touch.clientY - rect.top;
             };
             
-            const onDocumentTouchMove = (e) => {
-                if (isDragging) {
+            this.boundDragHandlers.touchMove = (e) => {
+                if (dragState.isDragging) {
                     e.preventDefault();
                     const touch = e.touches[0];
-                    const x = touch.clientX - dragOffset.x;
-                    const y = touch.clientY - dragOffset.y;
-                    
-                    const maxX = window.innerWidth - element.offsetWidth;
-                    const maxY = window.innerHeight - element.offsetHeight;
-                    
-                    element.style.left = `${Math.max(0, Math.min(x, maxX))}px`;
-                    element.style.top = `${Math.max(0, Math.min(y, maxY))}px`;
+                    this.updateElementPosition(element, touch.clientX, touch.clientY, dragState.dragOffset);
                 }
             };
             
-            const onDocumentTouchEnd = (e) => {
-                if (isDragging) {
-                    isDragging = false;
-                    
-                    // 立即清除拖拽样式并强制重排
-                    element.style.transform = 'none'; // 完全清除transform
-                    element.style.opacity = '1';
-                    element.style.transition = 'none'; // 暂时禁用过渡效果
-                    
-                    // 强制重排以清除合成层缓存
-                    element.offsetHeight;
-                    
-                    // 重新启用过渡效果
-                    element.style.transition = 'all 0.2s ease';
-                    
-                    // 保存位置
-                    const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
-                    if (bookmark) {
-                        bookmark.x = parseInt(element.style.left);
-                        bookmark.y = parseInt(element.style.top);
-                        this.saveBookmarks();
-                        
-                        // 强制清除合成层缓存
-                        element.style.willChange = 'auto';
-                        element.offsetHeight; // 触发重排
-                        element.style.willChange = 'transform';
-                    }
+            this.boundDragHandlers.touchEnd = (e) => {
+                if (dragState.isDragging) {
+                    dragState.isDragging = false;
+                    this.finalizeDragPosition(element);
                 }
             };
             
-            // 退出拖拽模式
-            const exitDragMode = () => {
-                isDragging = false;
-                
-                // 强制清除所有拖拽相关样式
-                element.classList.remove('dragging');
-                element.style.cursor = 'pointer';
-                element.style.transform = ''; // 清除transform
-                element.style.opacity = ''; // 恢复透明度
-                element.style.zIndex = ''; // 恢复层级
-                element.style.transition = ''; // 恢复过渡效果
-                element.style.boxShadow = ''; // 恢复阴影
-                
-                // 清除原始位置提示
-                const ghost = document.querySelector('.sb-bookmark-ghost');
-                if (ghost) {
-                    ghost.remove();
-                }
-                
-                hint.classList.remove('show');
-                document.body.style.userSelect = '';
-                document.body.style.cursor = '';
-                
-                // 恢复标签的点击功能
-                element.removeEventListener('click', disableClick, true);
-                element.style.pointerEvents = '';
-                
-                // 移除所有事件监听器
-                element.removeEventListener('mousedown', onElementMouseDown);
-                element.removeEventListener('touchstart', onElementTouchStart);
-                document.removeEventListener('mousemove', onDocumentMouseMove);
-                document.removeEventListener('mouseup', onDocumentMouseUp);
-                document.removeEventListener('touchmove', onDocumentTouchMove);
-                document.removeEventListener('touchend', onDocumentTouchEnd);
-                document.removeEventListener('click', onOutsideClick);
-                document.removeEventListener('keydown', onKeyDown);
-                
-                // 强制重绘，确保视觉更新
-                element.offsetHeight; // 触发重排
-            };
-            
-            // 点击其他地方退出拖拽模式
-            const onOutsideClick = (e) => {
-                if (!element.contains(e.target) && !hint.contains(e.target)) {
-                    exitDragMode();
+            this.boundDragHandlers.outsideClick = (e) => {
+                if (!element.contains(e.target) && !dragState.hint.contains(e.target)) {
+                    this.exitDragMode(dragState);
                 }
             };
             
-            // 按ESC键退出拖拽模式
-            const onKeyDown = (e) => {
+            this.boundDragHandlers.keyDown = (e) => {
                 if (e.key === 'Escape') {
-                    exitDragMode();
+                    this.exitDragMode(dragState);
                 }
             };
-            
-            // 绑定事件监听器
-            element.addEventListener('mousedown', onElementMouseDown);
-            element.addEventListener('touchstart', onElementTouchStart, { passive: false });
-            document.addEventListener('mousemove', onDocumentMouseMove);
-            document.addEventListener('mouseup', onDocumentMouseUp);
-            document.addEventListener('touchmove', onDocumentTouchMove, { passive: false });
-            document.addEventListener('touchend', onDocumentTouchEnd);
-            
-            // 延迟添加退出事件，避免立即触发
-            setTimeout(() => {
-                document.addEventListener('click', onOutsideClick);
-                document.addEventListener('keydown', onKeyDown);
-            }, 300);
-            
         }
         
-        renderBookmarks() {
+        updateElementPosition(element, clientX, clientY, dragOffset) {
+            const x = clientX - dragOffset.x;
+            const y = clientY - dragOffset.y;
+            
+            const maxX = window.innerWidth - element.offsetWidth;
+            const maxY = window.innerHeight - element.offsetHeight;
+            
+            element.style.left = `${Math.max(0, Math.min(x, maxX))}px`;
+            element.style.top = `${Math.max(0, Math.min(y, maxY))}px`;
+        }
+        
+        finalizeDragPosition(element) {
+            // 使用CSS类优化样式切换
+            element.classList.remove('sb-bookmark--dragging-active');
+            element.classList.add('sb-bookmark--updating');
+            
+            // 单次重排
+            element.offsetHeight;
+            
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            
+            // 保存位置
+            const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
+            if (bookmark) {
+                bookmark.x = parseInt(element.style.left);
+                bookmark.y = parseInt(element.style.top);
+                this.saveBookmarks();
+            }
+        }
+        
+        bindDragEvents(dragState) {
+            const { element } = dragState;
+            
+            // 禁用原有的点击功能
+            element.style.pointerEvents = 'auto';
+            element.addEventListener('click', this.boundDragHandlers.disableClick, true);
+            
+            // 绑定拖拽事件
+            element.addEventListener('mousedown', this.boundDragHandlers.mouseDown);
+            element.addEventListener('touchstart', this.boundDragHandlers.touchStart, { passive: false });
+            document.addEventListener('mousemove', this.boundDragHandlers.mouseMove);
+            document.addEventListener('mouseup', this.boundDragHandlers.mouseUp);
+            document.addEventListener('touchmove', this.boundDragHandlers.touchMove, { passive: false });
+            document.addEventListener('touchend', this.boundDragHandlers.touchEnd);
+            
+            // 延迟添加退出事件
+            setTimeout(() => {
+                document.addEventListener('click', this.boundDragHandlers.outsideClick);
+                document.addEventListener('keydown', this.boundDragHandlers.keyDown);
+            }, 300);
+        }
+        
+        exitDragMode(dragState) {
+            const { element, originalPos, hint } = dragState;
+            
+            // 使用CSS类批量清除拖拽样式
+            element.classList.remove('dragging', 'sb-bookmark--dragging-prep', 'sb-bookmark--dragging-active', 'sb-bookmark--updating');
+            
+            // 清理UI元素
+            if (originalPos) originalPos.remove();
+            hint.classList.remove('show');
+            
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            
+            // 恢复标签点击功能
+            element.removeEventListener('click', this.boundDragHandlers.disableClick, true);
+            element.style.pointerEvents = '';
+            
+            // 移除所有事件监听器
+            this.unbindDragEvents(element);
+            
+            // 强制重绘
+            element.offsetHeight;
+        }
+        
+        unbindDragEvents(element) {
+            element.removeEventListener('mousedown', this.boundDragHandlers.mouseDown);
+            element.removeEventListener('touchstart', this.boundDragHandlers.touchStart);
+            document.removeEventListener('mousemove', this.boundDragHandlers.mouseMove);
+            document.removeEventListener('mouseup', this.boundDragHandlers.mouseUp);
+            document.removeEventListener('touchmove', this.boundDragHandlers.touchMove);
+            document.removeEventListener('touchend', this.boundDragHandlers.touchEnd);
+            document.removeEventListener('click', this.boundDragHandlers.outsideClick);
+            document.removeEventListener('keydown', this.boundDragHandlers.keyDown);
+        }
+        
+        renderBookmarks(forceFullRender = false) {
             const container = document.getElementById('sb-container');
             
-            // 安全清理：只删除标签元素，保留其他UI
-            const existing = document.querySelectorAll('.sb-bookmark');
-            existing.forEach(item => {
-                // 强制清除硬件加速属性
-                item.style.willChange = 'auto';
-                item.style.transform = 'none';
-                item.style.opacity = '0'; // 先隐藏
-                item.offsetHeight; // 强制重排
-                
-                // 清除所有样式
-                item.style.cssText = '';
-                item.classList.remove('dragging');
-                item.remove();
-            });
-            
-            // 二次清理：查找任何可能遗漏的标签元素
-            const allDivs = container.querySelectorAll('div');
-            allDivs.forEach(div => {
-                if (div.classList && div.classList.contains('sb-bookmark')) {
-                    // 同样的清理过程
-                    div.style.willChange = 'auto';
-                    div.style.transform = 'none';
-                    div.style.opacity = '0';
-                    div.offsetHeight;
-                    div.remove();
-                }
-            });
-            
-            // 强制清除容器的合成层缓存
-            container.style.willChange = 'auto';
-            container.style.transform = 'none';
-            container.offsetHeight; // 强制重排
-            container.style.willChange = 'transform';
-            container.style.transform = 'translateZ(0)';
-            
-            // 渲染新标签
-            this.bookmarks.forEach(bookmark => {
-                const element = this.createBookmarkElement(bookmark);
-                container.appendChild(element);
-            });
+            if (forceFullRender) {
+                // 完全重新渲染（仅在必要时使用）
+                this.clearAllBookmarks(container);
+                this.bookmarks.forEach(bookmark => {
+                    const element = this.createBookmarkElement(bookmark);
+                    container.appendChild(element);
+                });
+            } else {
+                // 增量更新（默认模式）
+                this.updateBookmarksIncremental(container);
+            }
             
             // 验证关键UI元素是否还存在
             const menu = document.getElementById('sb-menu');
@@ -1055,63 +1100,120 @@
             }
         }
         
+        clearAllBookmarks(container) {
+            // 批量清理所有标签元素
+            const existing = container.querySelectorAll('.sb-bookmark');
+            if (existing.length === 0) return;
+            
+            // 批量应用清理样式
+            existing.forEach(item => {
+                item.style.cssText = 'opacity: 0; will-change: auto; transform: none;';
+                item.classList.remove('dragging');
+            });
+            
+            // 单次强制重排
+            container.offsetHeight;
+            
+            // 批量删除
+            existing.forEach(item => item.remove());
+            
+            // 清除容器合成层缓存
+            container.style.transform = 'none';
+            container.offsetHeight;
+            container.style.transform = 'translateZ(0)';
+        }
+        
+        updateBookmarksIncremental(container) {
+            const existingElements = new Map();
+            const currentElements = container.querySelectorAll('.sb-bookmark');
+            
+            // 建立现有元素映射
+            currentElements.forEach(element => {
+                const id = element.getAttribute('data-bookmark-id');
+                if (id) existingElements.set(id, element);
+            });
+            
+            const currentBookmarkIds = new Set(this.bookmarks.map(b => b.id.toString()));
+            
+            // 删除不再存在的标签
+            existingElements.forEach((element, id) => {
+                if (!currentBookmarkIds.has(id)) {
+                    element.classList.add('sb-bookmark--hidden');
+                    setTimeout(() => element.remove(), 150);
+                }
+            });
+            
+            // 更新或创建标签
+            this.bookmarks.forEach(bookmark => {
+                const id = bookmark.id.toString();
+                const existingElement = existingElements.get(id);
+                
+                if (existingElement) {
+                    // 更新现有元素
+                    this.updateBookmarkElement(existingElement, bookmark);
+                } else {
+                    // 创建新元素
+                    const newElement = this.createBookmarkElement(bookmark);
+                    container.appendChild(newElement);
+                }
+            });
+        }
+        
+        updateBookmarkElement(element, bookmark) {
+            // 只更新发生变化的属性
+            if (element.style.left !== `${bookmark.x}px`) {
+                element.style.left = `${bookmark.x}px`;
+            }
+            if (element.style.top !== `${bookmark.y}px`) {
+                element.style.top = `${bookmark.y}px`;
+            }
+            if (element.textContent !== bookmark.name) {
+                element.textContent = bookmark.name;
+            }
+            if (element.title !== `${bookmark.name}\n${bookmark.url}`) {
+                element.title = `${bookmark.name}\n${bookmark.url}`;
+            }
+            if (element.getAttribute('data-bookmark-url') !== bookmark.url) {
+                element.setAttribute('data-bookmark-url', bookmark.url);
+            }
+        }
+        
         createBookmarkElement(bookmark) {
             const element = document.createElement('div');
             element.className = 'sb-bookmark';
             element.setAttribute('data-bookmark-id', bookmark.id);
+            element.setAttribute('data-bookmark-url', bookmark.url);
             element.style.left = `${bookmark.x}px`;
             element.style.top = `${bookmark.y}px`;
             element.textContent = bookmark.name;
             element.title = `${bookmark.name}\n${bookmark.url}`;
             
-            // 点击打开链接
-            element.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (!this.isContextMenuOpen) {
-                    if (bookmark.url === 'back') {
-                        window.history.back();
-                    } else {
-                        window.location.href = bookmark.url;
-                    }
-                }
-            });
-            
-            // 右键菜单
-            element.addEventListener('contextmenu', (e) => {
-                this.showMenu(e, bookmark.id);
-            });
-            
-            // 移动端长按
-            let touchTimer;
-            element.addEventListener('touchstart', (e) => {
-                this.touchStartTime = Date.now();
-                touchTimer = setTimeout(() => {
-                    this.showMenu(e, bookmark.id);
-                }, 500);
-            });
-            
-            element.addEventListener('touchend', (e) => {
-                clearTimeout(touchTimer);
-                const touchDuration = Date.now() - this.touchStartTime;
-                
-                if (touchDuration < 500 && !this.isContextMenuOpen) {
-                    if (bookmark.url === 'back') {
-                        window.history.back();
-                    } else {
-                        window.location.href = bookmark.url;
-                    }
-                }
-            });
-            
-            element.addEventListener('touchmove', () => {
-                clearTimeout(touchTimer);
-            });
-            
             return element;
         }
         
-        saveBookmarks() {
-            GM_setValue(this.storageKey, JSON.stringify(this.bookmarks));
+        saveBookmarks(immediate = false) {
+            if (immediate) {
+                // 立即保存
+                if (this.saveTimeout) {
+                    clearTimeout(this.saveTimeout);
+                    this.saveTimeout = null;
+                }
+                GM_setValue(this.storageKey, JSON.stringify(this.bookmarks));
+                this.pendingSave = false;
+            } else {
+                // 防抖保存
+                this.pendingSave = true;
+                if (this.saveTimeout) {
+                    clearTimeout(this.saveTimeout);
+                }
+                this.saveTimeout = setTimeout(() => {
+                    if (this.pendingSave) {
+                        GM_setValue(this.storageKey, JSON.stringify(this.bookmarks));
+                        this.pendingSave = false;
+                    }
+                    this.saveTimeout = null;
+                }, 300); // 300ms防抖延迟
+            }
         }
         
         loadBookmarks() {
