@@ -461,6 +461,8 @@
         <div id="sb-menu">
             <div class="sb-menu-item" data-action="drag">拖拽移动</div>
             <div class="sb-menu-item" data-action="set-url">设置当前页面</div>
+            <div class="sb-menu-item" data-action="set-back">设置后退</div>
+            <div class="sb-menu-item" data-action="set-double-back">设置两次后退</div>
             <div class="sb-menu-item" data-action="edit">修改名称</div>
             <div class="sb-menu-item" data-action="delete">删除标签</div>
         </div>
@@ -875,6 +877,16 @@
                     this.setCurrentUrl();
                     this.currentBookmarkId = null;
                     break;
+                case 'set-back':
+                    this.currentBookmarkId = bookmarkId;
+                    this.setBackUrl();
+                    this.currentBookmarkId = null;
+                    break;
+                case 'set-double-back':
+                    this.currentBookmarkId = bookmarkId;
+                    this.setDoubleBackUrl();
+                    this.currentBookmarkId = null;
+                    break;
                 case 'edit':
                     this.currentBookmarkId = bookmarkId;
                     this.showEditModal();
@@ -907,7 +919,7 @@
                 url: url,
                 x: 25, // 固定在新增按钮右边（新增按钮宽度约0.5cm = 18.9px）
                 y: 5, // 与新增按钮顶部对齐
-                domain: url === 'back' ? 'back' : new URL(url).hostname
+                domain: url === 'back' ? 'back' : url === 'double-back' ? 'double-back' : new URL(url).hostname
             };
             
             this.bookmarks.push(bookmark);
@@ -959,6 +971,26 @@
             if (bookmark) {
                 bookmark.url = window.location.href;
                 bookmark.domain = window.location.hostname;
+                this.saveBookmarks();
+                this.renderBookmarks();
+            }
+        }
+        
+        setBackUrl() {
+            const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
+            if (bookmark) {
+                bookmark.url = 'back';
+                bookmark.domain = 'back';
+                this.saveBookmarks();
+                this.renderBookmarks();
+            }
+        }
+        
+        setDoubleBackUrl() {
+            const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
+            if (bookmark) {
+                bookmark.url = 'double-back';
+                bookmark.domain = 'double-back';
                 this.saveBookmarks();
                 this.renderBookmarks();
             }
@@ -1275,6 +1307,9 @@
                 if (bookmark.url === 'back') {
                     element.setAttribute('onclick', 'history.back()');
                     element.style.cursor = 'pointer';
+                } else if (bookmark.url === 'double-back') {
+                    element.setAttribute('onclick', 'history.back(); setTimeout(() => history.back(), 100)');
+                    element.style.cursor = 'pointer';
                 } else if (bookmark.url === 'reload') {
                     element.setAttribute('onclick', 'location.reload()');
                     element.style.cursor = 'pointer';
@@ -1298,6 +1333,9 @@
             // 为特殊URL设置直接的onclick处理
             if (bookmark.url === 'back') {
                 element.setAttribute('onclick', 'history.back()');
+                element.style.cursor = 'pointer';
+            } else if (bookmark.url === 'double-back') {
+                element.setAttribute('onclick', 'history.back(); setTimeout(() => history.back(), 100)');
                 element.style.cursor = 'pointer';
             } else if (bookmark.url === 'reload') {
                 element.setAttribute('onclick', 'location.reload()');
