@@ -463,6 +463,7 @@
             <div class="sb-menu-item" data-action="set-url">设置当前页面</div>
             <div class="sb-menu-item" data-action="set-back">设置后退</div>
             <div class="sb-menu-item" data-action="set-double-back">设置两次后退</div>
+            <div class="sb-menu-item" data-action="set-interval" id="sb-interval-menu">两次后退间隔(400ms)</div>
             <div class="sb-menu-item" data-action="edit">修改名称</div>
             <div class="sb-menu-item" data-action="delete">删除标签</div>
         </div>
@@ -484,6 +485,16 @@
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-edit-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-edit-cancel">取消</button>
+                </div>
+            </div>
+        </div>
+        <div id="sb-interval-modal" class="sb-modal">
+            <div class="sb-modal-content">
+                <h3>设置两次后退间隔时间</h3>
+                <input type="number" id="sb-interval-input" placeholder="请输入间隔时间(毫秒)" min="50" max="5000" value="400">
+                <div class="sb-modal-buttons">
+                    <button class="sb-btn-primary" id="sb-interval-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-interval-cancel">取消</button>
                 </div>
             </div>
         </div>
@@ -622,6 +633,7 @@
                     this.hideMenu();
                     this.hideAddModal();
                     this.hideEditModal();
+                    this.hideIntervalModal();
                     this.hideSettings();
                 }
             });
@@ -642,6 +654,15 @@
             
             document.getElementById('sb-edit-cancel').addEventListener('click', () => {
                 this.hideEditModal();
+            });
+            
+            // 设置间隔时间
+            document.getElementById('sb-interval-confirm').addEventListener('click', () => {
+                this.setBookmarkInterval();
+            });
+            
+            document.getElementById('sb-interval-cancel').addEventListener('click', () => {
+                this.hideIntervalModal();
             });
             
             // 菜单事件
@@ -837,6 +858,26 @@
             document.getElementById('sb-edit-name').value = '';
         }
         
+        showIntervalModal() {
+            const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
+            if (bookmark) {
+                // 确保bookmark有doubleBackInterval属性，如果没有则设置默认值
+                if (!bookmark.doubleBackInterval) {
+                    bookmark.doubleBackInterval = 400;
+                }
+                document.getElementById('sb-interval-input').value = bookmark.doubleBackInterval;
+                const modal = document.getElementById('sb-interval-modal');
+                modal.classList.add('show');
+                document.getElementById('sb-interval-input').focus();
+            }
+        }
+        
+        hideIntervalModal() {
+            const modal = document.getElementById('sb-interval-modal');
+            modal.classList.remove('show');
+            document.getElementById('sb-interval-input').value = '';
+        }
+        
         showMenu(e, bookmarkId) {
             e.preventDefault();
             e.stopPropagation();
@@ -844,14 +885,47 @@
             this.currentBookmarkId = bookmarkId;
             this.isContextMenuOpen = true;
             
+            // 更新菜单中的间隔时间显示
+            const bookmark = this.bookmarks.find(b => b.id === bookmarkId);
+            if (bookmark) {
+                const intervalMenu = document.getElementById('sb-interval-menu');
+                const interval = bookmark.doubleBackInterval || 400;
+                intervalMenu.textContent = `两次后退间隔(${interval}ms)`;
+            }
+            
             const menu = document.getElementById('sb-menu');
             menu.classList.add('show');
             
             const x = e.clientX || (e.touches && e.touches[0].clientX) || 0;
             const y = e.clientY || (e.touches && e.touches[0].clientY) || 0;
             
-            menu.style.left = `${Math.min(x, window.innerWidth - 160)}px`;
-            menu.style.top = `${Math.min(y, window.innerHeight - 200)}px`;
+            // 获取菜单的实际尺寸
+            const menuRect = menu.getBoundingClientRect();
+            const menuWidth = menuRect.width || 150; // 默认最小宽度
+            const menuHeight = menuRect.height || 240; // 默认高度（现在6个菜单项）
+            
+            // 计算最佳位置，确保菜单完全在屏幕内
+            let menuX = x;
+            let menuY = y;
+            
+            // 水平位置调整
+            if (menuX + menuWidth > window.innerWidth) {
+                menuX = window.innerWidth - menuWidth - 10; // 留出10px间距
+            }
+            if (menuX < 10) {
+                menuX = 10;
+            }
+            
+            // 垂直位置调整
+            if (menuY + menuHeight > window.innerHeight) {
+                menuY = window.innerHeight - menuHeight - 10; // 留出10px间距
+            }
+            if (menuY < 10) {
+                menuY = 10;
+            }
+            
+            menu.style.left = `${menuX}px`;
+            menu.style.top = `${menuY}px`;
         }
         
         hideMenu() {
@@ -887,6 +961,10 @@
                     this.setDoubleBackUrl();
                     this.currentBookmarkId = null;
                     break;
+                case 'set-interval':
+                    this.currentBookmarkId = bookmarkId;
+                    this.showIntervalModal();
+                    break;
                 case 'edit':
                     this.currentBookmarkId = bookmarkId;
                     this.showEditModal();
@@ -919,7 +997,8 @@
                 url: url,
                 x: 25, // 固定在新增按钮右边（新增按钮宽度约0.5cm = 18.9px）
                 y: 5, // 与新增按钮顶部对齐
-                domain: url === 'back' ? 'back' : url === 'double-back' ? 'double-back' : new URL(url).hostname
+                domain: url === 'back' ? 'back' : url === 'double-back' ? 'double-back' : new URL(url).hostname,
+                doubleBackInterval: 400 // 默认间隔时间400ms
             };
             
             this.bookmarks.push(bookmark);
@@ -945,6 +1024,24 @@
             }
             
             this.hideEditModal();
+        }
+        
+        setBookmarkInterval() {
+            const intervalValue = parseInt(document.getElementById('sb-interval-input').value);
+            
+            if (!intervalValue || intervalValue < 50 || intervalValue > 5000) {
+                alert('请输入有效的间隔时间（50-5000毫秒）');
+                return;
+            }
+            
+            const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
+            if (bookmark) {
+                bookmark.doubleBackInterval = intervalValue;
+                this.saveBookmarks();
+                this.renderBookmarks();
+            }
+            
+            this.hideIntervalModal();
         }
         
         deleteBookmark() {
@@ -1308,7 +1405,8 @@
                     element.setAttribute('onclick', 'history.back()');
                     element.style.cursor = 'pointer';
                 } else if (bookmark.url === 'double-back') {
-                    element.setAttribute('onclick', 'history.back(); setTimeout(() => history.back(), 100)');
+                    const interval = bookmark.doubleBackInterval || 400;
+                    element.setAttribute('onclick', `history.back(); setTimeout(() => history.back(), ${interval})`);
                     element.style.cursor = 'pointer';
                 } else if (bookmark.url === 'reload') {
                     element.setAttribute('onclick', 'location.reload()');
@@ -1335,7 +1433,8 @@
                 element.setAttribute('onclick', 'history.back()');
                 element.style.cursor = 'pointer';
             } else if (bookmark.url === 'double-back') {
-                element.setAttribute('onclick', 'history.back(); setTimeout(() => history.back(), 100)');
+                const interval = bookmark.doubleBackInterval || 400;
+                element.setAttribute('onclick', `history.back(); setTimeout(() => history.back(), ${interval})`);
                 element.style.cursor = 'pointer';
             } else if (bookmark.url === 'reload') {
                 element.setAttribute('onclick', 'location.reload()');
@@ -1374,6 +1473,12 @@
             const saved = localStorage.getItem(this.storageKey) || '[]';
             try {
                 this.bookmarks = JSON.parse(saved);
+                // 为现有标签添加默认间隔时间属性
+                this.bookmarks.forEach(bookmark => {
+                    if (!bookmark.doubleBackInterval) {
+                        bookmark.doubleBackInterval = 400;
+                    }
+                });
             } catch (e) {
                 this.bookmarks = [];
             }
