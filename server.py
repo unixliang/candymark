@@ -12,7 +12,7 @@ import os
 import sys
 
 def main():
-    port = 8000
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     
     # 确保在项目根目录
     if not os.path.exists('index.html'):

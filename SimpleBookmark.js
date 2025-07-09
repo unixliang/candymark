@@ -165,13 +165,11 @@
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3) !important;
         }
         
-        .sb-bookmark:nth-child(2) { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-        .sb-bookmark:nth-child(3) { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-        .sb-bookmark:nth-child(4) { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-        .sb-bookmark:nth-child(5) { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
-        .sb-bookmark:nth-child(6) { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
-        .sb-bookmark:nth-child(7) { background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); }
-        .sb-bookmark:nth-child(8) { background: linear-gradient(135deg, #ff8a80 0%, #ea4c88 100%); }
+        .sb-bookmark--color-0 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .sb-bookmark--color-1 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .sb-bookmark--color-2 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .sb-bookmark--color-3 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        .sb-bookmark--color-4 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
         
         #sb-menu {
             position: fixed;
@@ -547,7 +545,14 @@
     // 标签管理器类
     class SimpleBookmarkManager {
         constructor() {
-
+            // 预设5种对视觉友好的颜色
+            this.colorPresets = [
+                { id: 0, name: '蓝紫色', gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+                { id: 1, name: '粉红色', gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+                { id: 2, name: '蓝青色', gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+                { id: 3, name: '绿青色', gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
+                { id: 4, name: '橙粉色', gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' }
+            ];
             
             this.bookmarks = [];
             this.currentBookmarkId = null;
@@ -989,6 +994,9 @@
                 return;
             }
             
+            // 计算下一个颜色索引（循环使用）
+            const colorIndex = this.bookmarks.length % this.colorPresets.length;
+            
             const bookmark = {
                 id: Date.now(),
                 name: name.substring(0, 10), // 限制长度
@@ -996,7 +1004,8 @@
                 x: 25, // 固定在新增按钮右边（新增按钮宽度约0.5cm = 18.9px）
                 y: 5, // 与新增按钮顶部对齐
                 domain: url === 'back' ? 'back' : url === 'double-back' ? 'double-back' : new URL(url).hostname,
-                doubleBackInterval: 400 // 默认间隔时间400ms
+                doubleBackInterval: 400, // 默认间隔时间400ms
+                colorIndex: colorIndex // 颜色索引
             };
             
             this.bookmarks.push(bookmark);
@@ -1390,6 +1399,18 @@
             if (element.title !== `${bookmark.name}\n${bookmark.url}`) {
                 element.title = `${bookmark.name}\n${bookmark.url}`;
             }
+            
+            // 更新颜色类
+            const colorIndex = bookmark.colorIndex !== undefined ? bookmark.colorIndex : 0;
+            const expectedColorClass = `sb-bookmark--color-${colorIndex}`;
+            if (!element.classList.contains(expectedColorClass)) {
+                // 移除旧的颜色类
+                for (let i = 0; i < this.colorPresets.length; i++) {
+                    element.classList.remove(`sb-bookmark--color-${i}`);
+                }
+                // 添加新的颜色类
+                element.classList.add(expectedColorClass);
+            }
             if (element.getAttribute('data-bookmark-url') !== bookmark.url) {
                 element.setAttribute('data-bookmark-url', bookmark.url);
                 
@@ -1413,7 +1434,9 @@
         
         createBookmarkElement(bookmark) {
             const element = document.createElement('div');
-            element.className = 'sb-bookmark';
+            // 使用颜色索引设置颜色类
+            const colorIndex = bookmark.colorIndex !== undefined ? bookmark.colorIndex : 0;
+            element.className = `sb-bookmark sb-bookmark--color-${colorIndex}`;
             element.setAttribute('data-bookmark-id', bookmark.id);
             element.setAttribute('data-bookmark-url', bookmark.url);
             element.style.left = `${bookmark.x}px`;
@@ -1466,10 +1489,14 @@
             const saved = localStorage.getItem(this.storageKey) || '[]';
             try {
                 this.bookmarks = JSON.parse(saved);
-                // 为现有标签添加默认间隔时间属性
-                this.bookmarks.forEach(bookmark => {
+                // 为现有标签添加默认间隔时间属性和颜色索引
+                this.bookmarks.forEach((bookmark, index) => {
                     if (!bookmark.doubleBackInterval) {
                         bookmark.doubleBackInterval = 400;
+                    }
+                    // 为旧标签分配颜色索引（基于现有顺序）
+                    if (bookmark.colorIndex === undefined) {
+                        bookmark.colorIndex = index % this.colorPresets.length;
                     }
                 });
             } catch (e) {
