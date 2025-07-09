@@ -167,9 +167,9 @@
         
         .sb-bookmark--color-0 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
         .sb-bookmark--color-1 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-        .sb-bookmark--color-2 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-        .sb-bookmark--color-3 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-        .sb-bookmark--color-4 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+        .sb-bookmark--color-2 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+        .sb-bookmark--color-3 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .sb-bookmark--color-4 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
         
         #sb-menu {
             position: fixed;
@@ -464,11 +464,12 @@
             <div class="sb-menu-item" data-action="set-interval" id="sb-interval-menu">两次后退间隔(400ms)</div>
             <div class="sb-menu-item" data-action="edit">修改名称</div>
             <div class="sb-menu-item" data-action="delete">删除标签</div>
+            <div class="sb-menu-item" data-action="cancel">取消</div>
         </div>
         <div id="sb-add-modal" class="sb-modal">
             <div class="sb-modal-content">
                 <h3>新增标签</h3>
-                <input type="text" id="sb-name" placeholder="请输入标签名称" maxlength="10">
+                <input type="text" id="sb-name" placeholder="请输入标签名称(可选)" maxlength="10">
                 <input type="url" id="sb-url" placeholder="请输入链接地址">
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-confirm">确认</button>
@@ -479,7 +480,7 @@
         <div id="sb-edit-modal" class="sb-modal">
             <div class="sb-modal-content">
                 <h3>修改标签名称</h3>
-                <input type="text" id="sb-edit-name" placeholder="请输入新的标签名称" maxlength="10">
+                <input type="text" id="sb-edit-name" placeholder="请输入新的标签名称(可选)" maxlength="10">
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-edit-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-edit-cancel">取消</button>
@@ -549,9 +550,9 @@
             this.colorPresets = [
                 { id: 0, name: '蓝紫色', gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
                 { id: 1, name: '粉红色', gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
-                { id: 2, name: '蓝青色', gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
-                { id: 3, name: '绿青色', gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
-                { id: 4, name: '橙粉色', gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' }
+                { id: 2, name: '橙粉色', gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
+                { id: 3, name: '蓝青色', gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+                { id: 4, name: '绿青色', gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' }
             ];
             
             this.bookmarks = [];
@@ -699,7 +700,7 @@
             
             // 全局点击关闭菜单
             document.addEventListener('click', (e) => {
-                if (!e.target.closest('#sb-menu') && !e.target.closest('#sb-settings-panel')) {
+                if (!e.target.closest('#sb-menu') && !e.target.closest('#sb-settings-panel') && !e.target.closest('.sb-modal')) {
                     this.hideMenu();
                     this.hideSettings();
                 }
@@ -850,6 +851,8 @@
             const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
             if (bookmark) {
                 document.getElementById('sb-edit-name').value = bookmark.name;
+                // 保存当前要编辑的标签ID到modal的data属性中
+                document.getElementById('sb-edit-modal').setAttribute('data-bookmark-id', this.currentBookmarkId);
                 const modal = document.getElementById('sb-edit-modal');
                 modal.classList.add('show');
             }
@@ -858,6 +861,7 @@
         hideEditModal() {
             const modal = document.getElementById('sb-edit-modal');
             modal.classList.remove('show');
+            modal.removeAttribute('data-bookmark-id');
             document.getElementById('sb-edit-name').value = '';
         }
         
@@ -905,7 +909,7 @@
             // 获取菜单的实际尺寸
             const menuRect = menu.getBoundingClientRect();
             const menuWidth = menuRect.width || 150; // 默认最小宽度
-            const menuHeight = menuRect.height || 240; // 默认高度（现在6个菜单项）
+            const menuHeight = menuRect.height || 280; // 默认高度（现在8个菜单项）
             
             // 计算最佳位置，确保菜单完全在屏幕内
             let menuX = x;
@@ -977,6 +981,9 @@
                     this.deleteBookmark();
                     this.currentBookmarkId = null;
                     break;
+                case 'cancel':
+                    // 什么都不做，只是关闭菜单
+                    break;
             }
         }
         
@@ -1018,14 +1025,17 @@
         editBookmark() {
             const newName = document.getElementById('sb-edit-name').value.trim();
             
-            const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
+            // 从modal的data属性中获取要编辑的标签ID
+            const bookmarkId = parseInt(document.getElementById('sb-edit-modal').getAttribute('data-bookmark-id'));
+            const bookmark = this.bookmarks.find(b => b.id === bookmarkId);
             if (bookmark) {
                 bookmark.name = newName.substring(0, 10);
                 this.saveBookmarks();
-                this.renderBookmarks();
+                this.renderBookmarks(true); // Force full re-render to ensure changes are applied
             }
             
             this.hideEditModal();
+            this.currentBookmarkId = null; // Clear the current bookmark ID after editing
         }
         
         setBookmarkInterval() {
