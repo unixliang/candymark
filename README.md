@@ -5,7 +5,7 @@
 ## 🚀 在线体验
 
 - **主页安装**：[https://unixliang.github.io/simplebookmark/](https://unixliang.github.io/simplebookmark/)
-- **直接安装**：[https://unixliang.github.io/simplebookmark/SimpleBookmark.user.js](https://unixliang.github.io/simplebookmark/SimpleBookmark.user.js)
+- **直接安装**：[https://unixliang.github.io/simplebookmark/SimpleBookmark.js](https://unixliang.github.io/simplebookmark/SimpleBookmark.js)
 - **标签管理器**：[https://unixliang.github.io/simplebookmark/manager.html](https://unixliang.github.io/simplebookmark/manager.html)
 
 ## ✨ 核心功能
@@ -137,10 +137,10 @@
 ```
 simplebookmark/
 ├── index.html              # 油猴脚本安装主页面
-├── SimpleBookmark.user.js  # 油猴脚本核心文件
+├── SimpleBookmark.js       # 油猴脚本核心文件
 ├── manager.html            # 标签管理器页面
-├── style.css               # 演示页面样式（已废弃）
-├── script.js               # 演示页面逻辑（已废弃）
+├── style.css               # 演示页面样式
+├── script.js               # 演示页面逻辑
 ├── server.py               # 本地开发服务器
 ├── package.json            # 项目配置文件
 ├── README.md               # 项目说明文档
@@ -149,7 +149,7 @@ simplebookmark/
 
 ## 🔧 核心文件说明
 
-### SimpleBookmark.user.js
+### SimpleBookmark.js
 - 油猴脚本主文件，包含所有功能
 - 支持自动运行、配置管理、数据同步
 - 生产环境使用版本

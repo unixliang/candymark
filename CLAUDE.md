@@ -32,7 +32,7 @@ git push origin main
 ### Access URLs
 - Main page: `http://localhost:8000`
 - Manager: `http://localhost:8000/manager.html`
-- Script file: `http://localhost:8000/SimpleBookmark.user.js`
+- Script file: `http://localhost:8000/SimpleBookmark.js`
 
 ## Architecture Overview
 
@@ -99,10 +99,12 @@ const dragState = {
 ## File Structure
 
 ### Core Files
-- **SimpleBookmark.user.js**: Production userscript (auto-updates from GitHub)
+- **SimpleBookmark.js**: Production userscript (auto-updates from GitHub)
 - **index.html**: Installation landing page with feature showcase
 - **manager.html**: Standalone bookmark management interface
 - **server.py**: Development server with auto-browser launch
+- **style.css**: Stylesheet for the web interface
+- **script.js**: Additional JavaScript functionality
 
 ### Configuration Files
 - **package.json**: npm scripts and GitHub Pages deployment

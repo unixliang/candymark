@@ -83,7 +83,7 @@ MIT License - 开源免费使用
 
 1. 注册/登录 Greasyfork 账号
 2. 访问 "发布新脚本" 页面
-3. 上传 `SimpleBookmark.user.js` 文件
+3. 上传 `SimpleBookmark.js` 文件
 4. 填写脚本信息:
    - 名称: SimpleBookmark - 移动端标签导航
    - 描述: 使用上述 "脚本描述" 内容
