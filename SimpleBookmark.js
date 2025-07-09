@@ -441,6 +441,18 @@
             opacity: 0;
             pointer-events: none;
         }
+        
+        /* 点击动画效果 */
+        .sb-bookmark--clicking {
+            transform: scale(0.95) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+            transition: all 0.1s ease-in-out !important;
+        }
+        
+        .sb-bookmark--click-release {
+            transform: scale(1.05) !important;
+            transition: all 0.15s ease-out !important;
+        }
     `;
     
     // 创建样式表
@@ -720,6 +732,9 @@
             container.addEventListener('click', (e) => {
                 const bookmark = e.target.closest('.sb-bookmark');
                 if (bookmark && !this.isContextMenuOpen) {
+                    // 触发点击动画
+                    this.triggerClickAnimation(bookmark);
+                    
                     // 如果元素有onclick属性，让onclick自己处理
                     if (bookmark.hasAttribute('onclick')) {
                         return; // 不阻止事件，让onclick执行
@@ -727,7 +742,7 @@
                     
                     e.stopPropagation();
                     const url = bookmark.getAttribute('data-bookmark-url');
-                    this.handleBookmarkClick(url);
+                    this.handleBookmarkClick(url, bookmark);
                 }
             });
             
@@ -759,13 +774,16 @@
                     const touchDuration = Date.now() - this.touchStartTime;
                     
                     if (touchDuration < 1000 && !this.isContextMenuOpen) {
+                        // 触发点击动画
+                        this.triggerClickAnimation(bookmark);
+                        
                         // 如果元素有onclick属性，让onclick自己处理
                         if (bookmark.hasAttribute('onclick')) {
                             return; // 不阻止事件，让onclick执行
                         }
                         
                         const url = bookmark.getAttribute('data-bookmark-url');
-                        this.handleBookmarkClick(url);
+                        this.handleBookmarkClick(url, bookmark);
                     }
                 }
             });
@@ -778,10 +796,28 @@
             });
         }
         
-        handleBookmarkClick(url) {
+        handleBookmarkClick(url, element) {
+            // 触发点击动画
+            this.triggerClickAnimation(element);
+            
             // 特殊URL（back, reload等）已通过onclick属性处理
             // 这里只处理普通URL
             window.location.href = url;
+        }
+        
+        triggerClickAnimation(element) {
+            // 添加点击动画
+            element.classList.add('sb-bookmark--clicking');
+            
+            // 移除动画类，准备下次动画
+            setTimeout(() => {
+                element.classList.remove('sb-bookmark--clicking');
+                element.classList.add('sb-bookmark--click-release');
+                
+                setTimeout(() => {
+                    element.classList.remove('sb-bookmark--click-release');
+                }, 150);
+            }, 100);
         }
         
         showTrigger() {
