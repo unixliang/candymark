@@ -86,7 +86,6 @@ class SimpleBookmark {
     showAddBookmarkModal() {
         const modal = document.getElementById('add-bookmark-modal');
         modal.classList.add('show');
-        document.getElementById('bookmark-name').focus();
     }
     
     // 隐藏新增标签模态框
@@ -104,7 +103,6 @@ class SimpleBookmark {
             document.getElementById('edit-bookmark-name').value = bookmark.name;
             const modal = document.getElementById('edit-bookmark-modal');
             modal.classList.add('show');
-            document.getElementById('edit-bookmark-name').focus();
         }
         this.hideContextMenu();
     }
@@ -121,8 +119,8 @@ class SimpleBookmark {
         const name = document.getElementById('bookmark-name').value.trim();
         const url = document.getElementById('bookmark-url').value.trim();
         
-        if (!name || !url) {
-            alert('请输入标签名称和链接地址');
+        if (!url) {
+            alert('请输入链接地址');
             return;
         }
         
@@ -143,11 +141,6 @@ class SimpleBookmark {
     // 编辑标签名称
     editBookmarkName() {
         const newName = document.getElementById('edit-bookmark-name').value.trim();
-        
-        if (!newName) {
-            alert('请输入新的标签名称');
-            return;
-        }
         
         const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
         if (bookmark) {

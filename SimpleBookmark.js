@@ -829,7 +829,6 @@
         showAddModal() {
             const modal = document.getElementById('sb-add-modal');
             modal.classList.add('show');
-            document.getElementById('sb-name').focus();
             
             // 自动填充当前页面信息
             document.getElementById('sb-url').value = window.location.href;
@@ -848,7 +847,6 @@
                 document.getElementById('sb-edit-name').value = bookmark.name;
                 const modal = document.getElementById('sb-edit-modal');
                 modal.classList.add('show');
-                document.getElementById('sb-edit-name').focus();
             }
         }
         
@@ -981,8 +979,8 @@
             const name = document.getElementById('sb-name').value.trim();
             const url = document.getElementById('sb-url').value.trim();
             
-            if (!name || !url) {
-                alert('请输入标签名称和链接地址');
+            if (!url) {
+                alert('请输入链接地址');
                 return;
             }
             
@@ -1010,11 +1008,6 @@
         
         editBookmark() {
             const newName = document.getElementById('sb-edit-name').value.trim();
-            
-            if (!newName) {
-                alert('请输入新的标签名称');
-                return;
-            }
             
             const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
             if (bookmark) {

@@ -499,7 +499,7 @@
                 const bookmark = this.bookmarks.find(b => b.id === id);
                 if (bookmark) {
                     const newName = prompt('请输入新的标签名称:', bookmark.name);
-                    if (newName && newName.trim()) {
+                    if (newName !== null) {
                         bookmark.name = newName.trim();
                         this.saveBookmarks();
                         this.renderBookmarks();
