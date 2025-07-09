@@ -763,7 +763,7 @@
                     const id = bookmark.getAttribute('data-bookmark-id');
                     touchTimer = setTimeout(() => {
                         this.showMenu(e, parseInt(id));
-                    }, 1000);
+                    }, 800);
                 }
             });
             
@@ -773,7 +773,7 @@
                     clearTimeout(touchTimer);
                     const touchDuration = Date.now() - this.touchStartTime;
                     
-                    if (touchDuration < 1000 && !this.isContextMenuOpen) {
+                    if (touchDuration < 800 && !this.isContextMenuOpen) {
                         // 触发点击动画
                         this.triggerClickAnimation(bookmark);
                         
