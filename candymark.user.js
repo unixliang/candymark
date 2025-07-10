@@ -70,7 +70,8 @@
             maxBookmarks: parseInt(storage.getValue('sb_max_bookmarks', '20')),
             shortcutKey: storage.getValue('sb_shortcut_key', 'KeyB'),
             blacklist: blacklist,
-            autoHideTrigger: storage.getValue('sb_auto_hide_trigger', 'true') === 'true'
+            autoHideTrigger: storage.getValue('sb_auto_hide_trigger', 'true') === 'true',
+            bookmarkSize: parseInt(storage.getValue('sb_bookmark_size', '1'))
         };
     };
     
@@ -128,8 +129,8 @@
         
         .sb-bookmark {
             position: absolute;
-            width: 0.5cm;
-            height: 0.5cm;
+            width: var(--sb-bookmark-size);
+            height: var(--sb-bookmark-size);
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: 2px solid #fff;
             border-radius: 8px;
@@ -142,7 +143,7 @@
             transition: all 0.3s ease;
             user-select: none;
             color: white;
-            font-size: 8px;
+            font-size: var(--sb-bookmark-font-size);
             font-weight: bold;
             text-align: center;
             line-height: 1.2;
@@ -425,12 +426,153 @@
             transform: scale(1.05) !important;
             transition: all 0.15s ease-out !important;
         }
+        
+        /* 标签大小调整样式 */
+        .sb-size-slider-container {
+            padding: 20px 0;
+        }
+        
+        .sb-size-preview {
+            text-align: center;
+            margin-bottom: 30px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .sb-size-preview-bookmark {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: 2px solid #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            line-height: 1.2;
+            word-break: break-all;
+            overflow: hidden;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            transition: all 0.2s ease;
+            /* 默认第1档大小 */
+            width: 18.9px;
+            height: 18.9px;
+            font-size: 8px;
+        }
+        
+        .sb-size-slider-wrapper {
+            position: relative;
+            margin: 0 10px;
+        }
+        
+        .sb-size-slider-track {
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            position: relative;
+            cursor: pointer;
+        }
+        
+        .sb-size-slider-thumb {
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 50%;
+            position: absolute;
+            top: -7px;
+            cursor: grab;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+            transition: background 0.2s ease;
+        }
+        
+        .sb-size-slider-thumb:hover {
+            background: #5a6fd8;
+        }
+        
+        .sb-size-slider-thumb:active {
+            cursor: grabbing;
+            background: #4f63d2;
+        }
+        
+        .sb-size-slider-marks {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+        }
+        
+        .sb-size-mark {
+            width: 2px;
+            height: 12px;
+            background: #ccc;
+            border-radius: 1px;
+            position: relative;
+        }
+        
+        .sb-size-mark:first-child,
+        .sb-size-mark:last-child {
+            background: #999;
+            height: 14px;
+        }
+        
+        .sb-size-mark:nth-child(5n) {
+            background: #999;
+            height: 10px;
+        }
+        
+        .sb-size-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            font-size: 11px;
+            color: #666;
+            padding: 0 10px;
+        }
+        
+        .sb-size-labels span {
+            width: 20px;
+            text-align: center;
+            font-weight: 500;
+        }
     `;
     
+    // 标签大小配置 (10档)
+    const BOOKMARK_SIZES = [
+        { size: '18.9px', fontSize: '8px' },   // 第1档 (0.5cm)
+        { size: '22.7px', fontSize: '9px' },   // 第2档 (0.6cm)
+        { size: '26.5px', fontSize: '10px' },  // 第3档 (0.7cm)
+        { size: '30.2px', fontSize: '11px' },  // 第4档 (0.8cm)
+        { size: '34.0px', fontSize: '12px' },  // 第5档 (0.9cm)
+        { size: '37.8px', fontSize: '13px' },  // 第6档 (1.0cm)
+        { size: '41.6px', fontSize: '14px' },  // 第7档 (1.1cm)
+        { size: '45.4px', fontSize: '15px' },  // 第8档 (1.2cm)
+        { size: '49.1px', fontSize: '16px' },  // 第9档 (1.3cm)
+        { size: '52.9px', fontSize: '17px' }   // 第10档 (1.4cm)
+    ];
+
+    // 设置CSS变量
+    function updateBookmarkSize(sizeLevel) {
+        const sizeConfig = BOOKMARK_SIZES[sizeLevel - 1] || BOOKMARK_SIZES[0];
+        document.documentElement.style.setProperty('--sb-bookmark-size', sizeConfig.size);
+        document.documentElement.style.setProperty('--sb-bookmark-font-size', sizeConfig.fontSize);
+    }
+
     // 创建样式表
     const style = document.createElement('style');
     style.textContent = CSS;
     document.head.appendChild(style);
+    
+    // 初始化标签大小
+    updateBookmarkSize(CONFIG.bookmarkSize);
     
 
 
@@ -451,6 +593,7 @@
         </div>
         <div id="sb-add-menu">
             <div class="sb-menu-item" data-action="add-bookmark">➕ 增加标签</div>
+            <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
         </div>
         <div id="sb-add-modal" class="sb-modal">
@@ -481,6 +624,49 @@
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-interval-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-interval-cancel">取消</button>
+                </div>
+            </div>
+        </div>
+        <div id="sb-size-modal" class="sb-modal">
+            <div class="sb-modal-content">
+                <h3>调整标签大小</h3>
+                <div class="sb-size-slider-container">
+                    <div class="sb-size-preview">
+                        <div class="sb-size-preview-bookmark" id="sb-size-preview">📏</div>
+                    </div>
+                    <div class="sb-size-slider-wrapper">
+                        <div class="sb-size-slider-track">
+                            <div class="sb-size-slider-marks">
+                                <div class="sb-size-mark" data-level="1"></div>
+                                <div class="sb-size-mark" data-level="2"></div>
+                                <div class="sb-size-mark" data-level="3"></div>
+                                <div class="sb-size-mark" data-level="4"></div>
+                                <div class="sb-size-mark" data-level="5"></div>
+                                <div class="sb-size-mark" data-level="6"></div>
+                                <div class="sb-size-mark" data-level="7"></div>
+                                <div class="sb-size-mark" data-level="8"></div>
+                                <div class="sb-size-mark" data-level="9"></div>
+                                <div class="sb-size-mark" data-level="10"></div>
+                            </div>
+                            <div class="sb-size-slider-thumb" id="sb-size-slider-thumb"></div>
+                        </div>
+                        <div class="sb-size-labels">
+                            <span>1</span>
+                            <span>2</span>
+                            <span>3</span>
+                            <span>4</span>
+                            <span>5</span>
+                            <span>6</span>
+                            <span>7</span>
+                            <span>8</span>
+                            <span>9</span>
+                            <span>10</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="sb-modal-buttons">
+                    <button class="sb-btn-primary" id="sb-size-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-size-cancel">取消</button>
                 </div>
             </div>
         </div>
@@ -603,6 +789,7 @@
                     this.hideAddModal();
                     this.hideEditModal();
                     this.hideIntervalModal();
+                    this.cancelSizeChange();
                 }
             });
             
@@ -631,6 +818,15 @@
             
             document.getElementById('sb-interval-cancel').addEventListener('click', () => {
                 this.hideIntervalModal();
+            });
+            
+            // 标签大小调整
+            document.getElementById('sb-size-confirm').addEventListener('click', () => {
+                this.confirmSizeChange();
+            });
+            
+            document.getElementById('sb-size-cancel').addEventListener('click', () => {
+                this.cancelSizeChange();
             });
             
             // 菜单事件
@@ -829,6 +1025,9 @@
                 case 'add-bookmark':
                     this.showAddModal();
                     break;
+                case 'adjust-size':
+                    this.showSizeModal();
+                    break;
                 case 'cancel-add':
                     // 什么都不做，只是关闭菜单
                     break;
@@ -886,6 +1085,167 @@
             const modal = document.getElementById('sb-interval-modal');
             modal.classList.remove('show');
             document.getElementById('sb-interval-input').value = '';
+        }
+        
+        showSizeModal() {
+            const modal = document.getElementById('sb-size-modal');
+            modal.classList.add('show');
+            
+            // 保存原始大小用于取消时恢复
+            this.originalSizeLevel = CONFIG.bookmarkSize;
+            
+            // 初始化滑动条位置
+            this.currentSizeLevel = CONFIG.bookmarkSize;
+            this.initSizeSlider();
+            this.updateSizePreview(this.currentSizeLevel);
+        }
+        
+        hideSizeModal() {
+            const modal = document.getElementById('sb-size-modal');
+            modal.classList.remove('show');
+            this.cleanupSizeSlider();
+        }
+        
+        initSizeSlider() {
+            this.sliderDragging = false;
+            const track = document.querySelector('.sb-size-slider-track');
+            const thumb = document.getElementById('sb-size-slider-thumb');
+            
+            if (!track || !thumb) return;
+            
+            // 设置初始位置
+            const trackWidth = track.offsetWidth - thumb.offsetWidth;
+            const position = ((this.currentSizeLevel - 1) / 9) * trackWidth;
+            thumb.style.left = `${position}px`;
+            
+            // 绑定事件
+            thumb.addEventListener('mousedown', this.startSizeSliderDrag.bind(this));
+            track.addEventListener('click', this.handleSizeSliderClick.bind(this));
+            document.addEventListener('mousemove', this.handleSizeSliderMove.bind(this));
+            document.addEventListener('mouseup', this.endSizeSliderDrag.bind(this));
+            
+            // 触摸事件支持
+            thumb.addEventListener('touchstart', this.startSizeSliderDrag.bind(this), { passive: false });
+            track.addEventListener('touchstart', this.handleSizeSliderClick.bind(this), { passive: false });
+            document.addEventListener('touchmove', this.handleSizeSliderMove.bind(this), { passive: false });
+            document.addEventListener('touchend', this.endSizeSliderDrag.bind(this));
+        }
+        
+        cleanupSizeSlider() {
+            const thumb = document.getElementById('sb-size-slider-thumb');
+            const track = document.querySelector('.sb-size-slider-track');
+            
+            if (thumb) {
+                thumb.removeEventListener('mousedown', this.startSizeSliderDrag.bind(this));
+                thumb.removeEventListener('touchstart', this.startSizeSliderDrag.bind(this));
+            }
+            if (track) {
+                track.removeEventListener('click', this.handleSizeSliderClick.bind(this));
+                track.removeEventListener('touchstart', this.handleSizeSliderClick.bind(this));
+            }
+            document.removeEventListener('mousemove', this.handleSizeSliderMove.bind(this));
+            document.removeEventListener('mouseup', this.endSizeSliderDrag.bind(this));
+            document.removeEventListener('touchmove', this.handleSizeSliderMove.bind(this));
+            document.removeEventListener('touchend', this.endSizeSliderDrag.bind(this));
+        }
+        
+        startSizeSliderDrag(e) {
+            e.preventDefault();
+            this.sliderDragging = true;
+            const thumb = document.getElementById('sb-size-slider-thumb');
+            if (thumb) {
+                thumb.style.cursor = 'grabbing';
+            }
+        }
+        
+        endSizeSliderDrag(e) {
+            this.sliderDragging = false;
+            const thumb = document.getElementById('sb-size-slider-thumb');
+            if (thumb) {
+                thumb.style.cursor = 'grab';
+            }
+        }
+        
+        handleSizeSliderClick(e) {
+            if (e.target.closest('#sb-size-slider-thumb')) return;
+            
+            const track = document.querySelector('.sb-size-slider-track');
+            const thumb = document.getElementById('sb-size-slider-thumb');
+            if (!track || !thumb) return;
+            
+            const rect = track.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const x = clientX - rect.left;
+            
+            this.updateSliderPosition(x, track, thumb);
+        }
+        
+        handleSizeSliderMove(e) {
+            if (!this.sliderDragging) return;
+            
+            const track = document.querySelector('.sb-size-slider-track');
+            const thumb = document.getElementById('sb-size-slider-thumb');
+            if (!track || !thumb) return;
+            
+            const rect = track.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const x = clientX - rect.left;
+            
+            this.updateSliderPosition(x, track, thumb);
+        }
+        
+        updateSliderPosition(x, track, thumb) {
+            const trackWidth = track.offsetWidth - thumb.offsetWidth;
+            
+            // 计算最接近的档位 (1-10)
+            const percentage = Math.max(0, Math.min(x - thumb.offsetWidth / 2, trackWidth)) / trackWidth;
+            const sizeLevel = Math.round(percentage * 9) + 1;
+            
+            // 将滑块精确定位到对应档位
+            const targetPosition = ((sizeLevel - 1) / 9) * trackWidth;
+            thumb.style.left = `${targetPosition}px`;
+            
+            if (sizeLevel !== this.currentSizeLevel) {
+                this.currentSizeLevel = sizeLevel;
+                this.updateSizePreview(sizeLevel);
+                updateBookmarkSize(sizeLevel); // 实时更新所有标签大小
+            }
+        }
+        
+        updateSizePreview(sizeLevel) {
+            const preview = document.getElementById('sb-size-preview');
+            if (!preview) return;
+            
+            const sizeConfig = BOOKMARK_SIZES[sizeLevel - 1] || BOOKMARK_SIZES[0];
+            preview.style.width = sizeConfig.size;
+            preview.style.height = sizeConfig.size;
+            preview.style.fontSize = sizeConfig.fontSize;
+        }
+        
+        confirmSizeChange() {
+            // 保存大小设置
+            CONFIG.bookmarkSize = this.currentSizeLevel;
+            storage.setValue('sb_bookmark_size', this.currentSizeLevel.toString());
+            
+            // 标记为已确认，避免hideSizeModal恢复原大小
+            this.originalSizeLevel = this.currentSizeLevel;
+            
+            this.hideSizeModal();
+        }
+        
+        cancelSizeChange() {
+            const modal = document.getElementById('sb-size-modal');
+            if (!modal.classList.contains('show')) {
+                return; // 如果面板没有打开，直接返回
+            }
+            
+            // 强制恢复原始大小
+            if (this.originalSizeLevel) {
+                updateBookmarkSize(this.originalSizeLevel);
+                this.currentSizeLevel = this.originalSizeLevel;
+            }
+            
+            this.hideSizeModal();
         }
         
         showMenu(e, bookmarkId) {
