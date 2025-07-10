@@ -189,6 +189,24 @@
             display: block;
         }
         
+        #sb-add-menu {
+            position: fixed;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 999996;
+            display: none;
+            min-width: 150px;
+            overflow: hidden;
+            pointer-events: auto;
+            backdrop-filter: blur(10px);
+        }
+        
+        #sb-add-menu.show {
+            display: block;
+        }
+        
         .sb-menu-item {
             padding: 12px 16px;
             cursor: pointer;
@@ -469,14 +487,18 @@
         <div id="sb-trigger" title="点击添加标签 (${CONFIG.shortcutKey.replace('Key', 'Ctrl+')})
 双击打开设置"></div>
         <div id="sb-menu">
-            <div class="sb-menu-item" data-action="drag">拖拽移动</div>
-            <div class="sb-menu-item" data-action="set-url">设置当前页面</div>
-            <div class="sb-menu-item" data-action="set-back">设置后退</div>
-            <div class="sb-menu-item" data-action="set-double-back">设置两次后退</div>
-            <div class="sb-menu-item" data-action="set-interval" id="sb-interval-menu">两次后退间隔(400ms)</div>
-            <div class="sb-menu-item" data-action="edit">修改名称</div>
-            <div class="sb-menu-item" data-action="delete">删除标签</div>
-            <div class="sb-menu-item" data-action="cancel">取消</div>
+            <div class="sb-menu-item" data-action="drag">🖱️ 拖拽移动</div>
+            <div class="sb-menu-item" data-action="set-url">📍 设置当前页面</div>
+            <div class="sb-menu-item" data-action="set-back">⬅️ 设置后退</div>
+            <div class="sb-menu-item" data-action="set-double-back">⏪ 设置两次后退</div>
+            <div class="sb-menu-item" data-action="set-interval" id="sb-interval-menu">⏱️ 两次后退间隔(400ms)</div>
+            <div class="sb-menu-item" data-action="edit">✏️ 修改名称</div>
+            <div class="sb-menu-item" data-action="delete">🗑️ 删除标签</div>
+            <div class="sb-menu-item" data-action="cancel">❌ 取消</div>
+        </div>
+        <div id="sb-add-menu">
+            <div class="sb-menu-item" data-action="add-bookmark">➕ 增加标签</div>
+            <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
         </div>
         <div id="sb-add-modal" class="sb-modal">
             <div class="sb-modal-content">
@@ -637,18 +659,24 @@
             // 触发器点击
             document.getElementById('sb-trigger').addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.showAddModal();
+                this.showAddMenu(e);
             });
             
             // 快捷键支持
             document.addEventListener('keydown', (e) => {
                 if (e.ctrlKey && e.code === CONFIG.shortcutKey) {
                     e.preventDefault();
-                    this.showAddModal();
+                    // 在屏幕中心显示添加菜单
+                    const fakeEvent = {
+                        clientX: window.innerWidth / 2,
+                        clientY: window.innerHeight / 2
+                    };
+                    this.showAddMenu(fakeEvent);
                 }
                 
                 if (e.key === 'Escape') {
                     this.hideMenu();
+                    this.hideAddMenu();
                     this.hideAddModal();
                     this.hideEditModal();
                     this.hideIntervalModal();
@@ -691,6 +719,14 @@
                 }
             });
             
+            // 添加菜单事件
+            document.getElementById('sb-add-menu').addEventListener('click', (e) => {
+                const action = e.target.dataset.action;
+                if (action) {
+                    this.handleAddMenuAction(action);
+                }
+            });
+            
             // 设置面板
             document.getElementById('sb-save-settings').addEventListener('click', () => {
                 this.saveSettings();
@@ -710,10 +746,26 @@
                 }
             });
             
+            
+            document.getElementById('sb-export-data').addEventListener('click', () => {
+                this.exportBookmarks();
+            });
+            
+            document.getElementById('sb-clear-all').addEventListener('click', () => {
+                if (confirm('确定要清空所有标签吗？此操作不可撤销！')) {
+                    this.bookmarks = [];
+                    this.saveBookmarks(true);
+                    this.renderBookmarks(true);
+                    this.updateTriggerVisibility();
+                    this.hideSettings();
+                }
+            });
+            
             // 全局点击关闭菜单
             document.addEventListener('click', (e) => {
-                if (!e.target.closest('#sb-menu') && !e.target.closest('#sb-settings-panel') && !e.target.closest('.sb-modal')) {
+                if (!e.target.closest('#sb-menu') && !e.target.closest('#sb-add-menu') && !e.target.closest('#sb-settings-panel') && !e.target.closest('.sb-modal')) {
                     this.hideMenu();
+                    this.hideAddMenu();
                     this.hideSettings();
                 }
             });
@@ -868,6 +920,60 @@
             alert('设置已保存！');
         }
         
+        showAddMenu(e) {
+            const menu = document.getElementById('sb-add-menu');
+            menu.classList.add('show');
+            
+            const x = e.clientX || 0;
+            const y = e.clientY || 0;
+            
+            // 获取菜单的实际尺寸
+            const menuRect = menu.getBoundingClientRect();
+            const menuWidth = menuRect.width || 150;
+            const menuHeight = menuRect.height || 80;
+            
+            // 计算最佳位置，确保菜单完全在屏幕内
+            let menuX = x;
+            let menuY = y;
+            
+            // 水平位置调整
+            if (menuX + menuWidth > window.innerWidth) {
+                menuX = window.innerWidth - menuWidth - 10;
+            }
+            if (menuX < 10) {
+                menuX = 10;
+            }
+            
+            // 垂直位置调整
+            if (menuY + menuHeight > window.innerHeight) {
+                menuY = window.innerHeight - menuHeight - 10;
+            }
+            if (menuY < 10) {
+                menuY = 10;
+            }
+            
+            menu.style.left = `${menuX}px`;
+            menu.style.top = `${menuY}px`;
+        }
+        
+        hideAddMenu() {
+            const menu = document.getElementById('sb-add-menu');
+            menu.classList.remove('show');
+        }
+        
+        handleAddMenuAction(action) {
+            this.hideAddMenu();
+            
+            switch (action) {
+                case 'add-bookmark':
+                    this.showAddModal();
+                    break;
+                case 'cancel-add':
+                    // 什么都不做，只是关闭菜单
+                    break;
+            }
+        }
+        
         showAddModal() {
             const modal = document.getElementById('sb-add-modal');
             modal.classList.add('show');
@@ -933,7 +1039,7 @@
             if (bookmark) {
                 const intervalMenu = document.getElementById('sb-interval-menu');
                 const interval = bookmark.doubleBackInterval || 400;
-                intervalMenu.textContent = `两次后退间隔(${interval}ms)`;
+                intervalMenu.textContent = `⏱️ 两次后退间隔(${interval}ms)`;
             }
             
             const menu = document.getElementById('sb-menu');
