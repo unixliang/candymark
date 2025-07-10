@@ -71,7 +71,7 @@
             shortcutKey: storage.getValue('sb_shortcut_key', 'KeyB'),
             blacklist: blacklist,
             autoHideTrigger: storage.getValue('sb_auto_hide_trigger', 'true') === 'true',
-            bookmarkSize: parseInt(storage.getValue('sb_bookmark_size', '1'))
+            bookmarkSize: parseInt(storage.getValue('sb_bookmark_size', '3'))
         };
     };
     
@@ -351,9 +351,6 @@
         
         
         @media (max-width: 768px) {
-            .sb-bookmark {
-                font-size: 7px;
-            }
             
             .sb-modal-content {
                 width: 95%;
@@ -458,10 +455,10 @@
             overflow: hidden;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
             transition: all 0.2s ease;
-            /* 默认第1档大小 */
-            width: 18.9px;
-            height: 18.9px;
-            font-size: 8px;
+            /* 默认第3档大小 */
+            width: 26.5px;
+            height: 26.5px;
+            font-size: 14px;
         }
         
         .sb-size-slider-wrapper {
@@ -547,16 +544,16 @@
     
     // 标签大小配置 (10档)
     const BOOKMARK_SIZES = [
-        { size: '18.9px', fontSize: '8px' },   // 第1档 (0.5cm)
-        { size: '22.7px', fontSize: '9px' },   // 第2档 (0.6cm)
-        { size: '26.5px', fontSize: '10px' },  // 第3档 (0.7cm)
-        { size: '30.2px', fontSize: '11px' },  // 第4档 (0.8cm)
-        { size: '34.0px', fontSize: '12px' },  // 第5档 (0.9cm)
-        { size: '37.8px', fontSize: '13px' },  // 第6档 (1.0cm)
-        { size: '41.6px', fontSize: '14px' },  // 第7档 (1.1cm)
-        { size: '45.4px', fontSize: '15px' },  // 第8档 (1.2cm)
-        { size: '49.1px', fontSize: '16px' },  // 第9档 (1.3cm)
-        { size: '52.9px', fontSize: '17px' }   // 第10档 (1.4cm)
+        { size: '18.9px', fontSize: '10px' },  // 第1档 (0.5cm)
+        { size: '22.7px', fontSize: '12px' },  // 第2档 (0.6cm)
+        { size: '26.5px', fontSize: '14px' },  // 第3档 (0.7cm)
+        { size: '30.2px', fontSize: '16px' },  // 第4档 (0.8cm)
+        { size: '34.0px', fontSize: '18px' },  // 第5档 (0.9cm)
+        { size: '37.8px', fontSize: '20px' },  // 第6档 (1.0cm)
+        { size: '41.6px', fontSize: '22px' },  // 第7档 (1.1cm)
+        { size: '45.4px', fontSize: '24px' },  // 第8档 (1.2cm)
+        { size: '49.1px', fontSize: '26px' },  // 第9档 (1.3cm)
+        { size: '52.9px', fontSize: '28px' }   // 第10档 (1.4cm)
     ];
 
     // 设置CSS变量
