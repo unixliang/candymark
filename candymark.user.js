@@ -71,7 +71,8 @@
             shortcutKey: storage.getValue('sb_shortcut_key', 'KeyB'),
             blacklist: blacklist,
             autoHideTrigger: storage.getValue('sb_auto_hide_trigger', 'true') === 'true',
-            bookmarkSize: parseInt(storage.getValue('sb_bookmark_size', '3'))
+            bookmarkSize: parseInt(storage.getValue('sb_bookmark_size', '3')),
+            bookmarkOpacity: parseInt(storage.getValue('sb_bookmark_opacity', '10'))
         };
     };
     
@@ -540,6 +541,123 @@
             text-align: center;
             font-weight: 500;
         }
+        
+        /* 标签透明度调整样式 */
+        .sb-opacity-slider-container {
+            padding: 20px 0;
+        }
+        
+        .sb-opacity-preview {
+            text-align: center;
+            margin-bottom: 30px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .sb-opacity-preview-bookmark {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: 2px solid #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            line-height: 1.2;
+            word-break: break-all;
+            overflow: hidden;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            transition: all 0.2s ease;
+            width: 26.5px;
+            height: 26.5px;
+            font-size: 14px;
+            opacity: 1;
+        }
+        
+        .sb-opacity-slider-wrapper {
+            position: relative;
+            margin: 0 10px;
+        }
+        
+        .sb-opacity-slider-track {
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            position: relative;
+            cursor: pointer;
+        }
+        
+        .sb-opacity-slider-thumb {
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 50%;
+            position: absolute;
+            top: -7px;
+            cursor: grab;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+            transition: background 0.2s ease;
+        }
+        
+        .sb-opacity-slider-thumb:hover {
+            background: #5a6fd8;
+        }
+        
+        .sb-opacity-slider-thumb:active {
+            cursor: grabbing;
+            background: #4f63d2;
+        }
+        
+        .sb-opacity-slider-marks {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+        }
+        
+        .sb-opacity-mark {
+            width: 2px;
+            height: 12px;
+            background: #ccc;
+            border-radius: 1px;
+            position: relative;
+        }
+        
+        .sb-opacity-mark:first-child,
+        .sb-opacity-mark:last-child {
+            background: #999;
+            height: 14px;
+        }
+        
+        .sb-opacity-mark:nth-child(5n) {
+            background: #999;
+            height: 10px;
+        }
+        
+        .sb-opacity-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            font-size: 11px;
+            color: #666;
+            padding: 0 10px;
+        }
+        
+        .sb-opacity-labels span {
+            width: 20px;
+            text-align: center;
+            font-weight: 500;
+        }
     `;
     
     // 标签大小配置 (10档)
@@ -556,6 +674,11 @@
         { size: '52.9px', fontSize: '28px' }   // 第10档 (1.4cm)
     ];
 
+    // 标签透明度配置 (10档: 0.1-1.0)
+    const BOOKMARK_OPACITIES = [
+        0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0
+    ];
+
     // 设置CSS变量
     function updateBookmarkSize(sizeLevel) {
         const sizeConfig = BOOKMARK_SIZES[sizeLevel - 1] || BOOKMARK_SIZES[0];
@@ -563,13 +686,25 @@
         document.documentElement.style.setProperty('--sb-bookmark-font-size', sizeConfig.fontSize);
     }
 
+    // 设置标签透明度
+    function updateBookmarkOpacity(opacityLevel) {
+        const opacity = BOOKMARK_OPACITIES[opacityLevel - 1] || BOOKMARK_OPACITIES[9];
+        document.documentElement.style.setProperty('--sb-bookmark-opacity', opacity);
+        // 更新所有现有标签的透明度
+        const bookmarks = document.querySelectorAll('.sb-bookmark');
+        bookmarks.forEach(bookmark => {
+            bookmark.style.opacity = opacity;
+        });
+    }
+
     // 创建样式表
     const style = document.createElement('style');
     style.textContent = CSS;
     document.head.appendChild(style);
     
-    // 初始化标签大小
+    // 初始化标签大小和透明度
     updateBookmarkSize(CONFIG.bookmarkSize);
+    updateBookmarkOpacity(CONFIG.bookmarkOpacity);
     
 
 
@@ -591,6 +726,7 @@
         <div id="sb-add-menu">
             <div class="sb-menu-item" data-action="add-bookmark">➕ 增加标签</div>
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
+            <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
             <div class="sb-menu-item" data-action="export-config">📤 导出配置</div>
             <div class="sb-menu-item" data-action="import-config">📥 导入配置</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
@@ -666,6 +802,49 @@
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-size-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-size-cancel">取消</button>
+                </div>
+            </div>
+        </div>
+        <div id="sb-opacity-modal" class="sb-modal">
+            <div class="sb-modal-content">
+                <h3>调整标签透明度</h3>
+                <div class="sb-opacity-slider-container">
+                    <div class="sb-opacity-preview">
+                        <div class="sb-opacity-preview-bookmark" id="sb-opacity-preview">🌓</div>
+                    </div>
+                    <div class="sb-opacity-slider-wrapper">
+                        <div class="sb-opacity-slider-track">
+                            <div class="sb-opacity-slider-marks">
+                                <div class="sb-opacity-mark" data-level="1"></div>
+                                <div class="sb-opacity-mark" data-level="2"></div>
+                                <div class="sb-opacity-mark" data-level="3"></div>
+                                <div class="sb-opacity-mark" data-level="4"></div>
+                                <div class="sb-opacity-mark" data-level="5"></div>
+                                <div class="sb-opacity-mark" data-level="6"></div>
+                                <div class="sb-opacity-mark" data-level="7"></div>
+                                <div class="sb-opacity-mark" data-level="8"></div>
+                                <div class="sb-opacity-mark" data-level="9"></div>
+                                <div class="sb-opacity-mark" data-level="10"></div>
+                            </div>
+                            <div class="sb-opacity-slider-thumb" id="sb-opacity-slider-thumb"></div>
+                        </div>
+                        <div class="sb-opacity-labels">
+                            <span>0.1</span>
+                            <span>0.2</span>
+                            <span>0.3</span>
+                            <span>0.4</span>
+                            <span>0.5</span>
+                            <span>0.6</span>
+                            <span>0.7</span>
+                            <span>0.8</span>
+                            <span>0.9</span>
+                            <span>1.0</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="sb-modal-buttons">
+                    <button class="sb-btn-primary" id="sb-opacity-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-opacity-cancel">取消</button>
                 </div>
             </div>
         </div>
@@ -771,6 +950,7 @@
                 bookmarks: this.bookmarks,
                 settings: {
                     bookmarkSize: CONFIG.bookmarkSize,
+                    bookmarkOpacity: CONFIG.bookmarkOpacity,
                     enabled: CONFIG.enabled,
                     showTrigger: CONFIG.showTrigger,
                     triggerPosition: CONFIG.triggerPosition,
@@ -864,6 +1044,11 @@
                                         CONFIG.bookmarkSize = settings.bookmarkSize;
                                         updateBookmarkSize(settings.bookmarkSize);
                                     }
+                                    if (settings.bookmarkOpacity) {
+                                        storage.setValue('sb_bookmark_opacity', settings.bookmarkOpacity.toString());
+                                        CONFIG.bookmarkOpacity = settings.bookmarkOpacity;
+                                        updateBookmarkOpacity(settings.bookmarkOpacity);
+                                    }
                                     if (settings.enabled !== undefined) {
                                         storage.setValue('sb_enabled', settings.enabled.toString());
                                         CONFIG.enabled = settings.enabled;
@@ -936,6 +1121,7 @@
                     this.hideEditModal();
                     this.hideIntervalModal();
                     this.cancelSizeChange();
+                    this.cancelOpacityChange();
                 }
             });
             
@@ -973,6 +1159,15 @@
             
             document.getElementById('sb-size-cancel').addEventListener('click', () => {
                 this.cancelSizeChange();
+            });
+            
+            // 标签透明度调整
+            document.getElementById('sb-opacity-confirm').addEventListener('click', () => {
+                this.confirmOpacityChange();
+            });
+            
+            document.getElementById('sb-opacity-cancel').addEventListener('click', () => {
+                this.cancelOpacityChange();
             });
             
             // 菜单事件
@@ -1173,6 +1368,9 @@
                     break;
                 case 'adjust-size':
                     this.showSizeModal();
+                    break;
+                case 'adjust-opacity':
+                    this.showOpacityModal();
                     break;
                 case 'export-config':
                     this.exportConfig();
@@ -1398,6 +1596,166 @@
             }
             
             this.hideSizeModal();
+        }
+        
+        // 透明度调整相关方法
+        showOpacityModal() {
+            const modal = document.getElementById('sb-opacity-modal');
+            modal.classList.add('show');
+            
+            // 保存原始透明度用于取消时恢复
+            this.originalOpacityLevel = CONFIG.bookmarkOpacity;
+            
+            // 初始化滑动条位置
+            this.currentOpacityLevel = CONFIG.bookmarkOpacity;
+            this.initOpacitySlider();
+            this.updateOpacityPreview(this.currentOpacityLevel);
+        }
+        
+        hideOpacityModal() {
+            const modal = document.getElementById('sb-opacity-modal');
+            modal.classList.remove('show');
+            this.cleanupOpacitySlider();
+        }
+        
+        initOpacitySlider() {
+            this.opacitySliderDragging = false;
+            const track = document.querySelector('.sb-opacity-slider-track');
+            const thumb = document.getElementById('sb-opacity-slider-thumb');
+            
+            if (!track || !thumb) return;
+            
+            // 设置初始位置
+            const trackWidth = track.offsetWidth - thumb.offsetWidth;
+            const position = ((this.currentOpacityLevel - 1) / 9) * trackWidth;
+            thumb.style.left = `${position}px`;
+            
+            // 绑定事件
+            thumb.addEventListener('mousedown', this.startOpacitySliderDrag.bind(this));
+            track.addEventListener('click', this.handleOpacitySliderClick.bind(this));
+            document.addEventListener('mousemove', this.handleOpacitySliderMove.bind(this));
+            document.addEventListener('mouseup', this.endOpacitySliderDrag.bind(this));
+            
+            // 触摸事件支持
+            thumb.addEventListener('touchstart', this.startOpacitySliderDrag.bind(this), { passive: false });
+            track.addEventListener('touchstart', this.handleOpacitySliderClick.bind(this), { passive: false });
+            document.addEventListener('touchmove', this.handleOpacitySliderMove.bind(this), { passive: false });
+            document.addEventListener('touchend', this.endOpacitySliderDrag.bind(this));
+        }
+        
+        cleanupOpacitySlider() {
+            const thumb = document.getElementById('sb-opacity-slider-thumb');
+            const track = document.querySelector('.sb-opacity-slider-track');
+            
+            if (thumb) {
+                thumb.removeEventListener('mousedown', this.startOpacitySliderDrag.bind(this));
+                thumb.removeEventListener('touchstart', this.startOpacitySliderDrag.bind(this));
+            }
+            if (track) {
+                track.removeEventListener('click', this.handleOpacitySliderClick.bind(this));
+                track.removeEventListener('touchstart', this.handleOpacitySliderClick.bind(this));
+            }
+            document.removeEventListener('mousemove', this.handleOpacitySliderMove.bind(this));
+            document.removeEventListener('mouseup', this.endOpacitySliderDrag.bind(this));
+            document.removeEventListener('touchmove', this.handleOpacitySliderMove.bind(this));
+            document.removeEventListener('touchend', this.endOpacitySliderDrag.bind(this));
+        }
+        
+        startOpacitySliderDrag(e) {
+            e.preventDefault();
+            this.opacitySliderDragging = true;
+            const thumb = document.getElementById('sb-opacity-slider-thumb');
+            if (thumb) {
+                thumb.style.cursor = 'grabbing';
+            }
+        }
+        
+        endOpacitySliderDrag(e) {
+            this.opacitySliderDragging = false;
+            const thumb = document.getElementById('sb-opacity-slider-thumb');
+            if (thumb) {
+                thumb.style.cursor = 'grab';
+            }
+        }
+        
+        handleOpacitySliderClick(e) {
+            if (e.target.closest('#sb-opacity-slider-thumb')) return;
+            
+            const track = document.querySelector('.sb-opacity-slider-track');
+            const thumb = document.getElementById('sb-opacity-slider-thumb');
+            if (!track || !thumb) return;
+            
+            const rect = track.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const x = clientX - rect.left;
+            
+            this.updateOpacitySliderPosition(x, track, thumb);
+        }
+        
+        handleOpacitySliderMove(e) {
+            if (!this.opacitySliderDragging) return;
+            
+            const track = document.querySelector('.sb-opacity-slider-track');
+            const thumb = document.getElementById('sb-opacity-slider-thumb');
+            if (!track || !thumb) return;
+            
+            const rect = track.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const x = clientX - rect.left;
+            
+            this.updateOpacitySliderPosition(x, track, thumb);
+        }
+        
+        updateOpacitySliderPosition(x, track, thumb) {
+            const trackWidth = track.offsetWidth - thumb.offsetWidth;
+            
+            // 计算最接近的档位 (1-10)
+            const percentage = Math.max(0, Math.min(x - thumb.offsetWidth / 2, trackWidth)) / trackWidth;
+            const opacityLevel = Math.round(percentage * 9) + 1;
+            
+            // 将滑块精确定位到对应档位
+            const targetPosition = ((opacityLevel - 1) / 9) * trackWidth;
+            thumb.style.left = `${targetPosition}px`;
+            
+            if (opacityLevel !== this.currentOpacityLevel) {
+                this.currentOpacityLevel = opacityLevel;
+                this.updateOpacityPreview(opacityLevel);
+                updateBookmarkOpacity(opacityLevel); // 实时更新所有标签透明度
+            }
+        }
+        
+        updateOpacityPreview(opacityLevel) {
+            const preview = document.getElementById('sb-opacity-preview');
+            if (!preview) return;
+            
+            const opacity = BOOKMARK_OPACITIES[opacityLevel - 1] || BOOKMARK_OPACITIES[9];
+            preview.style.opacity = opacity;
+        }
+        
+        confirmOpacityChange() {
+            // 保存透明度设置
+            CONFIG.bookmarkOpacity = this.currentOpacityLevel;
+            storage.setValue('sb_bookmark_opacity', this.currentOpacityLevel.toString());
+            
+            // 标记为已确认，避免hideOpacityModal恢复原透明度
+            this.originalOpacityLevel = this.currentOpacityLevel;
+            
+            this.hideOpacityModal();
+        }
+        
+        cancelOpacityChange() {
+            const modal = document.getElementById('sb-opacity-modal');
+            if (!modal.classList.contains('show')) {
+                return; // 如果面板没有打开，直接返回
+            }
+            
+            // 强制恢复原始透明度
+            if (this.originalOpacityLevel) {
+                updateBookmarkOpacity(this.originalOpacityLevel);
+                this.currentOpacityLevel = this.originalOpacityLevel;
+            }
+            
+            this.hideOpacityModal();
         }
         
         showMenu(e, bookmarkId) {
@@ -1936,6 +2294,12 @@
                 // 添加新的颜色类
                 element.classList.add(expectedColorClass);
             }
+            
+            // 更新透明度
+            const expectedOpacity = BOOKMARK_OPACITIES[CONFIG.bookmarkOpacity - 1] || BOOKMARK_OPACITIES[9];
+            if (parseFloat(element.style.opacity) !== expectedOpacity) {
+                element.style.opacity = expectedOpacity;
+            }
             if (element.getAttribute('data-bookmark-url') !== bookmark.url) {
                 element.setAttribute('data-bookmark-url', bookmark.url);
                 
@@ -1968,6 +2332,10 @@
             element.style.top = `${bookmark.y}px`;
             element.textContent = bookmark.name;
             element.title = `${bookmark.name}\n${bookmark.url}`;
+            
+            // 应用当前透明度设置
+            const opacity = BOOKMARK_OPACITIES[CONFIG.bookmarkOpacity - 1] || BOOKMARK_OPACITIES[9];
+            element.style.opacity = opacity;
             
             // 为特殊URL设置直接的onclick处理
             if (bookmark.url === 'back') {
