@@ -591,6 +591,8 @@
         <div id="sb-add-menu">
             <div class="sb-menu-item" data-action="add-bookmark">➕ 增加标签</div>
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
+            <div class="sb-menu-item" data-action="export-config">📤 导出配置</div>
+            <div class="sb-menu-item" data-action="import-config">📥 导入配置</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
         </div>
         <div id="sb-add-modal" class="sb-modal">
@@ -759,6 +761,153 @@
             a.download = 'candymark-data.json';
             a.click();
             URL.revokeObjectURL(url);
+        }
+        
+        // 导出配置
+        exportConfig() {
+            const configData = {
+                version: '2.0.0',
+                exportTime: new Date().toISOString(),
+                bookmarks: this.bookmarks,
+                settings: {
+                    bookmarkSize: CONFIG.bookmarkSize,
+                    enabled: CONFIG.enabled,
+                    showTrigger: CONFIG.showTrigger,
+                    triggerPosition: CONFIG.triggerPosition,
+                    maxBookmarks: CONFIG.maxBookmarks,
+                    shortcutKey: CONFIG.shortcutKey,
+                    blacklist: CONFIG.blacklist,
+                    autoHideTrigger: CONFIG.autoHideTrigger
+                }
+            };
+            
+            const data = JSON.stringify(configData, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'candymark-config.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // 导入配置
+        importConfig() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const importedData = JSON.parse(e.target.result);
+                            
+                            let bookmarks, settings;
+                            
+                            // 检查是否是新格式（包含settings）还是旧格式（只有bookmarks数组）
+                            if (Array.isArray(importedData)) {
+                                // 旧格式：直接是bookmarks数组
+                                bookmarks = importedData;
+                                settings = null;
+                            } else if (importedData && typeof importedData === 'object') {
+                                if (importedData.bookmarks) {
+                                    // 新格式：包含bookmarks和可选的settings
+                                    bookmarks = importedData.bookmarks;
+                                    settings = importedData.settings || null;
+                                } else {
+                                    throw new Error('数据格式不正确：对象中缺少bookmarks字段');
+                                }
+                            } else {
+                                throw new Error('数据格式不正确：必须是数组或包含bookmarks的对象');
+                            }
+                            
+                            // 验证bookmarks数据格式
+                            if (!Array.isArray(bookmarks)) {
+                                throw new Error('标签数据格式不正确：不是数组格式');
+                            }
+                            
+                            for (let i = 0; i < bookmarks.length; i++) {
+                                const bookmark = bookmarks[i];
+                                if (!bookmark || typeof bookmark !== 'object') {
+                                    throw new Error(`标签数据格式不正确：第${i+1}个标签不是对象`);
+                                }
+                                if (!bookmark.hasOwnProperty('id')) {
+                                    throw new Error(`标签数据格式不正确：第${i+1}个标签缺少id字段`);
+                                }
+                                if (!bookmark.hasOwnProperty('name')) {
+                                    throw new Error(`标签数据格式不正确：第${i+1}个标签缺少name字段`);
+                                }
+                                if (!bookmark.hasOwnProperty('url')) {
+                                    throw new Error(`标签数据格式不正确：第${i+1}个标签缺少url字段`);
+                                }
+                                // 允许name或url为空字符串，但不能为null或undefined
+                                if (bookmark.name === null || bookmark.name === undefined) {
+                                    bookmark.name = '';
+                                }
+                                if (bookmark.url === null || bookmark.url === undefined) {
+                                    throw new Error(`标签数据格式不正确：第${i+1}个标签的url不能为空`);
+                                }
+                            }
+                            
+                            if (confirm('确定要导入配置吗？这将替换现有的所有标签和设置。')) {
+                                // 导入标签
+                                this.bookmarks = bookmarks;
+                                this.saveBookmarks(true);
+                                
+                                // 如果有设置信息，则导入设置
+                                if (settings) {
+                                    // 保存设置到localStorage
+                                    if (settings.bookmarkSize) {
+                                        storage.setValue('sb_bookmark_size', settings.bookmarkSize.toString());
+                                        CONFIG.bookmarkSize = settings.bookmarkSize;
+                                        updateBookmarkSize(settings.bookmarkSize);
+                                    }
+                                    if (settings.enabled !== undefined) {
+                                        storage.setValue('sb_enabled', settings.enabled.toString());
+                                        CONFIG.enabled = settings.enabled;
+                                    }
+                                    if (settings.showTrigger !== undefined) {
+                                        storage.setValue('sb_show_trigger', settings.showTrigger.toString());
+                                        CONFIG.showTrigger = settings.showTrigger;
+                                    }
+                                    if (settings.triggerPosition) {
+                                        storage.setValue('sb_trigger_position', settings.triggerPosition);
+                                        CONFIG.triggerPosition = settings.triggerPosition;
+                                    }
+                                    if (settings.maxBookmarks) {
+                                        storage.setValue('sb_max_bookmarks', settings.maxBookmarks.toString());
+                                        CONFIG.maxBookmarks = settings.maxBookmarks;
+                                    }
+                                    if (settings.shortcutKey) {
+                                        storage.setValue('sb_shortcut_key', settings.shortcutKey);
+                                        CONFIG.shortcutKey = settings.shortcutKey;
+                                    }
+                                    if (settings.blacklist && Array.isArray(settings.blacklist)) {
+                                        storage.setValue('sb_blacklist', JSON.stringify(settings.blacklist));
+                                        CONFIG.blacklist = settings.blacklist;
+                                    }
+                                    if (settings.autoHideTrigger !== undefined) {
+                                        storage.setValue('sb_auto_hide_trigger', settings.autoHideTrigger.toString());
+                                        CONFIG.autoHideTrigger = settings.autoHideTrigger;
+                                    }
+                                }
+                                
+                                this.renderBookmarks(true);
+                                this.updateTriggerVisibility();
+                                
+                                const message = settings ? '导入成功！标签和设置已更新。' : '导入成功！仅标签数据已更新。';
+                                alert(message);
+                            }
+                        } catch (error) {
+                            alert('导入失败：' + error.message);
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            });
+            input.click();
         }
         
         bindEvents() {
@@ -1024,6 +1173,12 @@
                     break;
                 case 'adjust-size':
                     this.showSizeModal();
+                    break;
+                case 'export-config':
+                    this.exportConfig();
+                    break;
+                case 'import-config':
+                    this.importConfig();
                     break;
                 case 'cancel-add':
                     // 什么都不做，只是关闭菜单
