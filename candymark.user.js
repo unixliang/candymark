@@ -348,47 +348,6 @@
             display: block;
         }
         
-        .sb-settings-panel {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-            z-index: 999993;
-            display: none;
-            min-width: 250px;
-            pointer-events: auto;
-        }
-        
-        .sb-settings-panel.show {
-            display: block;
-        }
-        
-        .sb-settings-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 15px;
-            color: #333;
-        }
-        
-        .sb-setting-item {
-            margin-bottom: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .sb-setting-label {
-            font-size: 14px;
-            color: #666;
-        }
-        
-        .sb-setting-input {
-            width: 60px;
-        }
         
         @media (max-width: 768px) {
             .sb-bookmark {
@@ -405,11 +364,6 @@
                 font-size: 16px;
             }
             
-            .sb-settings-panel {
-                right: 10px;
-                top: 10px;
-                min-width: 200px;
-            }
         }
         
         @media (hover: none) {
@@ -484,8 +438,7 @@
     const container = document.createElement('div');
     container.id = 'sb-container';
     container.innerHTML = `
-        <div id="sb-trigger" title="点击添加标签 (${CONFIG.shortcutKey.replace('Key', 'Ctrl+')})
-双击打开设置"></div>
+        <div id="sb-trigger" title="点击添加标签 (${CONFIG.shortcutKey.replace('Key', 'Ctrl+')})"></div>
         <div id="sb-menu">
             <div class="sb-menu-item" data-action="drag">🖱️ 拖拽移动</div>
             <div class="sb-menu-item" data-action="set-url">📍 设置当前页面</div>
@@ -533,28 +486,6 @@
         </div>
         <div id="sb-drag-hint" class="sb-drag-hint">
             按住标签拖拽到任意位置，松开鼠标完成移动
-        </div>
-        <div id="sb-settings-panel" class="sb-settings-panel">
-            <div class="sb-settings-title">CandyMark 设置</div>
-            <div class="sb-setting-item">
-                <span class="sb-setting-label">显示触发区域</span>
-                <input type="checkbox" id="sb-setting-trigger" ${CONFIG.showTrigger ? 'checked' : ''}>
-            </div>
-            <div class="sb-setting-item">
-                <span class="sb-setting-label">最大标签数</span>
-                <input type="number" id="sb-setting-max" class="sb-setting-input" value="${CONFIG.maxBookmarks}" min="1" max="50">
-            </div>
-            <div class="sb-setting-item">
-                <span class="sb-setting-label">自动隐藏触发器</span>
-                <input type="checkbox" id="sb-setting-auto-hide" ${CONFIG.autoHideTrigger ? 'checked' : ''}>
-            </div>
-            <div style="margin-top: 15px; text-align: center;">
-                <button class="sb-btn-primary" id="sb-save-settings">保存设置</button>
-            </div>
-            <div style="margin-top: 10px; text-align: center; display: flex; gap: 10px; flex-wrap: wrap;">
-                <button class="sb-btn-secondary" id="sb-export-data" style="flex: 1; min-width: 80px;">导出数据</button>
-                <button class="sb-btn-secondary" id="sb-clear-all" style="flex: 1; min-width: 80px;">清空标签</button>
-            </div>
         </div>
     `;
     
@@ -632,15 +563,7 @@
         
         // 创建替代菜单访问方式
         createAlternativeMenu() {
-            // 添加双击触发器显示设置的功能
-            const trigger = document.getElementById('sb-trigger');
-            if (trigger) {
-                trigger.addEventListener('dblclick', (e) => {
-                    e.stopPropagation();
-                    this.toggleSettings();
-                });
-                trigger.title += '\n双击打开设置';
-            }
+            // 移除了双击设置功能
         }
         
         // 导出标签数据
@@ -680,7 +603,6 @@
                     this.hideAddModal();
                     this.hideEditModal();
                     this.hideIntervalModal();
-                    this.hideSettings();
                 }
             });
             
@@ -727,46 +649,12 @@
                 }
             });
             
-            // 设置面板
-            document.getElementById('sb-save-settings').addEventListener('click', () => {
-                this.saveSettings();
-            });
-            
-            document.getElementById('sb-export-data').addEventListener('click', () => {
-                this.exportBookmarks();
-            });
-            
-            document.getElementById('sb-clear-all').addEventListener('click', () => {
-                if (confirm('确定要清空所有标签吗？此操作不可撤销！')) {
-                    this.bookmarks = [];
-                    this.saveBookmarks(true);
-                    this.renderBookmarks(true);
-                    this.updateTriggerVisibility();
-                    this.hideSettings();
-                }
-            });
-            
-            
-            document.getElementById('sb-export-data').addEventListener('click', () => {
-                this.exportBookmarks();
-            });
-            
-            document.getElementById('sb-clear-all').addEventListener('click', () => {
-                if (confirm('确定要清空所有标签吗？此操作不可撤销！')) {
-                    this.bookmarks = [];
-                    this.saveBookmarks(true);
-                    this.renderBookmarks(true);
-                    this.updateTriggerVisibility();
-                    this.hideSettings();
-                }
-            });
             
             // 全局点击关闭菜单
             document.addEventListener('click', (e) => {
-                if (!e.target.closest('#sb-menu') && !e.target.closest('#sb-add-menu') && !e.target.closest('#sb-settings-panel') && !e.target.closest('.sb-modal')) {
+                if (!e.target.closest('#sb-menu') && !e.target.closest('#sb-add-menu') && !e.target.closest('.sb-modal')) {
                     this.hideMenu();
                     this.hideAddMenu();
-                    this.hideSettings();
                 }
             });
             
@@ -892,33 +780,6 @@
             }
         }
         
-        toggleSettings() {
-            const panel = document.getElementById('sb-settings-panel');
-            panel.classList.toggle('show');
-        }
-        
-        hideSettings() {
-            document.getElementById('sb-settings-panel').classList.remove('show');
-        }
-        
-        saveSettings() {
-            const showTrigger = document.getElementById('sb-setting-trigger').checked;
-            const maxBookmarks = parseInt(document.getElementById('sb-setting-max').value);
-            const autoHide = document.getElementById('sb-setting-auto-hide').checked;
-            
-            storage.setValue('sb_show_trigger', showTrigger.toString());
-            storage.setValue('sb_max_bookmarks', maxBookmarks.toString());
-            storage.setValue('sb_auto_hide_trigger', autoHide.toString());
-            
-            CONFIG.showTrigger = showTrigger;
-            CONFIG.maxBookmarks = maxBookmarks;
-            CONFIG.autoHideTrigger = autoHide;
-            
-            this.updateTriggerVisibility();
-            this.hideSettings();
-            
-            alert('设置已保存！');
-        }
         
         showAddMenu(e) {
             const menu = document.getElementById('sb-add-menu');
