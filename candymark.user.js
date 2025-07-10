@@ -908,6 +908,9 @@
             this.saveTimeout = null;
             this.pendingSave = false;
             
+            // FFJ监听间隔
+            this.ffjCheckInterval = null;
+            
             this.init();
         }
         
@@ -917,7 +920,89 @@
             this.renderBookmarks();
             this.updateTriggerVisibility();
             this.registerMenuCommands();
+            this.initFfjMonitoring();
+        }
+        
+        // FFJ监听功能
+        initFfjMonitoring() {
+            // FFJ检测的URL正则
+            this.resultMultiRegex = /https?:\/\/((game\.granbluefantasy)|(gbf\.game\.mbga))\.jp\/#result_multi\/(?!detail)[0-9]*/;
             
+            // 监听URL变化
+            this.setupUrlMonitoring();
+            
+            // 页面加载时也检查一次
+            if (window.location.href.match(this.resultMultiRegex)) {
+                this.startFfjDetection();
+            }
+        }
+        
+        setupUrlMonitoring() {
+            // 监听hashchange事件
+            window.addEventListener('hashchange', () => {
+                if (this.ffjCheckInterval) {
+                    clearInterval(this.ffjCheckInterval);
+                }
+                
+                if (window.location.href.match(this.resultMultiRegex)) {
+                    this.startFfjDetection();
+                }
+            });
+        }
+        
+        startFfjDetection() {
+            // 每500ms检查一次FFJ掉落
+            this.ffjCheckInterval = setInterval(() => {
+                this.checkFfjDrop();
+            }, 500);
+        }
+        
+        checkFfjDrop() {
+            // 检查FFJ掉落 (data-key='17_20004')
+            const ffjElement = document.querySelector("[data-key='17_20004']");
+            
+            if (ffjElement) {
+                // 清除检查间隔
+                clearInterval(this.ffjCheckInterval);
+                
+                // 显示FFJ掉落提醒
+                this.showFfjAlert();
+                
+                console.log('FFJ掉落检测到！');
+            }
+        }
+        
+        showFfjAlert() {
+            // 创建弹窗提醒
+            const alertDiv = document.createElement('div');
+            alertDiv.innerHTML = `
+                <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                           background: linear-gradient(135deg, #ffd700, #ffb347); 
+                           color: #333; padding: 20px 30px; border-radius: 15px; 
+                           font-size: 18px; font-weight: bold; z-index: 10000; 
+                           box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                           text-align: center; min-width: 200px;">
+                    🎉 FFJ掉落了！🎉
+                    <div style="margin-top: 10px; font-size: 14px; opacity: 0.8;">
+                        恭喜获得FFJ！
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" 
+                            style="margin-top: 15px; padding: 8px 16px; 
+                                   background: rgba(0,0,0,0.1); border: none; 
+                                   color: #333; border-radius: 8px; cursor: pointer;">
+                        确定
+                    </button>
+                </div>
+            `;
+            
+            document.body.appendChild(alertDiv);
+            
+            // 10秒后自动消失
+            setTimeout(() => {
+                if (alertDiv.parentElement) {
+                    alertDiv.remove();
+                }
+            }, 10000);
         }
         
         registerMenuCommands() {
