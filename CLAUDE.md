@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SimpleBookmark is a mobile-optimized userscript (Greasemonkey/Tampermonkey) that provides floating bookmark navigation on any website. The project uses vanilla JavaScript with performance optimizations and is designed for automatic deployment to GitHub Pages.
+CandyMark is a mobile-optimized userscript (Greasemonkey/Tampermonkey) that provides floating bookmark navigation on any website. The project uses vanilla JavaScript with performance optimizations and is designed for automatic deployment to GitHub Pages.
 
 ## Development Commands
 
@@ -32,11 +32,11 @@ git push origin main
 ### Access URLs
 - Main page: `http://localhost:8000`
 - Manager: `http://localhost:8000/manager.html`
-- Script file: `http://localhost:8000/SimpleBookmark.js`
+- Script file: `http://localhost:8000/candymark.user.js`
 
 ## Architecture Overview
 
-### Core Class: SimpleBookmarkManager
+### Core Class: CandyMarkManager
 The main class manages all bookmark functionality with these key areas:
 
 **State Management:**
@@ -99,7 +99,7 @@ const dragState = {
 ## File Structure
 
 ### Core Files
-- **SimpleBookmark.js**: Production userscript (auto-updates from GitHub)
+- **candymark.user.js**: Production userscript (auto-updates from GitHub)
 - **index.html**: Installation landing page with feature showcase
 - **manager.html**: Standalone bookmark management interface
 - **server.py**: Development server with auto-browser launch

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-简单的本地HTTP服务器，用于测试SimpleBookmark项目
+简单的本地HTTP服务器，用于测试CandyMark项目
 运行方式：python server.py
 默认端口：8000
 """
@@ -24,7 +24,7 @@ def main():
     
     try:
         with socketserver.TCPServer(("", port), handler) as httpd:
-            print(f"🚀 SimpleBookmark 本地服务器已启动")
+            print(f"🚀 CandyMark 本地服务器已启动")
             print(f"📱 访问地址：http://localhost:{port}")
             print(f"🔗 移动端测试：http://你的IP地址:{port}")
             print(f"⌨️  按 Ctrl+C 停止服务器")

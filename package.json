@@ -1,5 +1,5 @@
 {
-  "name": "simplebookmark",
+  "name": "candymark",
   "version": "1.0.0",
   "description": "一个基于原生JavaScript开发的移动端网页标签导航项目",
   "main": "index.html",
@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-username/simplebookmark.git"
+    "url": "git+https://github.com/your-username/candymark.git"
   },
   "keywords": [
     "bookmark",
@@ -26,9 +26,9 @@
   "author": "Your Name",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/your-username/simplebookmark/issues"
+    "url": "https://github.com/your-username/candymark/issues"
   },
-  "homepage": "https://your-username.github.io/simplebookmark",
+  "homepage": "https://your-username.github.io/candymark",
   "devDependencies": {
     "gh-pages": "^6.1.1",
     "http-server": "^14.1.1"

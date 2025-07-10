@@ -1,21 +1,21 @@
 // ==UserScript==
-// @name         SimpleBookmark - 移动端标签导航
-// @namespace    https://github.com/unixliang/simplebookmark
+// @name         CandyMark - 移动端标签导航
+// @namespace    https://github.com/unixliang/candymark
 // @version      2.0.0
 // @description  移动端网页标签导航工具，支持悬浮标签、拖拽移动、本地存储等功能
 // @author       unixliang
 // @match        *://game.granbluefantasy.jp/*
 // @match        *://gbf.game.mbga.jp/*
 // @run-at       document-start
-// @updateURL    https://unixliang.github.io/simplebookmark/simplebookmark.js
-// @supportURL   https://github.com/unixliang/simplebookmark/issues
+// @updateURL    https://unixliang.github.io/candymark/candymark.user.js
+// @supportURL   https://github.com/unixliang/candymark/issues
 // ==/UserScript==
 (function() {
     'use strict';
 
     // 避免重复执行
-    if (window.SimpleBookmarkLoaded) return;
-    window.SimpleBookmarkLoaded = true;
+    if (window.CandyMarkLoaded) return;
+    window.CandyMarkLoaded = true;
     
 
     // localStorage 存储工具函数
@@ -513,7 +513,7 @@
             按住标签拖拽到任意位置，松开鼠标完成移动
         </div>
         <div id="sb-settings-panel" class="sb-settings-panel">
-            <div class="sb-settings-title">SimpleBookmark 设置</div>
+            <div class="sb-settings-title">CandyMark 设置</div>
             <div class="sb-setting-item">
                 <span class="sb-setting-label">显示触发区域</span>
                 <input type="checkbox" id="sb-setting-trigger" ${CONFIG.showTrigger ? 'checked' : ''}>
@@ -556,7 +556,7 @@
     
 
     // 标签管理器类
-    class SimpleBookmarkManager {
+    class CandyMarkManager {
         constructor() {
             // 预设5种对视觉友好的颜色
             this.colorPresets = [
@@ -569,7 +569,7 @@
             
             this.bookmarks = [];
             this.currentBookmarkId = null;
-            this.storageKey = 'simple-bookmarks-javascript';
+            this.storageKey = 'candymark-bookmarks-javascript';
             this.isContextMenuOpen = false;
             this.touchStartTime = 0;
             this.longPressTimeout = null;
@@ -628,7 +628,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'simplebookmark-data.json';
+            a.download = 'candymark-data.json';
             a.click();
             URL.revokeObjectURL(url);
         }
@@ -1564,7 +1564,7 @@
             }
         }
         
-        new SimpleBookmarkManager();
+        new CandyMarkManager();
     }
     
     // 等待页面加载完成后初始化

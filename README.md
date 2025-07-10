@@ -1,12 +1,12 @@
-# SimpleBookmark - 移动端标签导航
+# CandyMark - 移动端标签导航
 
 一个基于原生JavaScript开发的移动端网页标签导航**油猴脚本**，支持悬浮标签、拖拽移动、本地存储等功能。**安装一次，在任意网站自动运行！**
 
 ## 🚀 在线体验
 
-- **主页安装**：[https://unixliang.github.io/simplebookmark/](https://unixliang.github.io/simplebookmark/)
-- **直接安装**：[https://unixliang.github.io/simplebookmark/SimpleBookmark.js](https://unixliang.github.io/simplebookmark/SimpleBookmark.js)
-- **标签管理器**：[https://unixliang.github.io/simplebookmark/manager.html](https://unixliang.github.io/simplebookmark/manager.html)
+- **主页安装**：[https://unixliang.github.io/candymark/](https://unixliang.github.io/candymark/)
+- **直接安装**：[https://unixliang.github.io/candymark/candymark.user.js](https://unixliang.github.io/candymark/candymark.user.js)
+- **标签管理器**：[https://unixliang.github.io/candymark/manager.html](https://unixliang.github.io/candymark/manager.html)
 
 ## ✨ 核心功能
 
@@ -42,7 +42,7 @@
    - Safari: [App Store](https://apps.apple.com/app/tampermonkey/id1482490089)
 
 2. **安装脚本**
-   - 访问：[https://unixliang.github.io/simplebookmark/](https://unixliang.github.io/simplebookmark/)
+   - 访问：[https://unixliang.github.io/candymark/](https://unixliang.github.io/candymark/)
    - 点击"🚀 安装脚本"按钮
    - 在弹出页面点击"安装"确认
 
@@ -55,8 +55,8 @@
 
 1. **克隆项目**
    ```bash
-   git clone https://github.com/unixliang/simplebookmark.git
-   cd simplebookmark
+   git clone https://github.com/unixliang/candymark.git
+   cd candymark
    ```
 
 2. **启动本地服务器**
@@ -78,7 +78,7 @@
 1. **推送到GitHub并启用Pages**
    ```bash
    git add .
-   git commit -m "feat: 初始化SimpleBookmark项目"
+   git commit -m "feat: 初始化CandyMark项目"
    git push origin main
    ```
 
@@ -87,7 +87,7 @@
    - 编辑 `README.md` 中的链接地址
 
 3. **访问在线版本**
-   - 访问：`https://unixliang.github.io/simplebookmark/`
+   - 访问：`https://unixliang.github.io/candymark/`
 
 ## 📱 使用指南
 
@@ -100,7 +100,7 @@
 ### 管理标签
 - **移动端**：长按标签（500ms）弹出菜单
 - **PC端**：右键点击标签弹出菜单
-- **设置**：右键Tampermonkey图标选择"SimpleBookmark设置"
+- **设置**：右键Tampermonkey图标选择"CandyMark设置"
 
 ### 菜单功能
 - **🖱️ 拖拽移动**：进入拖拽模式，标签可移动到任意位置
@@ -135,9 +135,9 @@
 ## 📁 项目结构
 
 ```
-simplebookmark/
+candymark/
 ├── index.html              # 油猴脚本安装主页面
-├── SimpleBookmark.js       # 油猴脚本核心文件
+├── candymark.user.js       # 油猴脚本核心文件
 ├── manager.html            # 标签管理器页面
 ├── style.css               # 演示页面样式
 ├── script.js               # 演示页面逻辑
@@ -149,7 +149,7 @@ simplebookmark/
 
 ## 🔧 核心文件说明
 
-### SimpleBookmark.js
+### candymark.user.js
 - 油猴脚本主文件，包含所有功能
 - 支持自动运行、配置管理、数据同步
 - 生产环境使用版本
@@ -166,7 +166,7 @@ simplebookmark/
 
 ## 🔧 开发细节
 
-### 核心类：SimpleBookmark
+### 核心类：CandyMark
 
 主要方法：
 - `init()` - 初始化应用
@@ -180,7 +180,7 @@ simplebookmark/
 
 ### 本地存储
 
-数据保存在`localStorage`中，键名为`simpleBookmarks`，数据结构：
+数据保存在`localStorage`中，键名为`candyMarkBookmarks`，数据结构：
 ```javascript
 {
   id: 1677123456789,        // 唯一标识
@@ -201,9 +201,9 @@ simplebookmark/
 
 ## 📥 安装渠道
 
-- **GitHub**: [https://github.com/unixliang/simplebookmark](https://github.com/unixliang/simplebookmark)
+- **GitHub**: [https://github.com/unixliang/candymark](https://github.com/unixliang/candymark)
 - **Greasyfork**: [https://greasyfork.org/scripts/xxxxx](https://greasyfork.org/scripts/xxxxx)
-- **项目主页**: [https://unixliang.github.io/simplebookmark/](https://unixliang.github.io/simplebookmark/)
+- **项目主页**: [https://unixliang.github.io/candymark/](https://unixliang.github.io/candymark/)
 
 ## 🔮 未来计划
 
@@ -239,8 +239,8 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 ## 📞 支持与反馈
 
 如有问题或建议，请通过以下方式联系：
-- **Issues**: [GitHub Issues](https://github.com/unixliang/simplebookmark/issues)
-- **讨论**: [GitHub Discussions](https://github.com/unixliang/simplebookmark/discussions)
+- **Issues**: [GitHub Issues](https://github.com/unixliang/candymark/issues)
+- **讨论**: [GitHub Discussions](https://github.com/unixliang/candymark/discussions)
 - **邮箱**: your-email@example.com
 
 ## 🏆 致谢

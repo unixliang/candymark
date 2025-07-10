@@ -1,4 +1,4 @@
-class SimpleBookmark {
+class CandyMark {
     constructor() {
         this.bookmarks = [];
         this.currentBookmarkId = null;
@@ -338,12 +338,12 @@ class SimpleBookmark {
     
     // 保存标签到本地存储
     saveBookmarks() {
-        localStorage.setItem('simpleBookmarks', JSON.stringify(this.bookmarks));
+        localStorage.setItem('candyMarkBookmarks', JSON.stringify(this.bookmarks));
     }
     
     // 从本地存储加载标签
     loadBookmarks() {
-        const saved = localStorage.getItem('simpleBookmarks');
+        const saved = localStorage.getItem('candyMarkBookmarks');
         if (saved) {
             this.bookmarks = JSON.parse(saved);
         }
@@ -352,5 +352,5 @@ class SimpleBookmark {
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
-    new SimpleBookmark();
+    new CandyMark();
 });
