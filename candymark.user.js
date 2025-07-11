@@ -211,6 +211,24 @@
             display: block;
         }
         
+        #sb-config-menu {
+            position: fixed;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 999996;
+            display: none;
+            min-width: 150px;
+            overflow: hidden;
+            pointer-events: auto;
+            backdrop-filter: blur(10px);
+        }
+        
+        #sb-config-menu.show {
+            display: block;
+        }
+        
         .sb-menu-item {
             padding: 12px 16px;
             cursor: pointer;
@@ -762,9 +780,15 @@
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
             <div class="sb-menu-item" data-action="drop-notify">🔔 掉落通知</div>
-            <div class="sb-menu-item" data-action="export-config">📤 导出配置</div>
-            <div class="sb-menu-item" data-action="import-config">📥 导入配置</div>
+            <div class="sb-menu-item" data-action="config-management">⚙️ 配置管理</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
+        </div>
+        <div id="sb-config-menu">
+            <div class="sb-menu-item" data-action="export-to-file">📤 导出到文件</div>
+            <div class="sb-menu-item" data-action="export-to-clipboard">📋 导出到剪贴板</div>
+            <div class="sb-menu-item" data-action="import-from-file">📥 从文件导入</div>
+            <div class="sb-menu-item" data-action="import-from-clipboard">📝 从剪贴板导入</div>
+            <div class="sb-menu-item" data-action="config-cancel">❌ 返回</div>
         </div>
         <div id="sb-add-modal" class="sb-modal">
             <div class="sb-modal-content">
@@ -892,7 +916,7 @@
                 <div class="sb-drop-notify-options">
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-notify-ffj">
-                        🏺 FFJ
+                        🏅 FFJ
                     </label>
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-notify-hourglass">
@@ -1125,11 +1149,11 @@
                     bookmarkOpacity: CONFIG.bookmarkOpacity,
                     enabled: CONFIG.enabled,
                     showTrigger: CONFIG.showTrigger,
-                    triggerPosition: CONFIG.triggerPosition,
                     maxBookmarks: CONFIG.maxBookmarks,
                     shortcutKey: CONFIG.shortcutKey,
                     blacklist: CONFIG.blacklist,
-                    autoHideTrigger: CONFIG.autoHideTrigger
+                    notifyFFJ: CONFIG.notifyFFJ,
+                    notifyHourglass: CONFIG.notifyHourglass
                 }
             };
             
@@ -1156,28 +1180,17 @@
                         try {
                             const importedData = JSON.parse(e.target.result);
                             
-                            let bookmarks, settings;
-                            
-                            // 检查是否是新格式（包含settings）还是旧格式（只有bookmarks数组）
-                            if (Array.isArray(importedData)) {
-                                // 旧格式：直接是bookmarks数组
-                                bookmarks = importedData;
-                                settings = null;
-                            } else if (importedData && typeof importedData === 'object') {
-                                if (importedData.bookmarks) {
-                                    // 新格式：包含bookmarks和可选的settings
-                                    bookmarks = importedData.bookmarks;
-                                    settings = importedData.settings || null;
-                                } else {
-                                    throw new Error('数据格式不正确：对象中缺少bookmarks字段');
-                                }
-                            } else {
-                                throw new Error('数据格式不正确：必须是数组或包含bookmarks的对象');
+                            // 仅支持新格式：包含bookmarks和settings的对象
+                            if (!importedData || typeof importedData !== 'object' || !importedData.bookmarks) {
+                                throw new Error('数据格式不正确：必须是包含bookmarks字段的对象');
                             }
+                            
+                            const bookmarks = importedData.bookmarks;
+                            const settings = importedData.settings || null;
                             
                             // 验证bookmarks数据格式
                             if (!Array.isArray(bookmarks)) {
-                                throw new Error('标签数据格式不正确：不是数组格式');
+                                throw new Error('bookmarks必须是数组');
                             }
                             
                             for (let i = 0; i < bookmarks.length; i++) {
@@ -1191,12 +1204,11 @@
                                 if (!bookmark.hasOwnProperty('name')) {
                                     throw new Error(`标签数据格式不正确：第${i+1}个标签缺少name字段`);
                                 }
-                                if (!bookmark.hasOwnProperty('url')) {
-                                    throw new Error(`标签数据格式不正确：第${i+1}个标签缺少url字段`);
-                                }
-                                // 允许name或url为空字符串，但不能为null或undefined
                                 if (bookmark.name === null || bookmark.name === undefined) {
                                     bookmark.name = '';
+                                }
+                                if (!bookmark.hasOwnProperty('url')) {
+                                    throw new Error(`标签数据格式不正确：第${i+1}个标签缺少url字段`);
                                 }
                                 if (bookmark.url === null || bookmark.url === undefined) {
                                     throw new Error(`标签数据格式不正确：第${i+1}个标签的url不能为空`);
@@ -1216,7 +1228,7 @@
                                         CONFIG.bookmarkSize = settings.bookmarkSize;
                                         updateBookmarkSize(settings.bookmarkSize);
                                     }
-                                    if (settings.bookmarkOpacity) {
+                                    if (typeof settings.bookmarkOpacity === 'number' && settings.bookmarkOpacity >= 1 && settings.bookmarkOpacity <= 10) {
                                         storage.setValue('sb_bookmark_opacity', settings.bookmarkOpacity.toString());
                                         CONFIG.bookmarkOpacity = settings.bookmarkOpacity;
                                         updateBookmarkOpacity(settings.bookmarkOpacity);
@@ -1228,10 +1240,6 @@
                                     if (settings.showTrigger !== undefined) {
                                         storage.setValue('sb_show_trigger', settings.showTrigger.toString());
                                         CONFIG.showTrigger = settings.showTrigger;
-                                    }
-                                    if (settings.triggerPosition) {
-                                        storage.setValue('sb_trigger_position', settings.triggerPosition);
-                                        CONFIG.triggerPosition = settings.triggerPosition;
                                     }
                                     if (settings.maxBookmarks) {
                                         storage.setValue('sb_max_bookmarks', settings.maxBookmarks.toString());
@@ -1245,12 +1253,18 @@
                                         storage.setValue('sb_blacklist', JSON.stringify(settings.blacklist));
                                         CONFIG.blacklist = settings.blacklist;
                                     }
-                                    if (settings.autoHideTrigger !== undefined) {
-                                        storage.setValue('sb_auto_hide_trigger', settings.autoHideTrigger.toString());
-                                        CONFIG.autoHideTrigger = settings.autoHideTrigger;
+                                    if (settings.notifyFFJ !== undefined) {
+                                        storage.setValue('sb_notify_ffj', settings.notifyFFJ.toString());
+                                        CONFIG.notifyFFJ = settings.notifyFFJ;
+                                    }
+                                    if (settings.notifyHourglass !== undefined) {
+                                        storage.setValue('sb_notify_hourglass', settings.notifyHourglass.toString());
+                                        CONFIG.notifyHourglass = settings.notifyHourglass;
                                     }
                                 }
                                 
+                                updateBookmarkSize(CONFIG.bookmarkSize);
+                                updateBookmarkOpacity(CONFIG.bookmarkOpacity);
                                 this.renderBookmarks(true);
                                 this.updateTriggerVisibility();
                                 
@@ -1265,6 +1279,145 @@
                 }
             });
             input.click();
+        }
+        
+        // 导出到剪贴板
+        async exportToClipboard() {
+            try {
+                const configData = {
+                    version: '2.0.0',
+                    exportTime: new Date().toISOString(),
+                    bookmarks: this.bookmarks,
+                    settings: {
+                        bookmarkSize: CONFIG.bookmarkSize,
+                        bookmarkOpacity: CONFIG.bookmarkOpacity,
+                        enabled: CONFIG.enabled,
+                        showTrigger: CONFIG.showTrigger,
+                        maxBookmarks: CONFIG.maxBookmarks,
+                        shortcutKey: CONFIG.shortcutKey,
+                        blacklist: CONFIG.blacklist,
+                        notifyFFJ: CONFIG.notifyFFJ,
+                        notifyHourglass: CONFIG.notifyHourglass
+                    }
+                };
+                
+                const data = JSON.stringify(configData, null, 2);
+                await navigator.clipboard.writeText(data);
+                alert('配置已复制到剪贴板！');
+            } catch (error) {
+                console.error('复制到剪贴板失败:', error);
+                alert('复制到剪贴板失败，请使用文件导出功能。');
+            }
+        }
+        
+        // 从剪贴板导入
+        async importFromClipboard() {
+            try {
+                const clipboardText = await navigator.clipboard.readText();
+                if (!clipboardText.trim()) {
+                    alert('剪贴板内容为空！');
+                    return;
+                }
+                
+                const importedData = JSON.parse(clipboardText);
+                
+                console.log('导入的数据:', importedData);
+                
+                // 仅支持新格式：包含bookmarks和settings的对象
+                if (!importedData || typeof importedData !== 'object' || !importedData.bookmarks) {
+                    throw new Error('数据格式不正确：必须是包含bookmarks字段的对象');
+                }
+                
+                const bookmarks = importedData.bookmarks;
+                const settings = importedData.settings || null;
+                
+                console.log('书签数据:', bookmarks);
+                
+                // 验证导入的数据
+                if (!Array.isArray(bookmarks)) {
+                    throw new Error('bookmarks必须是数组');
+                }
+                
+                // 验证每个标签的数据结构
+                for (let i = 0; i < bookmarks.length; i++) {
+                    const bookmark = bookmarks[i];
+                    if (!bookmark || typeof bookmark !== 'object') {
+                        throw new Error(`第${i + 1}个标签不是有效的对象`);
+                    }
+                    if (!bookmark.id) {
+                        throw new Error(`第${i + 1}个标签缺少 id 字段`);
+                    }
+                    if (bookmark.name === null || bookmark.name === undefined) {
+                        bookmark.name = '';
+                    }
+                    if (!bookmark.url) {
+                        throw new Error(`第${i + 1}个标签缺少 url 字段`);
+                    }
+                }
+                
+                if (confirm('确定要导入配置吗？这将替换现有的所有标签和设置。')) {
+                    // 导入标签
+                    this.bookmarks = bookmarks;
+                    this.saveBookmarks(true);
+                    
+                    // 导入设置（如果有）
+                    if (settings) {
+                        if (typeof settings.bookmarkSize === 'number' && settings.bookmarkSize > 0) {
+                            CONFIG.bookmarkSize = settings.bookmarkSize;
+                            storage.setValue('sb_bookmark_size', settings.bookmarkSize.toString());
+                        }
+                        if (typeof settings.bookmarkOpacity === 'number' && settings.bookmarkOpacity >= 1 && settings.bookmarkOpacity <= 10) {
+                            CONFIG.bookmarkOpacity = settings.bookmarkOpacity;
+                            storage.setValue('sb_bookmark_opacity', settings.bookmarkOpacity.toString());
+                        }
+                        if (typeof settings.enabled === 'boolean') {
+                            CONFIG.enabled = settings.enabled;
+                            storage.setValue('sb_enabled', settings.enabled.toString());
+                        }
+                        if (typeof settings.showTrigger === 'boolean') {
+                            CONFIG.showTrigger = settings.showTrigger;
+                            storage.setValue('sb_show_trigger', settings.showTrigger.toString());
+                        }
+                        if (typeof settings.maxBookmarks === 'number' && settings.maxBookmarks > 0) {
+                            CONFIG.maxBookmarks = settings.maxBookmarks;
+                            storage.setValue('sb_max_bookmarks', settings.maxBookmarks.toString());
+                        }
+                        if (typeof settings.shortcutKey === 'string') {
+                            CONFIG.shortcutKey = settings.shortcutKey;
+                            storage.setValue('sb_shortcut_key', settings.shortcutKey);
+                        }
+                        if (Array.isArray(settings.blacklist)) {
+                            CONFIG.blacklist = settings.blacklist;
+                            storage.setValue('sb_blacklist', JSON.stringify(settings.blacklist));
+                        }
+                        if (typeof settings.notifyFFJ === 'boolean') {
+                            CONFIG.notifyFFJ = settings.notifyFFJ;
+                            storage.setValue('sb_notify_ffj', settings.notifyFFJ.toString());
+                        }
+                        if (typeof settings.notifyHourglass === 'boolean') {
+                            CONFIG.notifyHourglass = settings.notifyHourglass;
+                            storage.setValue('sb_notify_hourglass', settings.notifyHourglass.toString());
+                        }
+                    }
+                    
+                    // 先更新样式，再重新渲染
+                    updateBookmarkSize(CONFIG.bookmarkSize);
+                    updateBookmarkOpacity(CONFIG.bookmarkOpacity);
+                    this.renderBookmarks(true);
+                    this.updateTriggerVisibility();
+                    
+                    alert('配置导入成功！');
+                }
+            } catch (error) {
+                console.error('从剪贴板导入失败:', error);
+                if (error.name === 'NotAllowedError') {
+                    alert('无法访问剪贴板，请检查浏览器权限设置。');
+                } else if (error instanceof SyntaxError) {
+                    alert('剪贴板内容不是有效的JSON格式！');
+                } else {
+                    alert('从剪贴板导入失败：' + error.message);
+                }
+            }
         }
         
         bindEvents() {
@@ -1367,12 +1520,20 @@
                 }
             });
             
+            // 配置菜单事件
+            document.getElementById('sb-config-menu').addEventListener('click', (e) => {
+                const action = e.target.dataset.action;
+                if (action) {
+                    this.handleConfigMenuAction(action);
+                }
+            });
             
             // 全局点击关闭菜单
             document.addEventListener('click', (e) => {
-                if (!e.target.closest('#sb-menu') && !e.target.closest('#sb-add-menu') && !e.target.closest('.sb-modal')) {
+                if (!e.target.closest('#sb-menu') && !e.target.closest('#sb-add-menu') && !e.target.closest('#sb-config-menu') && !e.target.closest('.sb-modal')) {
                     this.hideMenu();
                     this.hideAddMenu();
+                    this.hideConfigMenu();
                 }
             });
             
@@ -1540,6 +1701,43 @@
             menu.classList.remove('show');
         }
         
+        showConfigMenu() {
+            this.hideAddMenu();
+            const menu = document.getElementById('sb-config-menu');
+            const triggerRect = document.getElementById('sb-trigger').getBoundingClientRect();
+            
+            menu.style.left = triggerRect.left + 'px';
+            menu.style.top = (triggerRect.bottom + 5) + 'px';
+            menu.classList.add('show');
+        }
+        
+        hideConfigMenu() {
+            const menu = document.getElementById('sb-config-menu');
+            menu.classList.remove('show');
+        }
+        
+        handleConfigMenuAction(action) {
+            this.hideConfigMenu();
+            
+            switch (action) {
+                case 'export-to-file':
+                    this.exportConfig();
+                    break;
+                case 'export-to-clipboard':
+                    this.exportToClipboard();
+                    break;
+                case 'import-from-file':
+                    this.importConfig();
+                    break;
+                case 'import-from-clipboard':
+                    this.importFromClipboard();
+                    break;
+                case 'config-cancel':
+                    this.showAddMenu();
+                    break;
+            }
+        }
+        
         handleAddMenuAction(action) {
             this.hideAddMenu();
             
@@ -1556,11 +1754,8 @@
                 case 'drop-notify':
                     this.showDropNotifyModal();
                     break;
-                case 'export-config':
-                    this.exportConfig();
-                    break;
-                case 'import-config':
-                    this.importConfig();
+                case 'config-management':
+                    this.showConfigMenu();
                     break;
                 case 'cancel-add':
                     // 什么都不做，只是关闭菜单
