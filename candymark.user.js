@@ -998,122 +998,6 @@
             this.renderBookmarks();
             this.updateTriggerVisibility();
             this.registerMenuCommands();
-            this.initDropMonitoring();
-        }
-        
-        // 掉落监听功能
-        initDropMonitoring() {
-            // 检测的URL正则
-            this.resultMultiRegex = /https?:\/\/((game\.granbluefantasy)|(gbf\.game\.mbga))\.jp\/#result_multi\/(?!detail)[0-9]*/;
-            
-            // 监听URL变化
-            this.setupUrlMonitoring();
-            
-            // 页面加载时也检查一次
-            if (window.location.href.match(this.resultMultiRegex)) {
-                this.startDropDetection();
-            }
-        }
-        
-        setupUrlMonitoring() {
-            // 监听hashchange事件
-            window.addEventListener('hashchange', () => {
-                if (this.dropCheckInterval) {
-                    clearInterval(this.dropCheckInterval);
-                }
-                
-                if (window.location.href.match(this.resultMultiRegex)) {
-                    this.startDropDetection();
-                }
-            });
-        }
-        
-        startDropDetection() {
-            // 每500ms检查一次掉落
-            this.dropCheckInterval = setInterval(() => {
-                this.checkDrops();
-            }, 500);
-        }
-        
-        checkDrops() {
-            const config = loadConfig();
-
-    		// 大巴角 "[data-key='10_79']" (调试用)
-		    // FFJ "[data-key='17_20004']"
-		    // 沙漏 "[data-key='10_215']"
-
-            // 检查FFJ掉落
-            if (config.notifyFFJ) {
-                const ffjElement = document.querySelector("[data-key='17_20004']");
-                if (ffjElement) {
-                    clearInterval(this.dropCheckInterval);
-                    this.showDropAlert('FFJ', 'gold');
-                    console.log('FFJ掉落检测到！');
-                    return;
-                }
-            }
-            
-            // 检查沙漏掉落
-            if (config.notifyHourglass) {
-                const hourglassElement = document.querySelector("[data-key='10_215']");
-                if (hourglassElement) {
-                    clearInterval(this.dropCheckInterval);
-                    this.showDropAlert('沙漏', 'brown');
-                    console.log('沙漏掉落检测到！');
-                    return;
-                }
-            }
-        }
-        
-        showDropAlert(itemName, colorType) {
-            // 根据物品类型设置不同的样式
-            const styles = {
-                gold: {
-                    background: 'linear-gradient(135deg, #ffd700, #ffb347)',
-                    color: '#333',
-                    buttonBg: 'rgba(0,0,0,0.1)',
-                    buttonColor: '#333'
-                },
-                brown: {
-                    background: 'linear-gradient(135deg, #8B4513, #D2691E)',
-                    color: 'white',
-                    buttonBg: 'rgba(255,255,255,0.2)',
-                    buttonColor: 'white'
-                }
-            };
-            
-            const style = styles[colorType] || styles.gold;
-            
-            // 创建弹窗提醒
-            const alertDiv = document.createElement('div');
-            alertDiv.innerHTML = `
-                <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                           background: ${style.background}; 
-                           color: ${style.color}; padding: 20px 30px; border-radius: 15px; 
-                           font-size: 18px; font-weight: bold; z-index: 10000; 
-                           box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-                           text-align: center; min-width: 200px;">
-                    🎉 ${itemName}掉落了！🎉
-                    <div style="margin-top: 10px; font-size: 14px; opacity: 0.8;">
-                        恭喜获得${itemName}！
-                    </div>
-                    <button onclick="this.parentElement.parentElement.remove()" 
-                            style="margin-top: 15px; padding: 8px 16px; 
-                                   background: ${style.buttonBg}; border: none; 
-                                   color: ${style.buttonColor}; border-radius: 8px; cursor: pointer;">
-                        确定
-                    </button>
-                </div>
-            `;
-            
-            document.body.appendChild(alertDiv);
-            
-            // 10秒后自动消失
-            setTimeout(() => {
-                if (alertDiv.parentElement) {
-                    alertDiv.remove();
-                }
-            }, 10000);
         }
         
         registerMenuCommands() {
@@ -2814,10 +2698,89 @@
         }
     }
     
+    // 独立的掉落检测类
+    class DropDetector {
+        constructor() {
+            this.dropCheckInterval = null;
+            this.resultMultiRegex = /https?:\/\/((game\.granbluefantasy)|(gbf\.game\.mbga))\.jp\/.*#result_multi\/(?!detail)[0-9]*/;
+            this.init();
+        }
+        
+        init() {
+            this.setupUrlMonitoring();
+            
+            // 页面加载时检查一次（处理直接刷新到掉落页面的情况）
+            this.checkAndStartDetection();
+        }
+        
+        setupUrlMonitoring() {
+            // 监听hashchange事件
+            window.addEventListener('hashchange', () => {
+                this.checkAndStartDetection();
+            });
+        }
+        
+        checkAndStartDetection() {
+            // 先停止之前的检测
+            if (this.dropCheckInterval) {
+                clearInterval(this.dropCheckInterval);
+                this.dropCheckInterval = null;
+            }
+            
+            // 检查是否匹配掉落页面
+            if (window.location.href.match(this.resultMultiRegex)) {
+                this.startDropDetection();
+            }
+        }
+        
+        startDropDetection() {
+            // 每500ms检查一次掉落
+            this.dropCheckInterval = setInterval(() => {
+                this.checkDrops();
+            }, 500);
+        }
+        
+        checkDrops() {
+            const config = loadConfig();
+
+    		// 大巴角 "[data-key='10_79']" (调试用)
+		    // FFJ "[data-key='17_20004']"
+		    // 沙漏 "[data-key='10_215']"
+
+            // 检查FFJ掉落
+            if (config.notifyFFJ) {
+                const ffjElement = document.querySelector("[data-key='17_20004']");
+                if (ffjElement) {
+                    clearInterval(this.dropCheckInterval);
+                    this.showDropAlert('FFJ', 'gold');
+                    return;
+                }
+            }
+            
+            // 检查沙漏掉落
+            if (config.notifyHourglass) {
+                const hourglassElement = document.querySelector("[data-key='10_215']");
+                if (hourglassElement) {
+                    clearInterval(this.dropCheckInterval);
+                    this.showDropAlert('沙漏', 'brown');
+                    return;
+                }
+            }
+        }
+        
+        showDropAlert(itemName, colorType) {
+            // 使用简单的 alert，在所有平台上都可靠
+            const time = new Date().toLocaleTimeString();
+            alert(`🎉 ${itemName}掉落了！🎉\n恭喜获得${itemName}！\n时间：${time}`);
+        }
+    }
+
+    // 实例引用
+    let candyMarkManagerInstance = null;
+    let dropDetectorInstance = null;
 
     // 主函数 - 确保DOM就绪后执行
     function main() {
-        
         // 确保容器已添加到DOM
         if (!document.getElementById('sb-container')) {
             if (document.body) {
@@ -2827,7 +2790,8 @@
             }
         }
         
-        new CandyMarkManager();
+        candyMarkManagerInstance = new CandyMarkManager();
+        dropDetectorInstance = new DropDetector();
     }
     
     // 等待页面加载完成后初始化
