@@ -72,7 +72,9 @@
             blacklist: blacklist,
             autoHideTrigger: storage.getValue('sb_auto_hide_trigger', 'true') === 'true',
             bookmarkSize: parseInt(storage.getValue('sb_bookmark_size', '3')),
-            bookmarkOpacity: parseInt(storage.getValue('sb_bookmark_opacity', '10'))
+            bookmarkOpacity: parseInt(storage.getValue('sb_bookmark_opacity', '10')),
+            notifyFFJ: storage.getValue('sb_notify_ffj', 'false') === 'true',
+            notifyHourglass: storage.getValue('sb_notify_hourglass', 'false') === 'true'
         };
     };
     
@@ -658,6 +660,38 @@
             text-align: center;
             font-weight: 500;
         }
+        
+        .sb-drop-notify-options {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .sb-checkbox-item {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            transition: background 0.2s;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        
+        .sb-checkbox-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .sb-checkbox-item input[type="checkbox"] {
+            margin-right: 10px;
+            width: 16px;
+            height: 16px;
+            margin-top: 0;
+            margin-bottom: 0;
+            align-self: center;
+            flex-shrink: 0;
+        }
     `;
     
     // 标签大小配置 (10档)
@@ -727,6 +761,7 @@
             <div class="sb-menu-item" data-action="add-bookmark">➕ 增加标签</div>
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
+            <div class="sb-menu-item" data-action="drop-notify">🔔 掉落通知</div>
             <div class="sb-menu-item" data-action="export-config">📤 导出配置</div>
             <div class="sb-menu-item" data-action="import-config">📥 导入配置</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
@@ -851,6 +886,25 @@
         <div id="sb-drag-hint" class="sb-drag-hint">
             按住标签拖拽到任意位置，松开鼠标完成移动
         </div>
+        <div id="sb-drop-notify-modal" class="sb-modal">
+            <div class="sb-modal-content">
+                <h3>掉落通知设置</h3>
+                <div class="sb-drop-notify-options">
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-notify-ffj">
+                        🏺 FFJ
+                    </label>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-notify-hourglass">
+                        ⏳ 沙漏
+                    </label>
+                </div>
+                <div class="sb-modal-buttons">
+                    <button class="sb-btn-primary" id="sb-drop-notify-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-drop-notify-cancel">取消</button>
+                </div>
+            </div>
+        </div>
     `;
     
     // 确保body存在后再添加容器
@@ -908,8 +962,8 @@
             this.saveTimeout = null;
             this.pendingSave = false;
             
-            // FFJ监听间隔
-            this.ffjCheckInterval = null;
+            // 掉落监听间隔
+            this.dropCheckInterval = null;
             
             this.init();
         }
@@ -920,12 +974,12 @@
             this.renderBookmarks();
             this.updateTriggerVisibility();
             this.registerMenuCommands();
-            this.initFfjMonitoring();
+            this.initDropMonitoring();
         }
         
-        // FFJ监听功能
-        initFfjMonitoring() {
-            // FFJ检测的URL正则
+        // 掉落监听功能
+        initDropMonitoring() {
+            // 检测的URL正则
             this.resultMultiRegex = /https?:\/\/((game\.granbluefantasy)|(gbf\.game\.mbga))\.jp\/#result_multi\/(?!detail)[0-9]*/;
             
             // 监听URL变化
@@ -933,63 +987,96 @@
             
             // 页面加载时也检查一次
             if (window.location.href.match(this.resultMultiRegex)) {
-                this.startFfjDetection();
+                this.startDropDetection();
             }
         }
         
         setupUrlMonitoring() {
             // 监听hashchange事件
             window.addEventListener('hashchange', () => {
-                if (this.ffjCheckInterval) {
-                    clearInterval(this.ffjCheckInterval);
+                if (this.dropCheckInterval) {
+                    clearInterval(this.dropCheckInterval);
                 }
                 
                 if (window.location.href.match(this.resultMultiRegex)) {
-                    this.startFfjDetection();
+                    this.startDropDetection();
                 }
             });
         }
         
-        startFfjDetection() {
-            // 每500ms检查一次FFJ掉落
-            this.ffjCheckInterval = setInterval(() => {
-                this.checkFfjDrop();
+        startDropDetection() {
+            // 每500ms检查一次掉落
+            this.dropCheckInterval = setInterval(() => {
+                this.checkDrops();
             }, 500);
         }
         
-        checkFfjDrop() {
-            // 检查FFJ掉落 (data-key='17_20004')
-            const ffjElement = document.querySelector("[data-key='17_20004']");
+        checkDrops() {
+            const config = loadConfig();
+
+    		// 大巴角 "[data-key='10_79']" (调试用)
+		    // FFJ "[data-key='17_20004']"
+		    // 沙漏 "[data-key='10_215']"
+
+            // 检查FFJ掉落
+            if (config.notifyFFJ) {
+                const ffjElement = document.querySelector("[data-key='17_20004']");
+                if (ffjElement) {
+                    clearInterval(this.dropCheckInterval);
+                    this.showDropAlert('FFJ', 'gold');
+                    console.log('FFJ掉落检测到！');
+                    return;
+                }
+            }
             
-            if (ffjElement) {
-                // 清除检查间隔
-                clearInterval(this.ffjCheckInterval);
-                
-                // 显示FFJ掉落提醒
-                this.showFfjAlert();
-                
-                console.log('FFJ掉落检测到！');
+            // 检查沙漏掉落
+            if (config.notifyHourglass) {
+                const hourglassElement = document.querySelector("[data-key='10_215']");
+                if (hourglassElement) {
+                    clearInterval(this.dropCheckInterval);
+                    this.showDropAlert('沙漏', 'brown');
+                    console.log('沙漏掉落检测到！');
+                    return;
+                }
             }
         }
         
-        showFfjAlert() {
+        showDropAlert(itemName, colorType) {
+            // 根据物品类型设置不同的样式
+            const styles = {
+                gold: {
+                    background: 'linear-gradient(135deg, #ffd700, #ffb347)',
+                    color: '#333',
+                    buttonBg: 'rgba(0,0,0,0.1)',
+                    buttonColor: '#333'
+                },
+                brown: {
+                    background: 'linear-gradient(135deg, #8B4513, #D2691E)',
+                    color: 'white',
+                    buttonBg: 'rgba(255,255,255,0.2)',
+                    buttonColor: 'white'
+                }
+            };
+            
+            const style = styles[colorType] || styles.gold;
+            
             // 创建弹窗提醒
             const alertDiv = document.createElement('div');
             alertDiv.innerHTML = `
                 <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                           background: linear-gradient(135deg, #ffd700, #ffb347); 
-                           color: #333; padding: 20px 30px; border-radius: 15px; 
+                           background: ${style.background}; 
+                           color: ${style.color}; padding: 20px 30px; border-radius: 15px; 
                            font-size: 18px; font-weight: bold; z-index: 10000; 
                            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
                            text-align: center; min-width: 200px;">
-                    🎉 FFJ掉落了！🎉
+                    🎉 ${itemName}掉落了！🎉
                     <div style="margin-top: 10px; font-size: 14px; opacity: 0.8;">
-                        恭喜获得FFJ！
+                        恭喜获得${itemName}！
                     </div>
                     <button onclick="this.parentElement.parentElement.remove()" 
                             style="margin-top: 15px; padding: 8px 16px; 
-                                   background: rgba(0,0,0,0.1); border: none; 
-                                   color: #333; border-radius: 8px; cursor: pointer;">
+                                   background: ${style.buttonBg}; border: none; 
+                                   color: ${style.buttonColor}; border-radius: 8px; cursor: pointer;">
                         确定
                     </button>
                 </div>
@@ -1255,6 +1342,15 @@
                 this.cancelOpacityChange();
             });
             
+            // 掉落通知设置
+            document.getElementById('sb-drop-notify-confirm').addEventListener('click', () => {
+                this.confirmDropNotifyChange();
+            });
+            
+            document.getElementById('sb-drop-notify-cancel').addEventListener('click', () => {
+                this.hideDropNotifyModal();
+            });
+            
             // 菜单事件
             document.getElementById('sb-menu').addEventListener('click', (e) => {
                 const action = e.target.dataset.action;
@@ -1456,6 +1552,9 @@
                     break;
                 case 'adjust-opacity':
                     this.showOpacityModal();
+                    break;
+                case 'drop-notify':
+                    this.showDropNotifyModal();
                     break;
                 case 'export-config':
                     this.exportConfig();
@@ -1841,6 +1940,43 @@
             }
             
             this.hideOpacityModal();
+        }
+        
+        // 掉落通知设置相关方法
+        showDropNotifyModal() {
+            const modal = document.getElementById('sb-drop-notify-modal');
+            modal.classList.add('show');
+            
+            // 设置当前选项状态
+            const ffjCheckbox = document.getElementById('sb-notify-ffj');
+            const hourglassCheckbox = document.getElementById('sb-notify-hourglass');
+            
+            if (ffjCheckbox) {
+                ffjCheckbox.checked = CONFIG.notifyFFJ;
+            }
+            if (hourglassCheckbox) {
+                hourglassCheckbox.checked = CONFIG.notifyHourglass;
+            }
+        }
+        
+        hideDropNotifyModal() {
+            const modal = document.getElementById('sb-drop-notify-modal');
+            modal.classList.remove('show');
+        }
+        
+        confirmDropNotifyChange() {
+            const ffjCheckbox = document.getElementById('sb-notify-ffj');
+            const hourglassCheckbox = document.getElementById('sb-notify-hourglass');
+            
+            // 更新配置
+            CONFIG.notifyFFJ = ffjCheckbox ? ffjCheckbox.checked : false;
+            CONFIG.notifyHourglass = hourglassCheckbox ? hourglassCheckbox.checked : false;
+            
+            // 保存到存储
+            storage.setValue('sb_notify_ffj', CONFIG.notifyFFJ.toString());
+            storage.setValue('sb_notify_hourglass', CONFIG.notifyHourglass.toString());
+            
+            this.hideDropNotifyModal();
         }
         
         showMenu(e, bookmarkId) {
