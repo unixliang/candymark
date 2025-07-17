@@ -73,6 +73,7 @@
             autoHideTrigger: storage.getValue('sb_auto_hide_trigger', 'true') === 'true',
             bookmarkSize: parseInt(storage.getValue('sb_bookmark_size', '3')),
             bookmarkOpacity: parseInt(storage.getValue('sb_bookmark_opacity', '10')),
+            bookmarksVisible: storage.getValue('sb_bookmarks_visible', 'true') === 'true',
             notifyFFJ: storage.getValue('sb_notify_ffj', 'false') === 'true',
             notifyHourglass: storage.getValue('sb_notify_hourglass', 'false') === 'true'
         };
@@ -429,8 +430,7 @@
         }
         
         .sb-bookmark--hidden {
-            opacity: 0;
-            pointer-events: none;
+            display: none !important;
         }
         
         /* 点击动画效果 */
@@ -1037,7 +1037,8 @@
                     shortcutKey: CONFIG.shortcutKey,
                     blacklist: CONFIG.blacklist,
                     notifyFFJ: CONFIG.notifyFFJ,
-                    notifyHourglass: CONFIG.notifyHourglass
+                    notifyHourglass: CONFIG.notifyHourglass,
+                    bookmarksVisible: CONFIG.bookmarksVisible
                 }
             };
             
@@ -1145,6 +1146,10 @@
                                         storage.setValue('sb_notify_hourglass', settings.notifyHourglass.toString());
                                         CONFIG.notifyHourglass = settings.notifyHourglass;
                                     }
+                                    if (settings.bookmarksVisible !== undefined) {
+                                        storage.setValue('sb_bookmarks_visible', settings.bookmarksVisible.toString());
+                                        CONFIG.bookmarksVisible = settings.bookmarksVisible;
+                                    }
                                 }
                                 
                                 updateBookmarkSize(CONFIG.bookmarkSize);
@@ -1181,7 +1186,8 @@
                         shortcutKey: CONFIG.shortcutKey,
                         blacklist: CONFIG.blacklist,
                         notifyFFJ: CONFIG.notifyFFJ,
-                        notifyHourglass: CONFIG.notifyHourglass
+                        notifyHourglass: CONFIG.notifyHourglass,
+                        bookmarksVisible: CONFIG.bookmarksVisible
                     }
                 };
                 
@@ -1282,6 +1288,10 @@
                             CONFIG.notifyHourglass = settings.notifyHourglass;
                             storage.setValue('sb_notify_hourglass', settings.notifyHourglass.toString());
                         }
+                        if (typeof settings.bookmarksVisible === 'boolean') {
+                            CONFIG.bookmarksVisible = settings.bookmarksVisible;
+                            storage.setValue('sb_bookmarks_visible', settings.bookmarksVisible.toString());
+                        }
                     }
                     
                     // 先更新样式，再重新渲染
@@ -1305,8 +1315,71 @@
         }
         
         bindEvents() {
-            // 触发器点击
-            document.getElementById('sb-trigger').addEventListener('click', (e) => {
+            // 触发器长按处理
+            let triggerPressTimer = null;
+            let isLongPressing = false;
+            let longPressCompleted = false;
+            
+            const triggerElement = document.getElementById('sb-trigger');
+            
+            const handleTriggerStart = (e) => {
+                isLongPressing = false;
+                longPressCompleted = false;
+                
+                // 设置长按定时器 (1秒)
+                triggerPressTimer = setTimeout(() => {
+                    isLongPressing = true;
+                    longPressCompleted = true;
+                    this.toggleAllBookmarks();
+                }, 800);
+            };
+            
+            const handleTriggerEnd = (e) => {
+                if (triggerPressTimer) {
+                    clearTimeout(triggerPressTimer);
+                    triggerPressTimer = null;
+                }
+                
+                // 如果是长按，阻止click事件
+                if (isLongPressing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // 不要立即重置，让click事件也能检测到
+                }
+            };
+            
+            const handleTriggerCancel = () => {
+                if (triggerPressTimer) {
+                    clearTimeout(triggerPressTimer);
+                    triggerPressTimer = null;
+                }
+                isLongPressing = false;
+                longPressCompleted = false;
+            };
+            
+            // 绑定鼠标事件
+            triggerElement.addEventListener('mousedown', handleTriggerStart);
+            triggerElement.addEventListener('mouseup', handleTriggerEnd);
+            triggerElement.addEventListener('mouseleave', handleTriggerCancel);
+            
+            // 绑定触摸事件
+            triggerElement.addEventListener('touchstart', handleTriggerStart);
+            triggerElement.addEventListener('touchend', handleTriggerEnd);
+            triggerElement.addEventListener('touchcancel', handleTriggerCancel);
+            
+            // 触发器点击 - 只有在没有长按时才触发
+            triggerElement.addEventListener('click', (e) => {
+                if (longPressCompleted) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // 重置状态，延迟一点时间以确保阻止
+                    setTimeout(() => {
+                        longPressCompleted = false;
+                        isLongPressing = false;
+                    }, 100);
+                    return;
+                }
+                
                 e.stopPropagation();
                 this.showAddMenu(e);
             });
@@ -1543,6 +1616,19 @@
             }
         }
         
+        toggleAllBookmarks() {
+            CONFIG.bookmarksVisible = !CONFIG.bookmarksVisible;
+            storage.setValue('sb_bookmarks_visible', CONFIG.bookmarksVisible ? 'true' : 'false');
+            
+            const bookmarks = document.querySelectorAll('.sb-bookmark');
+            bookmarks.forEach(bookmark => {
+                if (CONFIG.bookmarksVisible) {
+                    bookmark.classList.remove('sb-bookmark--hidden');
+                } else {
+                    bookmark.classList.add('sb-bookmark--hidden');
+                }
+            });
+        }
         
         showAddMenu(e) {
             const menu = document.getElementById('sb-add-menu');
@@ -2600,6 +2686,13 @@
             if (parseFloat(element.style.opacity) !== expectedOpacity) {
                 element.style.opacity = expectedOpacity;
             }
+            
+            // 更新可见性状态
+            if (CONFIG.bookmarksVisible) {
+                element.classList.remove('sb-bookmark--hidden');
+            } else {
+                element.classList.add('sb-bookmark--hidden');
+            }
             if (element.getAttribute('data-bookmark-url') !== bookmark.url) {
                 element.setAttribute('data-bookmark-url', bookmark.url);
                 
@@ -2636,6 +2729,11 @@
             // 应用当前透明度设置
             const opacity = BOOKMARK_OPACITIES[CONFIG.bookmarkOpacity - 1] || BOOKMARK_OPACITIES[9];
             element.style.opacity = opacity;
+            
+            // 应用可见性状态
+            if (!CONFIG.bookmarksVisible) {
+                element.classList.add('sb-bookmark--hidden');
+            }
             
             // 为特殊URL设置直接的onclick处理
             if (bookmark.url === 'back') {
