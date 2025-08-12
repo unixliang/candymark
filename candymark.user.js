@@ -2809,6 +2809,11 @@
                 startTime: null,
                 lastUpdateTime: null
             };
+            this.autoBackAfterDropCheck = {
+                enabled: true, // 新功能开关
+                completed: false, //防止重复触发
+                timeoutId: null // 清理用
+            };
             this.init();
         }
         
@@ -3011,6 +3016,21 @@
             // 每500ms检查一次掉落
             this.dropCheckInterval = setInterval(() => {
                 this.checkDrops();
+                
+                // 额外的返回触发机制：检查是否已经完成掉落页面显示
+                if (!this.autoBackAfterDropCheck.completed) {
+                    // 检查是否已经有结果画面加载完成
+                    const resultLoaded = document.querySelector('#cnt-quest');
+                    if (resultLoaded) {
+                        // 延迟100ms后自动返回，即使没有找到特定掉落
+                        setTimeout(() => {
+                            if (!this.autoBackAfterDropCheck.completed) {
+                                console.log('📋 [CandyMark] 掉落页面加载完成，自动返回...');
+                                this.triggerAutoBack();
+                            }
+                        }, 100);
+                    }
+                }
             }, 500);
         }
         
@@ -3027,6 +3047,7 @@
                 if (ffjElement) {
                     clearInterval(this.dropCheckInterval);
                     this.showDropAlert('FFJ', 'gold');
+                    this.triggerAutoBack();
                     return;
                 }
             }
@@ -3037,8 +3058,18 @@
                 if (hourglassElement) {
                     clearInterval(this.dropCheckInterval);
                     this.showDropAlert('沙漏', 'brown');
+                    this.triggerAutoBack();
                     return;
                 }
+            }
+            
+            // 检查是否有任何掉落物品（即使没有通知设置也触发返回）
+            const dropElements = document.querySelectorAll('[data-key*="10_"], [data-key*="17_"], [data-key*="12_"]');
+            if (dropElements.length > 0) {
+                clearInterval(this.dropCheckInterval);
+                console.log('🎉 [CandyMark] 检测到掉落，自动返回战斗页面...');
+                this.triggerAutoBack();
+                return;
             }
         }
         
@@ -3046,6 +3077,32 @@
             // 使用简单的 alert，在所有平台上都可靠
             const time = new Date().toLocaleTimeString();
             alert(`🎉 ${itemName}掉落了！🎉\n恭喜获得${itemName}！\n时间：${time}`);
+        }
+        
+        triggerAutoBack() {
+            if (this.autoBackAfterDropCheck.completed) {
+                return; // 防止重复触发
+            }
+            
+            this.autoBackAfterDropCheck.completed = true;
+            
+            // 清理超时定时器
+            if (this.autoBackAfterDropCheck.timeoutId) {
+                clearTimeout(this.autoBackAfterDropCheck.timeoutId);
+                this.autoBackAfterDropCheck.timeoutId = null;
+            }
+            
+            console.log('🔄 [CandyMark] 掉落检测完成，即将返回...');
+            
+            // 延迟100ms确保UI稳定后返回
+            setTimeout(() => {
+                if (window.history.length > 1) {
+                    history.back();
+                    console.log('✅ [CandyMark] 已返回上一步');
+                } else {
+                    console.log('⚠️ [CandyMark] 无法返回，浏览历史不足');
+                }
+            }, 100);
         }
     }
 
