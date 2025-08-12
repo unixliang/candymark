@@ -1231,7 +1231,7 @@
                 await navigator.clipboard.writeText(data);
                 alert('配置已复制到剪贴板！');
             } catch (error) {
-                console.error('复制到剪贴板失败:', error);
+                //console.error('复制到剪贴板失败:', error);
                 alert('复制到剪贴板失败，请使用文件导出功能。');
             }
         }
@@ -1247,7 +1247,7 @@
                 
                 const importedData = JSON.parse(clipboardText);
                 
-                console.log('导入的数据:', importedData);
+                //console.log('导入的数据:', importedData);
                 
                 // 仅支持新格式：包含bookmarks和settings的对象
                 if (!importedData || typeof importedData !== 'object' || !importedData.bookmarks) {
@@ -1257,7 +1257,7 @@
                 const bookmarks = importedData.bookmarks;
                 const settings = importedData.settings || null;
                 
-                console.log('书签数据:', bookmarks);
+                //console.log('书签数据:', bookmarks);
                 
                 // 验证导入的数据
                 if (!Array.isArray(bookmarks)) {
@@ -1339,7 +1339,7 @@
                     alert('配置导入成功！');
                 }
             } catch (error) {
-                console.error('从剪贴板导入失败:', error);
+                //console.error('从剪贴板导入失败:', error);
                 if (error.name === 'NotAllowedError') {
                     alert('无法访问剪贴板，请检查浏览器权限设置。');
                 } else if (error instanceof SyntaxError) {
@@ -2241,7 +2241,7 @@
             storage.setValue('sb_auto_back_ability_enabled', CONFIG.autoBackAbilityEnabled.toString());
             
             this.hideAutoBackModal();
-            console.log(`✅ [CandyMark] 自动后退设置已更新：攻击=${CONFIG.autoBackTurnEnabled}(TURN≥${CONFIG.autoBackTurnCount})，结算=${CONFIG.autoBackDropEnabled}，召唤=${CONFIG.autoBackSummonEnabled}，技能=${CONFIG.autoBackAbilityEnabled}`);
+            //console.log(`✅ [CandyMark] 自动后退设置已更新：攻击=${CONFIG.autoBackTurnEnabled}(TURN≥${CONFIG.autoBackTurnCount})，结算=${CONFIG.autoBackDropEnabled}，召唤=${CONFIG.autoBackSummonEnabled}，技能=${CONFIG.autoBackAbilityEnabled}`);
         }
         
         confirmDropNotifyChange() {
@@ -3028,7 +3028,7 @@
                 if (url.includes('/start.json') && data.boss && data.turn !== undefined) {
                     currentTurn = data.turn;
                     this.battleData.startTime = Date.now();
-                    console.log('🔮 [CandyMark] 战斗开始！初始TURN =', currentTurn);
+                    //console.log('🔮 [CandyMark] 战斗开始！初始TURN =', currentTurn);
                 }
                 
                 // 检查是否是战斗结果数据
@@ -3051,7 +3051,7 @@
                 if (url.includes('summon_result')) {
                     const config = loadConfig();
                     if (config.autoBackSummonEnabled) {
-                        console.log('📦 [CandyMark] 召唤完成，已触发返回...');
+                        //console.log('📦 [CandyMark] 召唤完成，已触发返回...');
                         setTimeout(() => {
                             if (window.history.length > 1) {
                                 history.back();
@@ -3064,7 +3064,7 @@
                 if (url.includes('ability_result')) {
                     const config = loadConfig();
                     if (config.autoBackAbilityEnabled) {
-                        console.log('⚡ [CandyMark] 能力使用完成，已触发返回...');
+                        //console.log('⚡ [CandyMark] 能力使用完成，已触发返回...');
                         setTimeout(() => {
                             if (window.history.length > 1) {
                                 history.back();
@@ -3098,11 +3098,11 @@
             if (config.autoBackTurnEnabled) {
                 const isAttackResult = /attack_result/.test(window.location.href) || url.includes('attack_result');
                 if (isAttackResult && newTurn <= config.autoBackTurnCount) {
-                    console.log(`🚨 [CandyMark] 达到设定攻击次数限制！TURN=${newTurn}(≤${config.autoBackTurnCount})，执行撤退...`);
+                    //console.log(`🚨 [CandyMark] 达到设定攻击次数限制！TURN=${newTurn}(≤${config.autoBackTurnCount})，执行撤退...`);
                     setTimeout(() => {
                         if (window.history.length > 1) {
                             history.back();
-                            console.log('✅ [CandyMark] 攻击次数限制达成，已自动返回');
+                            //console.log('✅ [CandyMark] 攻击次数限制达成，已自动返回');
                         }
                     }, 100);
                 }
@@ -3110,12 +3110,12 @@
 
             // 战斗日志记录
             const timestamp = new Date().toLocaleTimeString();
-            console.log(`🎮 [CandyMark] TURN更新 | ${timestamp} | 当前TURN: ${newTurn} | URL: ${url.split('/').pop()}`);
+            //console.log(`🎮 [CandyMark] TURN更新 | ${timestamp} | 当前TURN: ${newTurn} | URL: ${url.split('/').pop()}`);
 
             if (oldTurn !== null && oldTurn !== newTurn) {
-                console.log(`⚡ [CandyMark] TURN变化报告: T${oldTurn} → T${newTurn} (变化: ${newTurn - oldTurn})`);
+                //console.log(`⚡ [CandyMark] TURN变化报告: T${oldTurn} → T${newTurn} (变化: ${newTurn - oldTurn})`);
             } else if (oldTurn === null) {
-                console.log(`✅ [CandyMark] 初始化TURN: ${newTurn}`);
+                //console.log(`✅ [CandyMark] 初始化TURN: ${newTurn}`);
             }
         }
 
@@ -3126,7 +3126,7 @@
         setTurnChangeCallback(callback) {
             // 保持空方法以兼容旧代码
             if (typeof callback === 'function') {
-                console.log('⚠️ [CandyMark] TURN变化回调已废弃，使用内置后退逻辑');
+                //console.log('⚠️ [CandyMark] TURN变化回调已废弃，使用内置后退逻辑');
             }
         }
 
@@ -3134,7 +3134,7 @@
          * 重置战斗数据
          */
         resetBattleData() {
-            console.log('🔄 [CandyMark] 重置战斗数据');
+            //console.log('🔄 [CandyMark] 重置战斗数据');
             this.previousTurn = null;
             this.battleData = {
                 currentTurn: 0,
@@ -3164,7 +3164,7 @@
                         // 延迟100ms后自动返回，即使没有找到特定掉落
                         setTimeout(() => {
                             if (!this.autoBackAfterDropCheck.completed) {
-                                console.log('📋 [CandyMark] 掉落页面加载完成，自动返回...');
+                                //console.log('📋 [CandyMark] 掉落页面加载完成，自动返回...');
                                 this.triggerAutoBack();
                             }
                         }, 100);
@@ -3206,7 +3206,7 @@
             const dropElements = document.querySelectorAll('[data-key*="10_"], [data-key*="17_"], [data-key*="12_"]');
             if (dropElements.length > 0) {
                 clearInterval(this.dropCheckInterval);
-                console.log('🎉 [CandyMark] 检测到掉落，自动返回战斗页面...');
+                //console.log('🎉 [CandyMark] 检测到掉落，自动返回战斗页面...');
                 this.triggerAutoBack();
                 return;
             }
@@ -3225,7 +3225,7 @@
             
             const config = loadConfig();
             if (!config.autoBackDropEnabled) {
-                console.log('📋 [CandyMark] 结算自动返回已关闭，不执行返回操作');
+                //console.log('📋 [CandyMark] 结算自动返回已关闭，不执行返回操作');
                 return;
             }
             
@@ -3237,15 +3237,15 @@
                 this.autoBackAfterDropCheck.timeoutId = null;
             }
             
-            console.log('🔄 [CandyMark] 结算完成，执行自动返回...');
+            //console.log('🔄 [CandyMark] 结算完成，执行自动返回...');
             
             // 延迟100ms确保UI稳定后返回
             setTimeout(() => {
                 if (window.history.length > 1) {
                     history.back();
-                    console.log('✅ [CandyMark] 结算后已自动返回');
+                    //console.log('✅ [CandyMark] 结算后已自动返回');
                 } else {
-                    console.log('⚠️ [CandyMark] 无法返回，浏览历史不足');
+                    //console.log('⚠️ [CandyMark] 无法返回，浏览历史不足');
                 }
             }, 100);
         }
@@ -3271,7 +3271,7 @@
         
         // 游戏检测已内置到GameDetector中，无需额外配置
         if (gameDetectorInstance) {
-            console.log('✨ [CandyMark] 游戏检测中心已激活！内置后退逻辑：attack_result且TURN≤N');
+            //console.log('✨ [CandyMark] 游戏检测中心已激活！内置后退逻辑：attack_result且TURN≤N');
         }
     }
     
