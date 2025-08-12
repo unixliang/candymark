@@ -2887,8 +2887,8 @@
         }
     }
     
-    // 独立的掉落检测类
-    class DropDetector {
+    // 游戏检测中心
+    class GameDetector {
         constructor() {
             this.dropCheckInterval = null;
             this.resultMultiRegex = /https?:\/\/((game\.granbluefantasy)|(gbf\.game\.mbga))\.jp\/.*#result_multi\/(?!detail)[0-9]*/;
@@ -3203,7 +3203,7 @@
 
     // 实例引用
     let candyMarkManagerInstance = null;
-    let dropDetectorInstance = null;
+    let gameDetectorInstance = null;
 
     // 主函数 - 确保DOM就绪后执行
     function main() {
@@ -3217,11 +3217,11 @@
         }
         
         candyMarkManagerInstance = new CandyMarkManager();
-        dropDetectorInstance = new DropDetector();
+        gameDetectorInstance = new GameDetector();
         
-        // TURN监控已内置到DropDetector类中，无需额外配置
-        if (dropDetectorInstance) {
-            console.log('✨ [CandyMark] TURN计数监控已激活！内置后退逻辑：attack_result且TURN>=1');
+        // 游戏检测已内置到GameDetector中，无需额外配置
+        if (gameDetectorInstance) {
+            console.log('✨ [CandyMark] 游戏检测中心已激活！内置后退逻辑：attack_result且TURN≤N');
         }
     }
     
