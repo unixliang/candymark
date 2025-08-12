@@ -2801,6 +2801,14 @@
         constructor() {
             this.dropCheckInterval = null;
             this.resultMultiRegex = /https?:\/\/((game\.granbluefantasy)|(gbf\.game\.mbga))\.jp\/.*#result_multi\/(?!detail)[0-9]*/;
+            this.previousTurn = null;
+            this.turnChangeCallback = null;
+            this.battleData = {
+                currentTurn: 0,
+                maxTurn: 0,
+                startTime: null,
+                lastUpdateTime: null
+            };
             this.init();
         }
         
@@ -2816,6 +2824,9 @@
             window.addEventListener('hashchange', () => {
                 this.checkAndStartDetection();
             });
+            
+            // 监听游戏数据更新，模拟Chrome-Extension-Tarou的做法
+            this.monitorGameData();
         }
         
         checkAndStartDetection() {
@@ -2830,7 +2841,172 @@
                 this.startDropDetection();
             }
         }
-        
+
+        /**
+         * TURN计数变化回调系统 - 参照Chrome-Extension-Tarou的做法
+         * 监听战斗数据变化并记录TURN计数的变化
+         */
+        monitorGameData() {
+            const self = this;
+            
+            // 监控战斗API调用，类似Chrome-Extension的/dataCenter.ts中的做法
+            const originalFetch = window.fetch;
+            window.fetch = function(...args) {
+                const url = args[0];
+                let promise = originalFetch.apply(this, args);
+                
+                // 检查是否是战斗相关的API调用
+                if (url && (url.includes('/raid/') || url.includes('/multiraid/'))) {
+                    promise = promise.then(response => {
+                        // 创建新的响应以便我们能读取内容
+                        const clonedResponse = response.clone();
+                        clonedResponse.json().then(data => {
+                            self.handleGameResponse(data, url);
+                        }).catch(() => {
+                            // 非JSON响应，忽略
+                        });
+                        return response;
+                    });
+                }
+                
+                return promise;
+            };
+
+            // 同时监控XHR请求，覆盖更多场景
+            const originalXHRSend = XMLHttpRequest.prototype.send;
+            const originalXHROpen = XMLHttpRequest.prototype.open;
+            
+            XMLHttpRequest.prototype.open = function(method, url) {
+                this._url = url;
+                return originalXHROpen.apply(this, arguments);
+            };
+            
+            XMLHttpRequest.prototype.send = function(...args) {
+                this.addEventListener('readystatechange', () => {
+                    if (this.readyState === 4 && this._url) {
+                        const url = this._url;
+                        if (url.includes('/raid/') || url.includes('/multiraid/')) {
+                            try {
+                                const data = JSON.parse(this.responseText);
+                                self.handleGameResponse(data, url);
+                            } catch (e) {
+                                // 解析失败，忽略
+                            }
+                        }
+                    }
+                });
+                return originalXHRSend.apply(this, args);
+            };
+        }
+
+        handleGameResponse(data, url) {
+            // 分析响应数据，提取TURN信息，类似Chrome-Extension的处理方式
+            if (data && typeof data === 'object') {
+                let currentTurn = null;
+                
+                // 检查是否是战斗开始数据
+                if (url.includes('/start.json') && data.boss && data.turn !== undefined) {
+                    currentTurn = data.turn;
+                    this.battleData.startTime = Date.now();
+                    console.log('🔮 [CandyMark] 战斗开始！初始TURN =', currentTurn);
+                }
+                
+                // 检查是否是战斗结果数据
+                if (url.includes('/result') && data.status && data.status.turn !== undefined) {
+                    currentTurn = data.status.turn;
+                }
+                
+                // 检查是否包含turn字段
+                if (data.turn !== undefined) {
+                    currentTurn = data.turn;
+                } else if (data.status && data.status.turn !== undefined) {
+                    currentTurn = data.status.turn;
+                }
+
+                if (currentTurn !== null) {
+                    this.onTurnChange(currentTurn, url, data);
+                }
+            }
+        }
+
+        /**
+         * TURN计数变化回调 - 在TURN值变化时触发
+         * @param {number} newTurn - 新的TURN值
+         * @param {string} url - 触发变化的URL
+         * @param {object} data - 完整的响应数据
+         */
+        onTurnChange(newTurn, url, data) {
+            const oldTurn = this.battleData.currentTurn;
+            this.battleData.currentTurn = newTurn;
+            this.battleData.lastUpdateTime = Date.now();
+            
+            // 更新最大TURN记录
+            if (newTurn > this.battleData.maxTurn) {
+                this.battleData.maxTurn = newTurn;
+            }
+
+            // 总是输出log，无论是否变化（为了监控所有TURN更新）
+            const timestamp = new Date().toLocaleTimeString();
+            console.log(`🎮 [CandyMark Battle] TURN更新 | ${timestamp} | 当前TURN: ${newTurn} | URL: ${url.split('/').pop()}`);
+
+            // 如果检测到TURN变化，输出变化的log
+            if (oldTurn !== null && oldTurn !== newTurn) {
+                console.log(`⚡ [CandyMark TurnChange] TURN ${oldTurn} → ${newTurn} (变化: ${newTurn - oldTurn})`);
+                
+                // 触发用户自定义回调
+                if (this.turnChangeCallback && typeof this.turnChangeCallback === 'function') {
+                    try {
+                        this.turnChangeCallback({
+                            oldTurn,
+                            newTurn,
+                            change: newTurn - oldTurn,
+                            url,
+                            data,
+                            timestamp: new Date()
+                        });
+                    } catch (e) {
+                        console.error('❌ [CandyMark] TURN变化回调执行失败:', e);
+                    }
+                }
+            } else if (oldTurn === null) {
+                console.log(`✅ [CandyMark TurnChange] 初始化TURN: ${newTurn}`);
+            }
+        }
+
+        /**
+         * 设置TURN变化回调函数
+         * @param {Function} callback - 回调函数，接收{oldTurn, newTurn, change, url, data, timestamp}参数
+         */
+        setTurnChangeCallback(callback) {
+            if (typeof callback === 'function') {
+                this.turnChangeCallback = callback;
+                console.log('✅ [CandyMark] TURN变化回调已设置');
+            } else {
+                console.error('❌ [CandyMark] TURN变化回调必须是函数');
+            }
+        }
+
+        /**
+         * 重置战斗数据
+         */
+        resetBattleData() {
+            console.log('🔄 [CandyMark] 重置战斗数据');
+            this.previousTurn = null;
+            this.battleData = {
+                currentTurn: 0,
+                maxTurn: 0,
+                startTime: null,
+                lastUpdateTime: null
+            };
+        }
+
+        getBattleStats() {
+            return {
+                ...this.battleData,
+                battleDuration: this.battleData.startTime ? (Date.now() - this.battleData.startTime) / 1000 : 0
+            };
+        }
+
         startDropDetection() {
             // 每500ms检查一次掉落
             this.dropCheckInterval = setInterval(() => {
@@ -2890,6 +3066,32 @@
         
         candyMarkManagerInstance = new CandyMarkManager();
         dropDetectorInstance = new DropDetector();
+        
+        // 设置TURN变化回调示例
+        if (dropDetectorInstance) {
+            dropDetectorInstance.setTurnChangeCallback(function(info) {
+                // 这里是TURN变化的回调，可以在这里做任何事情
+                console.log('📊 [CandyMark] TURN变化报告:', {
+                    战斗时间: Math.round(dropDetectorInstance.getBattleStats().battleDuration) + '秒',
+                    TURN变化: `T${info.oldTurn} → T${info.newTurn}`,
+                    变化幅度: info.change > 0 ? `+${info.change}` : info.change,
+                    URL: info.url.split('/').pop()
+                });
+                
+                // 示例：在控制台显示统计信息
+                if (info.change > 0) {
+                    const stats = dropDetectorInstance.getBattleStats();
+                    console.log('📈 [CandyMark] 战斗统计:', {
+                        当前TURN: info.newTurn,
+                        最大TURN: stats.maxTurn,
+                        战斗时长: Math.round(stats.battleDuration) + '秒',
+                        平均TURN速度: stats.maxTurn > 0 ? (stats.battleDuration / stats.maxTurn).toFixed(2) + '秒/TURN' : 'N/A'
+                    });
+                }
+            });
+            
+            console.log('✨ [CandyMark] TURN计数监控已激活！查看控制台输出的战斗日志');
+        }
     }
     
     // 等待页面加载完成后初始化
