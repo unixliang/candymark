@@ -75,7 +75,10 @@
             bookmarkOpacity: parseInt(storage.getValue('sb_bookmark_opacity', '10')),
             bookmarksVisible: storage.getValue('sb_bookmarks_visible', 'true') === 'true',
             notifyFFJ: storage.getValue('sb_notify_ffj', 'false') === 'true',
-            notifyHourglass: storage.getValue('sb_notify_hourglass', 'false') === 'true'
+            notifyHourglass: storage.getValue('sb_notify_hourglass', 'false') === 'true',
+            autoBackTurnEnabled: storage.getValue('sb_auto_back_turn_enabled', 'false') === 'true',
+            autoBackTurnCount: parseInt(storage.getValue('sb_auto_back_turn_count', '3')),
+            autoBackDropEnabled: storage.getValue('sb_auto_back_drop_enabled', 'false') === 'true'
         };
     };
     
@@ -779,6 +782,7 @@
             <div class="sb-menu-item" data-action="add-bookmark">➕ 增加标签</div>
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
+            <div class="sb-menu-item" data-action="auto-back">🚪 自动后退</div>
             <div class="sb-menu-item" data-action="drop-notify">🔔 掉落通知</div>
             <div class="sb-menu-item" data-action="config-management">⚙️ 配置管理</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
@@ -909,6 +913,25 @@
         </div>
         <div id="sb-drag-hint" class="sb-drag-hint">
             按住标签拖拽到任意位置，松开鼠标完成移动
+        </div>
+        <div id="sb-auto-back-modal" class="sb-modal">
+            <div class="sb-modal-content">
+                <h3>自动后退设置</h3>
+                <div class="sb-drop-notify-options">
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-back-turn">
+                        ⚔️ 前 <input type="number" id="sb-auto-back-turn-count" min="1" max="99" value="3"> 回合攻击后
+                    </label>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-back-drop">
+                        🎯 结算后
+                    </label>
+                </div>
+                <div class="sb-modal-buttons">
+                    <button class="sb-btn-primary" id="sb-auto-back-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-auto-back-cancel">取消</button>
+                </div>
+            </div>
         </div>
         <div id="sb-drop-notify-modal" class="sb-modal">
             <div class="sb-modal-content">
@@ -1187,7 +1210,10 @@
                         blacklist: CONFIG.blacklist,
                         notifyFFJ: CONFIG.notifyFFJ,
                         notifyHourglass: CONFIG.notifyHourglass,
-                        bookmarksVisible: CONFIG.bookmarksVisible
+                        bookmarksVisible: CONFIG.bookmarksVisible,
+                        autoBackTurnEnabled: CONFIG.autoBackTurnEnabled,
+                        autoBackTurnCount: CONFIG.autoBackTurnCount,
+                        autoBackDropEnabled: CONFIG.autoBackDropEnabled
                     }
                 };
                 
@@ -1460,6 +1486,22 @@
             document.getElementById('sb-drop-notify-cancel').addEventListener('click', () => {
                 this.hideDropNotifyModal();
             });
+
+            // 自动后退设置
+            document.getElementById('sb-auto-back-confirm').addEventListener('click', () => {
+                this.confirmAutoBackChange();
+            });
+            
+            document.getElementById('sb-auto-back-cancel').addEventListener('click', () => {
+                this.hideAutoBackModal();
+            });
+            
+            // 监听输入框变化限制
+            document.getElementById('sb-auto-back-turn-count').addEventListener('input', (e) => {
+                const value = parseInt(e.target.value, 10);
+                if (isNaN(value) || value < 1) e.target.value = 1;
+                if (value > 99) e.target.value = 99;
+            });
             
             // 菜单事件
             document.getElementById('sb-menu').addEventListener('click', (e) => {
@@ -1720,6 +1762,9 @@
                     break;
                 case 'adjust-opacity':
                     this.showOpacityModal();
+                    break;
+                case 'auto-back':
+                    this.showAutoBackModal();
                     break;
                 case 'drop-notify':
                     this.showDropNotifyModal();
@@ -2127,6 +2172,52 @@
         hideDropNotifyModal() {
             const modal = document.getElementById('sb-drop-notify-modal');
             modal.classList.remove('show');
+        }
+        
+        // 自动后退设置相关方法
+        showAutoBackModal() {
+            this.hideAddMenu();
+            const modal = document.getElementById('sb-auto-back-modal');
+            modal.classList.add('show');
+            
+            // 设置当前选项状态
+            const turnCheckbox = document.getElementById('sb-auto-back-turn');
+            const dropCheckbox = document.getElementById('sb-auto-back-drop');
+            const turnCount = document.getElementById('sb-auto-back-turn-count');
+            
+            if (turnCheckbox) {
+                turnCheckbox.checked = CONFIG.autoBackTurnEnabled;
+                turnCount.value = CONFIG.autoBackTurnCount;
+            }
+            if (dropCheckbox) {
+                dropCheckbox.checked = CONFIG.autoBackDropEnabled;
+            }
+        }
+        
+        hideAutoBackModal() {
+            const modal = document.getElementById('sb-auto-back-modal');
+            modal.classList.remove('show');
+        }
+        
+        confirmAutoBackChange() {
+            const turnCheckbox = document.getElementById('sb-auto-back-turn');
+            const dropCheckbox = document.getElementById('sb-auto-back-drop');
+            const turnCountInput = document.getElementById('sb-auto-back-turn-count');
+            
+            // 更新配置
+            CONFIG.autoBackTurnEnabled = turnCheckbox ? turnCheckbox.checked : false;
+            CONFIG.autoBackDropEnabled = dropCheckbox ? dropCheckbox.checked : false;
+            
+            const turnCount = parseInt(turnCountInput.value, 10);
+            CONFIG.autoBackTurnCount = isNaN(turnCount) || turnCount < 1 ? 1 : Math.min(turnCount, 99);
+            
+            // 保存到存储
+            storage.setValue('sb_auto_back_turn_enabled', CONFIG.autoBackTurnEnabled.toString());
+            storage.setValue('sb_auto_back_turn_count', CONFIG.autoBackTurnCount.toString());
+            storage.setValue('sb_auto_back_drop_enabled', CONFIG.autoBackDropEnabled.toString());
+            
+            this.hideAutoBackModal();
+            console.log(`✅ [CandyMark] 自动后退设置已更新：攻击=${CONFIG.autoBackTurnEnabled}(TURN≥${CONFIG.autoBackTurnCount})，结算=${CONFIG.autoBackDropEnabled}`);
         }
         
         confirmDropNotifyChange() {
@@ -2950,18 +3041,21 @@
                 this.battleData.maxTurn = newTurn;
             }
 
-            // 核心后退逻辑：URL匹配attack_result且TURN>=1
-            const currentUrl = window.location.href;
-            const isAttackResult = /attack_result/.test(currentUrl) || url.includes('attack_result');
+            // 获取当前配置
+            const config = loadConfig();
             
-            if (isAttackResult && newTurn >= 1) {
-                console.log(`🚨 [CandyMark] 触发撤退！攻击结果确认，TURN=${newTurn}，执行后退...`);
-                setTimeout(() => {
-                    if (window.history.length > 1) {
-                        history.back();
-                        console.log('✅ [CandyMark] 已自动返回');
-                    }
-                }, 100);
+            // 前N次攻击后自动后退
+            if (config.autoBackTurnEnabled) {
+                const isAttackResult = /attack_result/.test(window.location.href) || url.includes('attack_result');
+                if (isAttackResult && newTurn <= config.autoBackTurnCount) {
+                    console.log(`🚨 [CandyMark] 达到设定攻击次数限制！TURN=${newTurn}(≤${config.autoBackTurnCount})，执行撤退...`);
+                    setTimeout(() => {
+                        if (window.history.length > 1) {
+                            history.back();
+                            console.log('✅ [CandyMark] 攻击次数限制达成，已自动返回');
+                        }
+                    }, 100);
+                }
             }
 
             // 战斗日志记录
@@ -3079,6 +3173,12 @@
                 return; // 防止重复触发
             }
             
+            const config = loadConfig();
+            if (!config.autoBackDropEnabled) {
+                console.log('📋 [CandyMark] 结算自动返回已关闭，不执行返回操作');
+                return;
+            }
+            
             this.autoBackAfterDropCheck.completed = true;
             
             // 清理超时定时器
@@ -3087,13 +3187,13 @@
                 this.autoBackAfterDropCheck.timeoutId = null;
             }
             
-            console.log('🔄 [CandyMark] 掉落检测完成，即将返回...');
+            console.log('🔄 [CandyMark] 结算完成，执行自动返回...');
             
             // 延迟100ms确保UI稳定后返回
             setTimeout(() => {
                 if (window.history.length > 1) {
                     history.back();
-                    console.log('✅ [CandyMark] 已返回上一步');
+                    console.log('✅ [CandyMark] 结算后已自动返回');
                 } else {
                     console.log('⚠️ [CandyMark] 无法返回，浏览历史不足');
                 }
