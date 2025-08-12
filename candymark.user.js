@@ -78,7 +78,9 @@
             notifyHourglass: storage.getValue('sb_notify_hourglass', 'false') === 'true',
             autoBackTurnEnabled: storage.getValue('sb_auto_back_turn_enabled', 'false') === 'true',
             autoBackTurnCount: parseInt(storage.getValue('sb_auto_back_turn_count', '3')),
-            autoBackDropEnabled: storage.getValue('sb_auto_back_drop_enabled', 'false') === 'true'
+            autoBackDropEnabled: storage.getValue('sb_auto_back_drop_enabled', 'false') === 'true',
+            autoBackSummonEnabled: storage.getValue('sb_auto_back_summon_enabled', 'false') === 'true',
+            autoBackAbilityEnabled: storage.getValue('sb_auto_back_ability_enabled', 'false') === 'true'
         };
     };
     
@@ -925,6 +927,14 @@
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-auto-back-drop">
                         🎯 结算后
+                    </label>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-back-summon">
+                        📦 召唤后
+                    </label>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-back-ability">
+                        ⚡ 技能后
                     </label>
                 </div>
                 <div class="sb-modal-buttons">
@@ -2183,6 +2193,8 @@
             // 设置当前选项状态
             const turnCheckbox = document.getElementById('sb-auto-back-turn');
             const dropCheckbox = document.getElementById('sb-auto-back-drop');
+            const summonCheckbox = document.getElementById('sb-auto-back-summon');
+            const abilityCheckbox = document.getElementById('sb-auto-back-ability');
             const turnCount = document.getElementById('sb-auto-back-turn-count');
             
             if (turnCheckbox) {
@@ -2191,6 +2203,12 @@
             }
             if (dropCheckbox) {
                 dropCheckbox.checked = CONFIG.autoBackDropEnabled;
+            }
+            if (summonCheckbox) {
+                summonCheckbox.checked = CONFIG.autoBackSummonEnabled;
+            }
+            if (abilityCheckbox) {
+                abilityCheckbox.checked = CONFIG.autoBackAbilityEnabled;
             }
         }
         
@@ -2202,11 +2220,15 @@
         confirmAutoBackChange() {
             const turnCheckbox = document.getElementById('sb-auto-back-turn');
             const dropCheckbox = document.getElementById('sb-auto-back-drop');
+            const summonCheckbox = document.getElementById('sb-auto-back-summon');
+            const abilityCheckbox = document.getElementById('sb-auto-back-ability');
             const turnCountInput = document.getElementById('sb-auto-back-turn-count');
             
             // 更新配置
             CONFIG.autoBackTurnEnabled = turnCheckbox ? turnCheckbox.checked : false;
             CONFIG.autoBackDropEnabled = dropCheckbox ? dropCheckbox.checked : false;
+            CONFIG.autoBackSummonEnabled = summonCheckbox ? summonCheckbox.checked : false;
+            CONFIG.autoBackAbilityEnabled = abilityCheckbox ? abilityCheckbox.checked : false;
             
             const turnCount = parseInt(turnCountInput.value, 10);
             CONFIG.autoBackTurnCount = isNaN(turnCount) || turnCount < 1 ? 1 : Math.min(turnCount, 99);
@@ -2215,9 +2237,11 @@
             storage.setValue('sb_auto_back_turn_enabled', CONFIG.autoBackTurnEnabled.toString());
             storage.setValue('sb_auto_back_turn_count', CONFIG.autoBackTurnCount.toString());
             storage.setValue('sb_auto_back_drop_enabled', CONFIG.autoBackDropEnabled.toString());
+            storage.setValue('sb_auto_back_summon_enabled', CONFIG.autoBackSummonEnabled.toString());
+            storage.setValue('sb_auto_back_ability_enabled', CONFIG.autoBackAbilityEnabled.toString());
             
             this.hideAutoBackModal();
-            console.log(`✅ [CandyMark] 自动后退设置已更新：攻击=${CONFIG.autoBackTurnEnabled}(TURN≥${CONFIG.autoBackTurnCount})，结算=${CONFIG.autoBackDropEnabled}`);
+            console.log(`✅ [CandyMark] 自动后退设置已更新：攻击=${CONFIG.autoBackTurnEnabled}(TURN≥${CONFIG.autoBackTurnCount})，结算=${CONFIG.autoBackDropEnabled}，召唤=${CONFIG.autoBackSummonEnabled}，技能=${CONFIG.autoBackAbilityEnabled}`);
         }
         
         confirmDropNotifyChange() {
@@ -3021,6 +3045,32 @@
 
                 if (currentTurn !== null) {
                     this.onTurnChange(currentTurn, url, data);
+                }
+
+                // 新增：召唤结果后的后退
+                if (url.includes('summon_result')) {
+                    const config = loadConfig();
+                    if (config.autoBackSummonEnabled) {
+                        console.log('📦 [CandyMark] 召唤完成，已触发返回...');
+                        setTimeout(() => {
+                            if (window.history.length > 1) {
+                                history.back();
+                            }
+                        }, 100);
+                    }
+                }
+
+                // 新增：能力结果后的后退
+                if (url.includes('ability_result')) {
+                    const config = loadConfig();
+                    if (config.autoBackAbilityEnabled) {
+                        console.log('⚡ [CandyMark] 能力使用完成，已触发返回...');
+                        setTimeout(() => {
+                            if (window.history.length > 1) {
+                                history.back();
+                            }
+                        }, 100);
+                    }
                 }
             }
         }
