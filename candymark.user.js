@@ -2935,7 +2935,7 @@
         }
 
         /**
-         * TURN计数变化回调 - 在TURN值变化时触发
+         * TURN计数变化处理 - 在TURN值变化时触发
          * @param {number} newTurn - 新的TURN值
          * @param {string} url - 触发变化的URL
          * @param {object} data - 完整的响应数据
@@ -2950,44 +2950,39 @@
                 this.battleData.maxTurn = newTurn;
             }
 
-            // 总是输出log，无论是否变化（为了监控所有TURN更新）
-            const timestamp = new Date().toLocaleTimeString();
-            console.log(`🎮 [CandyMark Battle] TURN更新 | ${timestamp} | 当前TURN: ${newTurn} | URL: ${url.split('/').pop()}`);
-
-            // 如果检测到TURN变化，输出变化的log
-            if (oldTurn !== null && oldTurn !== newTurn) {
-                console.log(`⚡ [CandyMark TurnChange] TURN ${oldTurn} → ${newTurn} (变化: ${newTurn - oldTurn})`);
-                
-                // 触发用户自定义回调
-                if (this.turnChangeCallback && typeof this.turnChangeCallback === 'function') {
-                    try {
-                        this.turnChangeCallback({
-                            oldTurn,
-                            newTurn,
-                            change: newTurn - oldTurn,
-                            url,
-                            data,
-                            timestamp: new Date()
-                        });
-                    } catch (e) {
-                        console.error('❌ [CandyMark] TURN变化回调执行失败:', e);
+            // 核心后退逻辑：URL匹配attack_result且TURN>=1
+            const currentUrl = window.location.href;
+            const isAttackResult = /attack_result/.test(currentUrl) || url.includes('attack_result');
+            
+            if (isAttackResult && newTurn >= 1) {
+                console.log(`🚨 [CandyMark] 触发撤退！攻击结果确认，TURN=${newTurn}，执行后退...`);
+                setTimeout(() => {
+                    if (window.history.length > 1) {
+                        history.back();
+                        console.log('✅ [CandyMark] 已自动返回');
                     }
-                }
+                }, 100);
+            }
+
+            // 战斗日志记录
+            const timestamp = new Date().toLocaleTimeString();
+            console.log(`🎮 [CandyMark] TURN更新 | ${timestamp} | 当前TURN: ${newTurn} | URL: ${url.split('/').pop()}`);
+
+            if (oldTurn !== null && oldTurn !== newTurn) {
+                console.log(`⚡ [CandyMark] TURN变化报告: T${oldTurn} → T${newTurn} (变化: ${newTurn - oldTurn})`);
             } else if (oldTurn === null) {
-                console.log(`✅ [CandyMark TurnChange] 初始化TURN: ${newTurn}`);
+                console.log(`✅ [CandyMark] 初始化TURN: ${newTurn}`);
             }
         }
 
         /**
-         * 设置TURN变化回调函数
-         * @param {Function} callback - 回调函数，接收{oldTurn, newTurn, change, url, data, timestamp}参数
+         * 设置TURN变化回调函数（已废弃，直接在内部处理）
+         * @deprecated 后退逻辑已内置到onTurnChange中
          */
         setTurnChangeCallback(callback) {
+            // 保持空方法以兼容旧代码
             if (typeof callback === 'function') {
-                this.turnChangeCallback = callback;
-                console.log('✅ [CandyMark] TURN变化回调已设置');
-            } else {
-                console.error('❌ [CandyMark] TURN变化回调必须是函数');
+                console.log('⚠️ [CandyMark] TURN变化回调已废弃，使用内置后退逻辑');
             }
         }
 
@@ -3124,26 +3119,9 @@
         candyMarkManagerInstance = new CandyMarkManager();
         dropDetectorInstance = new DropDetector();
         
-        // 设置TURN变化回调示例
+        // TURN监控已内置到DropDetector类中，无需额外配置
         if (dropDetectorInstance) {
-            dropDetectorInstance.setTurnChangeCallback(function(info) {
-                // 📢 新的逻辑：当TURN达到或超过2时触发后退
-                if (info.newTurn >= 2) {
-                    console.log('🚨 [CandyMark] 触发撤退！TURN已达到', info.newTurn, '，执行后退...');
-                    history.back();
-                    return; // 不再执行下面的统计
-                }
-                
-                // 只在TURN未达到2时输出正常日志
-                console.log('📊 [CandyMark] TURN变化报告:', {
-                    战斗时间: Math.round(dropDetectorInstance.getBattleStats().battleDuration) + '秒',
-                    TURN变化: `T${info.oldTurn} → T${info.newTurn}`,
-                    变化幅度: info.change > 0 ? `+${info.change}` : info.change,
-                    URL: info.url.split('/').pop()
-                });
-            });
-            
-            console.log('✨ [CandyMark] TURN计数监控已激活！查看控制台输出的战斗日志');
+            console.log('✨ [CandyMark] TURN计数监控已激活！内置后退逻辑：attack_result且TURN>=1');
         }
     }
     
