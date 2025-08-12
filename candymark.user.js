@@ -3070,24 +3070,20 @@
         // 设置TURN变化回调示例
         if (dropDetectorInstance) {
             dropDetectorInstance.setTurnChangeCallback(function(info) {
-                // 这里是TURN变化的回调，可以在这里做任何事情
+                // 📢 新的逻辑：当TURN达到或超过2时触发后退
+                if (info.newTurn >= 2) {
+                    console.log('🚨 [CandyMark] 触发撤退！TURN已达到', info.newTurn, '，执行后退...');
+                    history.back();
+                    return; // 不再执行下面的统计
+                }
+                
+                // 只在TURN未达到2时输出正常日志
                 console.log('📊 [CandyMark] TURN变化报告:', {
                     战斗时间: Math.round(dropDetectorInstance.getBattleStats().battleDuration) + '秒',
                     TURN变化: `T${info.oldTurn} → T${info.newTurn}`,
                     变化幅度: info.change > 0 ? `+${info.change}` : info.change,
                     URL: info.url.split('/').pop()
                 });
-                
-                // 示例：在控制台显示统计信息
-                if (info.change > 0) {
-                    const stats = dropDetectorInstance.getBattleStats();
-                    console.log('📈 [CandyMark] 战斗统计:', {
-                        当前TURN: info.newTurn,
-                        最大TURN: stats.maxTurn,
-                        战斗时长: Math.round(stats.battleDuration) + '秒',
-                        平均TURN速度: stats.maxTurn > 0 ? (stats.battleDuration / stats.maxTurn).toFixed(2) + '秒/TURN' : 'N/A'
-                    });
-                }
             });
             
             console.log('✨ [CandyMark] TURN计数监控已激活！查看控制台输出的战斗日志');
