@@ -2926,7 +2926,10 @@
             };
             this.autoBackAfterDropCheck = {
                 enabled: true, // 新功能开关
-                completed: false, //防止重复触发
+                lastProcessed: {
+                    url: '',
+                    timestamp: 0
+                },
                 timeoutId: null // 清理用
             };
             this.init();
@@ -3156,17 +3159,14 @@
             this.dropCheckInterval = setInterval(() => {
                 this.checkDrops();
                 
-                // 额外的返回触发机制：检查是否已经完成掉落页面显示
-                if (!this.autoBackAfterDropCheck.completed) {
+                // 额外的返回触发机制：检查是否是新的结算页面
+                if (this.autoBackAfterDropCheck.lastProcessed.url !== window.location.href) {
                     // 检查是否已经有结果画面加载完成
                     const resultLoaded = document.querySelector('#cnt-quest');
                     if (resultLoaded) {
                         // 延迟100ms后自动返回，即使没有找到特定掉落
                         setTimeout(() => {
-                            if (!this.autoBackAfterDropCheck.completed) {
-                                //console.log('📋 [CandyMark] 掉落页面加载完成，自动返回...');
-                                this.triggerAutoBack();
-                            }
+                            this.triggerAutoBack();
                         }, 100);
                     }
                 }
@@ -3175,10 +3175,16 @@
         
         checkDrops() {
             const config = loadConfig();
+            const currentUrl = window.location.href;
 
     		// 大巴角 "[data-key='10_79']" (调试用)
 		    // FFJ "[data-key='17_20004']"
 		    // 沙漏 "[data-key='10_215']"
+
+            // URL过滤：重复的URL不处理
+            if (this.autoBackAfterDropCheck.lastProcessed.url === currentUrl) {
+                return;
+            }
 
             // 检查FFJ掉落
             if (config.notifyFFJ) {
@@ -3206,7 +3212,6 @@
             const dropElements = document.querySelectorAll('[data-key*="10_"], [data-key*="17_"], [data-key*="12_"]');
             if (dropElements.length > 0) {
                 clearInterval(this.dropCheckInterval);
-                //console.log('🎉 [CandyMark] 检测到掉落，自动返回战斗页面...');
                 this.triggerAutoBack();
                 return;
             }
@@ -3219,17 +3224,20 @@
         }
         
         triggerAutoBack() {
-            if (this.autoBackAfterDropCheck.completed) {
-                return; // 防止重复触发
+            const currentUrl = window.location.href;
+            
+            // 如果是相同的URL就不处理
+            if (this.autoBackAfterDropCheck.lastProcessed.url === currentUrl) {
+                return;
             }
             
             const config = loadConfig();
             if (!config.autoBackDropEnabled) {
-                //console.log('📋 [CandyMark] 结算自动返回已关闭，不执行返回操作');
                 return;
             }
             
-            this.autoBackAfterDropCheck.completed = true;
+            // 更新最后处理的URL
+            this.autoBackAfterDropCheck.lastProcessed.url = currentUrl;
             
             // 清理超时定时器
             if (this.autoBackAfterDropCheck.timeoutId) {
@@ -3237,15 +3245,10 @@
                 this.autoBackAfterDropCheck.timeoutId = null;
             }
             
-            //console.log('🔄 [CandyMark] 结算完成，执行自动返回...');
-            
             // 延迟100ms确保UI稳定后返回
             setTimeout(() => {
                 if (window.history.length > 1) {
                     history.back();
-                    //console.log('✅ [CandyMark] 结算后已自动返回');
-                } else {
-                    //console.log('⚠️ [CandyMark] 无法返回，浏览历史不足');
                 }
             }, 100);
         }
