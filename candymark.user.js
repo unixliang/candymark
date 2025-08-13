@@ -775,9 +775,11 @@
             <div class="sb-menu-item" data-action="set-url">📍 设置当前页面</div>
             <div class="sb-menu-item" data-action="set-back">⬅️ 设置后退</div>
             <div class="sb-menu-item" data-action="set-double-back">⏪ 设置两次后退</div>
-            <div class="sb-menu-item" data-action="set-interval" id="sb-interval-menu">⏱️ 两次后退间隔(400ms)</div>
+            <div class="sb-menu-item" data-action="set-interval" id="sb-interval-menu">⏱️ 两次后退间隔【400ms】</div>
             <div class="sb-menu-item" data-action="edit">✏️ 修改名称</div>
             <div class="sb-menu-item" data-action="delete">🗑️ 删除标签</div>
+            <div class="sb-menu-item" data-action="auto-back-global">🚪 自动后退【全局】</div>
+            <div class="sb-menu-item" data-action="drop-notify-global">🔔 掉落通知【全局】</div>
             <div class="sb-menu-item" data-action="cancel">❌ 取消</div>
         </div>
         <div id="sb-add-menu">
@@ -2271,7 +2273,7 @@
             if (bookmark) {
                 const intervalMenu = document.getElementById('sb-interval-menu');
                 const interval = bookmark.doubleBackInterval || 400;
-                intervalMenu.textContent = `⏱️ 两次后退间隔(${interval}ms)`;
+                intervalMenu.textContent = `⏱️ 两次后退间隔【${interval}ms】`;
             }
             
             const menu = document.getElementById('sb-menu');
@@ -2283,7 +2285,7 @@
             // 获取菜单的实际尺寸
             const menuRect = menu.getBoundingClientRect();
             const menuWidth = menuRect.width || 150; // 默认最小宽度
-            const menuHeight = menuRect.height || 280; // 默认高度（现在8个菜单项）
+            const menuHeight = menuRect.height || 350; // 默认高度（现在10个菜单项）
             
             // 计算最佳位置，确保菜单完全在屏幕内
             let menuX = x;
@@ -2354,6 +2356,12 @@
                     this.currentBookmarkId = bookmarkId;
                     this.deleteBookmark();
                     this.currentBookmarkId = null;
+                    break;
+                case 'auto-back-global':
+                    this.showAutoBackModal();
+                    break;
+                case 'drop-notify-global':
+                    this.showDropNotifyModal();
                     break;
                 case 'cancel':
                     // 什么都不做，只是关闭菜单
