@@ -1364,12 +1364,12 @@
                 isLongPressing = false;
                 longPressCompleted = false;
                 
-                // 设置长按定时器 (1秒)
+                // 设置长按定时器 (600ms)
                 triggerPressTimer = setTimeout(() => {
                     isLongPressing = true;
                     longPressCompleted = true;
                     this.toggleAllBookmarks();
-                }, 800);
+                }, 600);
             };
             
             const handleTriggerEnd = (e) => {
@@ -1593,7 +1593,7 @@
                     const id = bookmark.getAttribute('data-bookmark-id');
                     touchTimer = setTimeout(() => {
                         this.showMenu(e, parseInt(id));
-                    }, 800);
+                    }, 600);
                 }
             });
             
@@ -1603,7 +1603,7 @@
                     clearTimeout(touchTimer);
                     const touchDuration = Date.now() - this.touchStartTime;
                     
-                    if (touchDuration < 800 && !this.isContextMenuOpen) {
+                    if (touchDuration < 600 && !this.isContextMenuOpen) {
                         // 触发点击动画
                         this.triggerClickAnimation(bookmark);
                         
