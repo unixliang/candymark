@@ -3120,7 +3120,7 @@
                             if (window.history.length > 1) {
                                 history.back();
                             }
-                        }, 100);
+                        }, 50);
                     }
                 }
 
@@ -3133,7 +3133,7 @@
                             if (window.history.length > 1) {
                                 history.back();
                             }
-                        }, 100);
+                        }, 50);
                     }
                 }
             }
@@ -3168,7 +3168,7 @@
                             history.back();
                             //console.log('✅ [CandyMark] 攻击次数限制达成，已自动返回');
                         }
-                    }, 100);
+                    }, 50);
                 }
             }
 
