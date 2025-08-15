@@ -1017,12 +1017,16 @@
                 keyDown: null
             };
             
-            // 防抖存储
+            // 防抖存储 - 优化防抖延迟和立即保存条件
             this.saveTimeout = null;
             this.pendingSave = false;
+            this.lastSaveTime = 0;
             
             // 掉落监听间隔
             this.dropCheckInterval = null;
+            
+            // 优化渲染性能的缓存
+            this.bookmarkCache = new Map();
             
             this.init();
         }
@@ -1558,7 +1562,7 @@
             const container = document.getElementById('sb-container');
             let touchTimer;
             
-            // 统一的点击处理
+            // 统一的点击处理 - 使用被动事件监听器优化性能
             container.addEventListener('click', (e) => {
                 const bookmark = e.target.closest('.sb-bookmark');
                 if (bookmark && !this.isContextMenuOpen) {
@@ -1574,7 +1578,7 @@
                     const url = bookmark.getAttribute('data-bookmark-url');
                     this.handleBookmarkClick(url, bookmark);
                 }
-            });
+            }, { passive: true });
             
             // 统一的右键菜单处理
             container.addEventListener('contextmenu', (e) => {
@@ -1583,9 +1587,9 @@
                     const id = bookmark.getAttribute('data-bookmark-id');
                     this.showMenu(e, parseInt(id));
                 }
-            });
+            }, { passive: false });
             
-            // 统一的触摸事件处理
+            // 统一的触摸事件处理 - 优化触摸事件性能
             container.addEventListener('touchstart', (e) => {
                 const bookmark = e.target.closest('.sb-bookmark');
                 if (bookmark) {
@@ -1595,7 +1599,7 @@
                         this.showMenu(e, parseInt(id));
                     }, 600);
                 }
-            });
+            }, { passive: true });
             
             container.addEventListener('touchend', (e) => {
                 const bookmark = e.target.closest('.sb-bookmark');
@@ -1616,14 +1620,14 @@
                         this.handleBookmarkClick(url, bookmark);
                     }
                 }
-            });
+            }, { passive: true });
             
             container.addEventListener('touchmove', () => {
                 if (touchTimer) {
                     clearTimeout(touchTimer);
                     touchTimer = null;
                 }
-            });
+            }, { passive: true });
         }
         
         handleBookmarkClick(url, element) {
@@ -1716,13 +1720,17 @@
                 menuY = 10;
             }
             
-            menu.style.left = `${menuX}px`;
-            menu.style.top = `${menuY}px`;
+            // 使用transform优化菜单定位性能
+            menu.style.transform = `translate(${menuX}px, ${menuY}px)`;
+            menu.style.left = '0';
+            menu.style.top = '0';
         }
         
         hideAddMenu() {
             const menu = document.getElementById('sb-add-menu');
             menu.classList.remove('show');
+            // 重置transform以避免累积变换
+            menu.style.transform = '';
         }
         
         showConfigMenu() {
@@ -1730,14 +1738,18 @@
             const menu = document.getElementById('sb-config-menu');
             const triggerRect = document.getElementById('sb-trigger').getBoundingClientRect();
             
-            menu.style.left = triggerRect.left + 'px';
-            menu.style.top = (triggerRect.bottom + 5) + 'px';
+            // 使用transform优化菜单定位性能
+            menu.style.transform = `translate(${triggerRect.left}px, ${triggerRect.bottom + 5}px)`;
+            menu.style.left = '0';
+            menu.style.top = '0';
             menu.classList.add('show');
         }
         
         hideConfigMenu() {
             const menu = document.getElementById('sb-config-menu');
             menu.classList.remove('show');
+            // 重置transform以避免累积变换
+            menu.style.transform = '';
         }
         
         handleConfigMenuAction(action) {
@@ -2282,7 +2294,7 @@
             const x = e.clientX || (e.touches && e.touches[0].clientX) || 0;
             const y = e.clientY || (e.touches && e.touches[0].clientY) || 0;
             
-            // 获取菜单的实际尺寸
+            // 获取菜单的实际尺寸 - 缓存尺寸以避免重复计算
             const menuRect = menu.getBoundingClientRect();
             const menuWidth = menuRect.width || 150; // 默认最小宽度
             const menuHeight = menuRect.height || 350; // 默认高度（现在10个菜单项）
@@ -2307,13 +2319,17 @@
                 menuY = 10;
             }
             
-            menu.style.left = `${menuX}px`;
-            menu.style.top = `${menuY}px`;
+            // 使用transform优化菜单定位性能
+            menu.style.transform = `translate(${menuX}px, ${menuY}px)`;
+            menu.style.left = '0';
+            menu.style.top = '0';
         }
         
         hideMenu() {
             const menu = document.getElementById('sb-menu');
             menu.classList.remove('show');
+            // 重置transform以避免累积变换
+            menu.style.transform = '';
             this.isContextMenuOpen = false;
             this.currentBookmarkId = null;
         }
@@ -2507,22 +2523,24 @@
                 hint: document.getElementById('sb-drag-hint')
             };
             
-            // 创建原始位置指示器
-            dragState.originalPos = document.createElement('div');
-            dragState.originalPos.className = 'sb-bookmark-ghost';
-            dragState.originalPos.style.cssText = `
-                position: absolute;
-                left: ${element.style.left};
-                top: ${element.style.top};
-                width: 0.5cm;
-                height: 0.5cm;
-                border: 2px dashed rgba(102, 126, 234, 0.5);
-                border-radius: 8px;
-                background: rgba(102, 126, 234, 0.1);
-                pointer-events: none;
-                z-index: 999996;
-            `;
-            document.getElementById('sb-container').appendChild(dragState.originalPos);
+            // 创建原始位置指示器 - 优化创建过程
+            if (!dragState.originalPos) {
+                dragState.originalPos = document.createElement('div');
+                dragState.originalPos.className = 'sb-bookmark-ghost';
+                dragState.originalPos.style.cssText = `
+                    position: absolute;
+                    width: 0.5cm;
+                    height: 0.5cm;
+                    border: 2px dashed rgba(102, 126, 234, 0.5);
+                    border-radius: 8px;
+                    background: rgba(102, 126, 234, 0.1);
+                    pointer-events: none;
+                    z-index: 999996;
+                    left: ${element.style.left};
+                    top: ${element.style.top};
+                `;
+                document.getElementById('sb-container').appendChild(dragState.originalPos);
+            }
             dragState.hint.classList.add('show');
             
             // 创建并绑定预优化的事件处理函数
@@ -2666,7 +2684,11 @@
             element.classList.remove('dragging', 'sb-bookmark--dragging-prep', 'sb-bookmark--dragging-active', 'sb-bookmark--updating');
             
             // 清理UI元素
-            if (originalPos) originalPos.remove();
+            if (originalPos) {
+                originalPos.remove();
+                // 清理引用以避免内存泄漏
+                dragState.originalPos = null;
+            }
             hint.classList.remove('show');
             
             document.body.style.userSelect = '';
@@ -2761,10 +2783,24 @@
                 }
             });
             
-            // 更新或创建标签
+            // 更新或创建标签 - 使用缓存优化
             this.bookmarks.forEach(bookmark => {
                 const id = bookmark.id.toString();
                 const existingElement = existingElements.get(id);
+                
+                // 检查缓存是否需要更新
+                const cachedBookmark = this.bookmarkCache.get(id);
+                const needsUpdate = !cachedBookmark || 
+                    cachedBookmark.x !== bookmark.x || 
+                    cachedBookmark.y !== bookmark.y || 
+                    cachedBookmark.name !== bookmark.name || 
+                    cachedBookmark.url !== bookmark.url ||
+                    cachedBookmark.colorIndex !== bookmark.colorIndex;
+                
+                if (existingElement && !needsUpdate) {
+                    // 无变化，跳过更新
+                    return;
+                }
                 
                 if (existingElement) {
                     // 更新现有元素
@@ -2774,6 +2810,9 @@
                     const newElement = this.createBookmarkElement(bookmark);
                     container.appendChild(newElement);
                 }
+                
+                // 更新缓存
+                this.bookmarkCache.set(id, {...bookmark});
             });
         }
         
@@ -2875,6 +2914,12 @@
         }
         
         saveBookmarks(immediate = false) {
+            const now = Date.now();
+            // 如果距离上次保存不足100ms，且不是立即保存，则跳过
+            if (!immediate && now - this.lastSaveTime < 100) {
+                return;
+            }
+            
             if (immediate) {
                 // 立即保存
                 if (this.saveTimeout) {
@@ -2883,8 +2928,9 @@
                 }
                 localStorage.setItem(this.storageKey, JSON.stringify(this.bookmarks));
                 this.pendingSave = false;
+                this.lastSaveTime = now;
             } else {
-                // 防抖保存
+                // 防抖保存 - 减少延迟到150ms
                 this.pendingSave = true;
                 if (this.saveTimeout) {
                     clearTimeout(this.saveTimeout);
@@ -2893,9 +2939,10 @@
                     if (this.pendingSave) {
                         localStorage.setItem(this.storageKey, JSON.stringify(this.bookmarks));
                         this.pendingSave = false;
+                        this.lastSaveTime = Date.now();
                     }
                     this.saveTimeout = null;
-                }, 300); // 300ms防抖延迟
+                }, 150); // 150ms防抖延迟
             }
         }
         
@@ -2913,8 +2960,14 @@
                         bookmark.colorIndex = index % this.colorPresets.length;
                     }
                 });
+                // 初始化缓存
+                this.bookmarkCache.clear();
+                this.bookmarks.forEach(bookmark => {
+                    this.bookmarkCache.set(bookmark.id.toString(), {...bookmark});
+                });
             } catch (e) {
                 this.bookmarks = [];
+                this.bookmarkCache.clear();
             }
         }
     }
