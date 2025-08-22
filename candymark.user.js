@@ -2976,7 +2976,7 @@
     class GameDetector {
         constructor() {
             this.dropCheckInterval = null;
-            this.resultMultiRegex = /https?:\/\/((game\.granbluefantasy)|(gbf\.game\.mbga))\.jp\/.*#result_multi\/(?!detail)[0-9]*/;
+            this.resultMultiRegex = /https?:\/\/((game\.granbluefantasy)|(gbf\.game\.mbga))\.jp\/.*#(result_multi|result)\/(?!detail)[0-9]*/;
             this.previousTurn = null;
             this.turnChangeCallback = null;
             this.battleData = {
