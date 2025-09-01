@@ -3161,7 +3161,7 @@
             // 前N次攻击后自动后退
             if (config.autoBackTurnEnabled) {
                 const isAttackResult = /attack_result/.test(window.location.href) || url.includes('attack_result');
-                if (isAttackResult && newTurn <= config.autoBackTurnCount) {
+                if (isAttackResult && newTurn <= config.autoBackTurnCount + 1) {
                     //console.log(`🚨 [CandyMark] 达到设定攻击次数限制！TURN=${newTurn}(≤${config.autoBackTurnCount})，执行撤退...`);
                     setTimeout(() => {
                         if (window.history.length > 1) {
