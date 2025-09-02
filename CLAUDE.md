@@ -233,3 +233,25 @@ container.addEventListener('click', (e) => {
 - Touch event duration thresholds in `setupBookmarkEventDelegation()`
 - Responsive sizing in CSS media queries
 - Hardware acceleration classes for smooth animations
+
+## Project Governance and Documentation
+
+### Specification Workflow
+CandyMark follows a structured specification workflow for feature development:
+- Requirements gathering and documentation
+- Design documentation aligned with technical standards
+- Task breakdown and implementation tracking
+- All specs are stored in `.spec-workflow/specs/` directory
+
+### Steering Documents
+Project direction and standards are defined in steering documents located in `.spec-workflow/steering/`:
+- **Product Vision** (`product.md`): Defines target users, key features, and business objectives
+- **Technical Standards** (`tech.md`): Specifies technology stack, architecture patterns, and coding standards
+- **Project Structure** (`structure.md`): Details code organization, naming conventions, and module boundaries
+
+### Recent Feature Development
+Latest feature development follows the specification workflow with documented:
+- Requirements with acceptance criteria
+- Design alignment with project architecture
+- Task breakdown for implementation
+- Integration with existing codebase patterns
