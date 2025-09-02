@@ -725,6 +725,49 @@
             margin: 0 10px;
         }
         
+        /* 自动后退设置项分行样式 */
+        .sb-auto-back-item {
+            flex-direction: column;
+            align-items: flex-start;
+            padding-left: 50px; /* 为勾选框和图标留出空间 */
+            position: relative;
+            min-height: 60px;
+        }
+        
+        .sb-auto-back-item input[type="checkbox"] {
+            position: absolute;
+            left: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            margin: 0;
+            z-index: 2; /* 确保勾选框在上层 */
+        }
+        
+        /* 图标垂直居中容器 */
+        .sb-auto-back-icon {
+            position: absolute;
+            left: 36px; /* 增加与勾选框的距离 */
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 16px;
+            z-index: 1; /* 确保图标在下层 */
+        }
+        
+        /* 图标和控制元素容器 */
+        .sb-auto-back-main {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        
+        .sb-auto-back-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        
         .sb-number-adjuster-btn {
             width: 30px !important;
             height: 30px !important;
@@ -982,15 +1025,15 @@
             <div class="sb-modal-content">
                 <h3>自动后退设置</h3>
                 <div class="sb-drop-notify-options">
-                    <label class="sb-checkbox-item">
+                    <label class="sb-checkbox-item sb-auto-back-item">
                         <input type="checkbox" id="sb-auto-back-turn">
-                        ⚔️ 前 
-                        <div class="sb-number-adjuster">
+                        <div class="sb-auto-back-icon">⚔️</div>
+                        <div class="sb-number-adjuster" style="margin-bottom: 4px; margin-top: 8px; margin-left: 20px;">
                             <button class="sb-number-adjuster-btn" id="sb-auto-back-turn-decrease">-</button>
                             <input type="number" id="sb-auto-back-turn-count" class="sb-number-adjuster-input" min="1" max="99" value="3">
                             <button class="sb-number-adjuster-btn" id="sb-auto-back-turn-increase">+</button>
                         </div>
-                         回合攻击后
+                        <div style="margin-left: 20px;">回合内攻击后</div>
                     </label>
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-auto-back-drop">
