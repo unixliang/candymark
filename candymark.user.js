@@ -998,7 +998,7 @@
                     </label>
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-auto-back-summon">
-                        📦 召唤后
+                        🔮 召唤后
                     </label>
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-auto-back-ability">
@@ -3219,7 +3219,7 @@
                 if (url.includes('summon_result')) {
                     const config = loadConfig();
                     if (config.autoBackSummonEnabled) {
-                        //console.log('📦 [CandyMark] 召唤完成，已触发返回...');
+                        //console.log('🔮 [CandyMark] 召唤完成，已触发返回...');
                         setTimeout(() => {
                             if (window.history.length > 1) {
                                 history.back();
