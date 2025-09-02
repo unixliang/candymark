@@ -715,6 +715,66 @@
             align-self: center;
             flex-shrink: 0;
         }
+        
+        /* 数值调节器样式 */
+        .sb-number-adjuster {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            margin: 0 10px;
+        }
+        
+        .sb-number-adjuster-btn {
+            width: 30px !important;
+            height: 30px !important;
+            min-width: 30px !important;
+            min-height: 30px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            transition: background 0.2s;
+            user-select: none;
+            aspect-ratio: 1 / 1; /* 确保严格的正方形比例 */
+            box-sizing: border-box; /* 确保边框和内边距包含在宽高内 */
+        }
+        
+        .sb-number-adjuster-btn:hover {
+            background: #5a6fd8;
+        }
+        
+        .sb-number-adjuster-btn:active {
+            background: #4f63d2;
+        }
+        
+        .sb-number-adjuster-input {
+            width: 50px !important;
+            height: 30px !important;
+            min-height: 30px !important;
+            text-align: center;
+            border: 2px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 500;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        
+        .sb-number-adjuster-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
     `;
     
     // 标签大小配置 (10档)
@@ -924,7 +984,13 @@
                 <div class="sb-drop-notify-options">
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-auto-back-turn">
-                        ⚔️ 前 <input type="number" id="sb-auto-back-turn-count" min="1" max="99" value="3"> 回合攻击后
+                        ⚔️ 前 
+                        <div class="sb-number-adjuster">
+                            <button class="sb-number-adjuster-btn" id="sb-auto-back-turn-decrease">-</button>
+                            <input type="number" id="sb-auto-back-turn-count" class="sb-number-adjuster-input" min="1" max="99" value="3">
+                            <button class="sb-number-adjuster-btn" id="sb-auto-back-turn-increase">+</button>
+                        </div>
+                         回合攻击后
                     </label>
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-auto-back-drop">
@@ -1512,11 +1578,43 @@
                 this.hideAutoBackModal();
             });
             
-            // 监听输入框变化限制
+            // 监听输入框变化限制，实时验证输入值范围(1-99)
             document.getElementById('sb-auto-back-turn-count').addEventListener('input', (e) => {
-                const value = parseInt(e.target.value, 10);
-                if (isNaN(value) || value < 1) e.target.value = 1;
-                if (value > 99) e.target.value = 99;
+                let value = parseInt(e.target.value, 10);
+                // 处理NaN情况，当输入非数字字符时不立即纠正，让用户完成输入
+                if (isNaN(value)) {
+                    return;
+                }
+                // 限制范围在1-99之间
+                if (value < 1) value = 1;
+                if (value > 99) value = 99;
+                e.target.value = value;
+            });
+            
+            // 失去焦点时确保值有效，处理空值或无效值情况
+            document.getElementById('sb-auto-back-turn-count').addEventListener('blur', (e) => {
+                let value = parseInt(e.target.value, 10);
+                // 处理NaN或空值情况，设置默认值为1
+                if (isNaN(value) || value < 1) value = 1;
+                if (value > 99) value = 99;
+                e.target.value = value;
+            });
+            
+            // 为数值调节器增加事件监听
+            document.getElementById('sb-auto-back-turn-decrease').addEventListener('click', () => {
+                const input = document.getElementById('sb-auto-back-turn-count');
+                let value = parseInt(input.value, 10);
+                if (isNaN(value)) value = 4; // 默认值
+                value = Math.max(1, value - 1);
+                input.value = value;
+            });
+            
+            document.getElementById('sb-auto-back-turn-increase').addEventListener('click', () => {
+                const input = document.getElementById('sb-auto-back-turn-count');
+                let value = parseInt(input.value, 10);
+                if (isNaN(value)) value = 2; // 默认值
+                value = Math.min(99, value + 1);
+                input.value = value;
             });
             
             // 菜单事件
@@ -2244,8 +2342,14 @@
             CONFIG.autoBackSummonEnabled = summonCheckbox ? summonCheckbox.checked : false;
             CONFIG.autoBackAbilityEnabled = abilityCheckbox ? abilityCheckbox.checked : false;
             
-            const turnCount = parseInt(turnCountInput.value, 10);
-            CONFIG.autoBackTurnCount = isNaN(turnCount) || turnCount < 1 ? 1 : Math.min(turnCount, 99);
+            // 验证并清理输入值，确保在有效范围(1-99)内
+            let turnCount = parseInt(turnCountInput.value, 10);
+            if (isNaN(turnCount) || turnCount < 1) {
+                turnCount = 1;
+            } else if (turnCount > 99) {
+                turnCount = 99;
+            }
+            CONFIG.autoBackTurnCount = turnCount;
             
             // 保存到存储
             storage.setValue('sb_auto_back_turn_enabled', CONFIG.autoBackTurnEnabled.toString());
