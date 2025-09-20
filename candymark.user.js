@@ -3315,7 +3315,7 @@
                             history.back();
                             //console.log('✅ [CandyMark] 攻击次数限制达成，已自动返回');
                         }
-                    }, 150);
+                    }, 170);
                 }
             }
 
