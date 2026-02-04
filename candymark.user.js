@@ -449,6 +449,17 @@
             transform: scale(1.05) !important;
             transition: all 0.15s ease-out !important;
         }
+
+        /* 穿透点击后退书签 */
+        .sb-bookmark--click-through {
+            pointer-events: none !important;
+        }
+
+        /* 菜单打开或拖拽模式时恢复交互 */
+        .sb-container--menu-open .sb-bookmark--click-through,
+        .sb-container--drag-mode .sb-bookmark--click-through {
+            pointer-events: auto !important;
+        }
         
         /* 标签大小调整样式 */
         .sb-size-slider-container {
@@ -877,8 +888,8 @@
             <div class="sb-menu-item" data-action="drag">🖱️ 拖拽移动</div>
             <div class="sb-menu-item" data-action="set-url">📍 设置当前页面</div>
             <div class="sb-menu-item" data-action="set-back">⬅️ 设置后退</div>
-            <div class="sb-menu-item" data-action="set-double-back">⏪ 设置两次后退</div>
-            <div class="sb-menu-item" data-action="set-interval" id="sb-interval-menu">⏱️ 两次后退间隔【400ms】</div>
+            <div class="sb-menu-item" data-action="set-click-through-back">👆 设置穿透点击后退</div>
+            <div class="sb-menu-item" data-action="set-click-through-delay" id="sb-interval-menu">⏱️ 穿透后退延迟【300ms】</div>
             <div class="sb-menu-item" data-action="edit">✏️ 修改名称</div>
             <div class="sb-menu-item" data-action="delete">🗑️ 删除标签</div>
             <div class="sb-menu-item" data-action="auto-back-global">🚪 自动后退【全局】</div>
@@ -924,8 +935,8 @@
         </div>
         <div id="sb-interval-modal" class="sb-modal">
             <div class="sb-modal-content">
-                <h3>设置两次后退间隔时间</h3>
-                <input type="number" id="sb-interval-input" placeholder="请输入间隔时间(毫秒)" min="50" max="5000" value="400">
+                <h3>设置穿透后退延迟时间</h3>
+                <input type="number" id="sb-interval-input" placeholder="请输入延迟时间(毫秒)" min="50" max="5000" value="300">
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-interval-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-interval-cancel">取消</button>
@@ -1146,6 +1157,7 @@
             this.renderBookmarks();
             this.updateTriggerVisibility();
             this.registerMenuCommands();
+            this.setupClickThroughDetection();
         }
         
         registerMenuCommands() {
@@ -1783,18 +1795,169 @@
         triggerClickAnimation(element) {
             // 添加点击动画
             element.classList.add('sb-bookmark--clicking');
-            
+
             // 移除动画类，准备下次动画
             setTimeout(() => {
                 element.classList.remove('sb-bookmark--clicking');
                 element.classList.add('sb-bookmark--click-release');
-                
+
                 setTimeout(() => {
                     element.classList.remove('sb-bookmark--click-release');
                 }, 150);
             }, 100);
         }
-        
+
+        // 检查是否在拖拽模式
+        isDragMode() {
+            const container = document.getElementById('sb-container');
+            return container && container.classList.contains('sb-container--drag-mode');
+        }
+
+        // 穿透点击检测 - 在document级别监听，检测命中穿透书签
+        setupClickThroughDetection() {
+            // 长按检测状态
+            this.clickThroughTouchState = {
+                timer: null,
+                startX: 0,
+                startY: 0,
+                active: false,
+                handledByTouch: false // 防止touchend和click重复触发
+            };
+
+            // 触摸开始 - 用于长按检测
+            document.addEventListener('touchstart', (e) => {
+                if (this.isContextMenuOpen || this.isDragMode()) return;
+
+                const touch = e.touches[0];
+                const hitBookmark = this.findClickThroughBookmarkAtPoint(touch.clientX, touch.clientY);
+
+                if (hitBookmark) {
+                    this.clickThroughTouchState.startX = touch.clientX;
+                    this.clickThroughTouchState.startY = touch.clientY;
+                    this.clickThroughTouchState.active = true;
+                    this.clickThroughTouchState.handledByTouch = false;
+
+                    // 600ms长按触发菜单
+                    this.clickThroughTouchState.timer = setTimeout(() => {
+                        if (this.clickThroughTouchState.active) {
+                            const id = hitBookmark.element.getAttribute('data-bookmark-id');
+                            // 创建模拟事件对象
+                            const fakeEvent = {
+                                preventDefault: () => {},
+                                stopPropagation: () => {},
+                                clientX: touch.clientX,
+                                clientY: touch.clientY,
+                                touches: [{ clientX: touch.clientX, clientY: touch.clientY }]
+                            };
+                            this.showMenu(fakeEvent, parseInt(id));
+                        }
+                        this.clickThroughTouchState.active = false;
+                    }, 600);
+                }
+            }, true);
+
+            // 触摸移动 - 取消长按
+            document.addEventListener('touchmove', (e) => {
+                if (this.clickThroughTouchState.timer) {
+                    const touch = e.touches[0];
+                    const dx = Math.abs(touch.clientX - this.clickThroughTouchState.startX);
+                    const dy = Math.abs(touch.clientY - this.clickThroughTouchState.startY);
+                    // 移动超过10px取消长按
+                    if (dx > 10 || dy > 10) {
+                        clearTimeout(this.clickThroughTouchState.timer);
+                        this.clickThroughTouchState.timer = null;
+                        this.clickThroughTouchState.active = false;
+                    }
+                }
+            }, true);
+
+            // 触摸结束 - 处理短触发穿透点击
+            document.addEventListener('touchend', (e) => {
+                if (this.clickThroughTouchState.timer) {
+                    clearTimeout(this.clickThroughTouchState.timer);
+                    this.clickThroughTouchState.timer = null;
+                }
+
+                // 如果是长按触发了菜单，不处理短点击
+                if (!this.clickThroughTouchState.active) return;
+                this.clickThroughTouchState.active = false;
+
+                if (this.isContextMenuOpen || this.isDragMode()) return;
+
+                const touch = e.changedTouches[0];
+                const hitBookmark = this.findClickThroughBookmarkAtPoint(touch.clientX, touch.clientY);
+
+                if (hitBookmark) {
+                    // 标记已由触摸事件处理，防止后续click事件重复触发
+                    this.clickThroughTouchState.handledByTouch = true;
+                    // 300ms后重置标记（足够让合成的click事件通过）
+                    setTimeout(() => {
+                        this.clickThroughTouchState.handledByTouch = false;
+                    }, 300);
+
+                    // 触发点击动画
+                    this.triggerClickAnimation(hitBookmark.element);
+
+                    // 延迟后退
+                    const delay = hitBookmark.bookmark.clickThroughDelay || 300;
+                    setTimeout(() => {
+                        history.back();
+                    }, delay);
+                }
+            }, true);
+
+            // 桌面端：右键菜单检测
+            document.addEventListener('contextmenu', (e) => {
+                if (this.isContextMenuOpen || this.isDragMode()) return;
+
+                const hitBookmark = this.findClickThroughBookmarkAtPoint(e.clientX, e.clientY);
+                if (hitBookmark) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const id = hitBookmark.element.getAttribute('data-bookmark-id');
+                    this.showMenu(e, parseInt(id));
+                }
+            }, true);
+
+            // 桌面端：点击检测（移动端由touchend处理）
+            document.addEventListener('click', (e) => {
+                if (this.isContextMenuOpen || this.isDragMode()) return;
+
+                // 如果已由触摸事件处理，跳过（防止移动端重复触发）
+                if (this.clickThroughTouchState.handledByTouch) return;
+
+                const hitBookmark = this.findClickThroughBookmarkAtPoint(e.clientX, e.clientY);
+                if (hitBookmark) {
+                    // 触发点击动画
+                    this.triggerClickAnimation(hitBookmark.element);
+
+                    // 延迟后退
+                    const delay = hitBookmark.bookmark.clickThroughDelay || 300;
+                    setTimeout(() => {
+                        history.back();
+                    }, delay);
+                }
+            }, true);
+        }
+
+        // 通过坐标查找命中的穿透书签
+        findClickThroughBookmarkAtPoint(x, y) {
+            // 只查找穿透类型的书签
+            const clickThroughBookmarks = document.querySelectorAll('.sb-bookmark--click-through');
+
+            for (const element of clickThroughBookmarks) {
+                const rect = element.getBoundingClientRect();
+                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                    const id = element.getAttribute('data-bookmark-id');
+                    const bookmark = this.bookmarks.find(b => b.id === parseInt(id));
+                    if (bookmark) {
+                        return { element, bookmark };
+                    }
+                }
+            }
+            return null;
+        }
+
         showTrigger() {
             document.getElementById('sb-trigger').classList.remove('hidden');
         }
@@ -1979,11 +2142,11 @@
         showIntervalModal() {
             const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
             if (bookmark) {
-                // 确保bookmark有doubleBackInterval属性，如果没有则设置默认值
-                if (!bookmark.doubleBackInterval) {
-                    bookmark.doubleBackInterval = 400;
+                // 确保bookmark有clickThroughDelay属性，如果没有则设置默认值
+                if (!bookmark.clickThroughDelay) {
+                    bookmark.clickThroughDelay = 300;
                 }
-                document.getElementById('sb-interval-input').value = bookmark.doubleBackInterval;
+                document.getElementById('sb-interval-input').value = bookmark.clickThroughDelay;
                 const modal = document.getElementById('sb-interval-modal');
                 modal.classList.add('show');
                 document.getElementById('sb-interval-input').focus();
@@ -2423,16 +2586,20 @@
         showMenu(e, bookmarkId) {
             e.preventDefault();
             e.stopPropagation();
-            
+
             this.currentBookmarkId = bookmarkId;
             this.isContextMenuOpen = true;
-            
-            // 更新菜单中的间隔时间显示
+
+            // 添加菜单打开状态类（恢复穿透书签的pointer-events）
+            const container = document.getElementById('sb-container');
+            container.classList.add('sb-container--menu-open');
+
+            // 更新菜单中的延迟时间显示
             const bookmark = this.bookmarks.find(b => b.id === bookmarkId);
             if (bookmark) {
                 const intervalMenu = document.getElementById('sb-interval-menu');
-                const interval = bookmark.doubleBackInterval || 400;
-                intervalMenu.textContent = `⏱️ 两次后退间隔【${interval}ms】`;
+                const delay = bookmark.clickThroughDelay || 300;
+                intervalMenu.textContent = `⏱️ 穿透后退延迟【${delay}ms】`;
             }
             
             const menu = document.getElementById('sb-menu');
@@ -2479,6 +2646,10 @@
             menu.style.transform = '';
             this.isContextMenuOpen = false;
             this.currentBookmarkId = null;
+
+            // 移除菜单打开状态类
+            const container = document.getElementById('sb-container');
+            container.classList.remove('sb-container--menu-open');
         }
         
         handleMenuAction(action) {
@@ -2502,12 +2673,12 @@
                     this.setBackUrl();
                     this.currentBookmarkId = null;
                     break;
-                case 'set-double-back':
+                case 'set-click-through-back':
                     this.currentBookmarkId = bookmarkId;
-                    this.setDoubleBackUrl();
+                    this.setClickThroughBack();
                     this.currentBookmarkId = null;
                     break;
-                case 'set-interval':
+                case 'set-click-through-delay':
                     this.currentBookmarkId = bookmarkId;
                     this.showIntervalModal();
                     break;
@@ -2555,8 +2726,8 @@
                 url: url,
                 x: 25, // 固定在新增按钮右边（新增按钮宽度约0.5cm = 18.9px）
                 y: 5, // 与新增按钮顶部对齐
-                domain: url === 'back' ? 'back' : url === 'double-back' ? 'double-back' : new URL(url).hostname,
-                doubleBackInterval: 400, // 默认间隔时间400ms
+                domain: url === 'back' ? 'back' : url === 'click-through-back' ? 'click-through-back' : new URL(url).hostname,
+                clickThroughDelay: 300, // 默认延迟时间300ms
                 colorIndex: colorIndex // 颜色索引
             };
             
@@ -2584,20 +2755,21 @@
         }
         
         setBookmarkInterval() {
-            const intervalValue = parseInt(document.getElementById('sb-interval-input').value);
-            
-            if (!intervalValue || intervalValue < 50 || intervalValue > 5000) {
-                alert('请输入有效的间隔时间（50-5000毫秒）');
+            const input = document.getElementById('sb-interval-input');
+            const intervalValue = input.valueAsNumber;
+
+            if (isNaN(intervalValue) || intervalValue < 50 || intervalValue > 5000) {
+                alert('请输入有效的延迟时间（50-5000毫秒）');
                 return;
             }
-            
+
             const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
             if (bookmark) {
-                bookmark.doubleBackInterval = intervalValue;
+                bookmark.clickThroughDelay = intervalValue;
                 this.saveBookmarks();
                 this.renderBookmarks();
             }
-            
+
             this.hideIntervalModal();
         }
         
@@ -2640,11 +2812,11 @@
             }
         }
         
-        setDoubleBackUrl() {
+        setClickThroughBack() {
             const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
             if (bookmark) {
-                bookmark.url = 'double-back';
-                bookmark.domain = 'double-back';
+                bookmark.url = 'click-through-back';
+                bookmark.domain = 'click-through-back';
                 this.saveBookmarks();
                 this.renderBookmarks();
             }
@@ -2660,6 +2832,9 @@
         enableDrag(element) {
             // 进入拖拽模式
             element.classList.add('dragging', 'sb-bookmark--dragging-prep');
+            // 添加拖拽模式状态类（恢复穿透书签的pointer-events）
+            const container = document.getElementById('sb-container');
+            container.classList.add('sb-container--drag-mode');
             
             // 创建拖拽状态对象
             const dragState = {
@@ -2826,9 +3001,12 @@
         
         exitDragMode(dragState) {
             const { element, originalPos, hint } = dragState;
-            
+
             // 使用CSS类批量清除拖拽样式
             element.classList.remove('dragging', 'sb-bookmark--dragging-prep', 'sb-bookmark--dragging-active', 'sb-bookmark--updating');
+            // 移除拖拽模式状态类
+            const container = document.getElementById('sb-container');
+            container.classList.remove('sb-container--drag-mode');
             
             // 清理UI元素
             if (originalPos) {
@@ -3004,21 +3182,25 @@
             }
             if (element.getAttribute('data-bookmark-url') !== bookmark.url) {
                 element.setAttribute('data-bookmark-url', bookmark.url);
-                
-                // 更新onclick属性
+
+                // 更新onclick属性和穿透类
                 if (bookmark.url === 'back') {
                     element.setAttribute('onclick', 'history.back()');
                     element.style.cursor = 'pointer';
-                } else if (bookmark.url === 'double-back') {
-                    const interval = bookmark.doubleBackInterval || 400;
-                    element.setAttribute('onclick', `history.back(); setTimeout(() => history.back(), ${interval})`);
+                    element.classList.remove('sb-bookmark--click-through');
+                } else if (bookmark.url === 'click-through-back') {
+                    // 穿透点击后退：不设置onclick，由document级检测处理
+                    element.removeAttribute('onclick');
                     element.style.cursor = 'pointer';
+                    element.classList.add('sb-bookmark--click-through');
                 } else if (bookmark.url === 'reload') {
                     element.setAttribute('onclick', 'location.reload()');
                     element.style.cursor = 'pointer';
+                    element.classList.remove('sb-bookmark--click-through');
                 } else {
                     element.removeAttribute('onclick');
                     element.style.cursor = '';
+                    element.classList.remove('sb-bookmark--click-through');
                 }
             }
         }
@@ -3048,15 +3230,15 @@
             if (bookmark.url === 'back') {
                 element.setAttribute('onclick', 'history.back()');
                 element.style.cursor = 'pointer';
-            } else if (bookmark.url === 'double-back') {
-                const interval = bookmark.doubleBackInterval || 400;
-                element.setAttribute('onclick', `history.back(); setTimeout(() => history.back(), ${interval})`);
+            } else if (bookmark.url === 'click-through-back') {
+                // 穿透点击后退：不设置onclick，由document级检测处理
                 element.style.cursor = 'pointer';
+                element.classList.add('sb-bookmark--click-through');
             } else if (bookmark.url === 'reload') {
                 element.setAttribute('onclick', 'location.reload()');
                 element.style.cursor = 'pointer';
             }
-            
+
             return element;
         }
         
@@ -3097,10 +3279,20 @@
             const saved = localStorage.getItem(this.storageKey) || '[]';
             try {
                 this.bookmarks = JSON.parse(saved);
-                // 为现有标签添加默认间隔时间属性和颜色索引
+                // 为现有标签添加默认属性和颜色索引
                 this.bookmarks.forEach((bookmark, index) => {
-                    if (!bookmark.doubleBackInterval) {
-                        bookmark.doubleBackInterval = 400;
+                    // 迁移旧的doubleBackInterval到clickThroughDelay
+                    if (bookmark.doubleBackInterval && !bookmark.clickThroughDelay) {
+                        bookmark.clickThroughDelay = bookmark.doubleBackInterval;
+                        delete bookmark.doubleBackInterval;
+                    }
+                    if (!bookmark.clickThroughDelay) {
+                        bookmark.clickThroughDelay = 300;
+                    }
+                    // 迁移旧的double-back到click-through-back
+                    if (bookmark.url === 'double-back') {
+                        bookmark.url = 'click-through-back';
+                        bookmark.domain = 'click-through-back';
                     }
                     // 为旧标签分配颜色索引（基于现有顺序）
                     if (bookmark.colorIndex === undefined) {
