@@ -1,88 +1,96 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件为 Claude Code (claude.ai/code) 在处理本仓库代码时提供指导。
 
-## Project Overview
+## 项目概述
 
-CandyMark is a mobile-optimized userscript (Greasemonkey/Tampermonkey) that provides floating bookmark navigation on any website. The project uses vanilla JavaScript with performance optimizations and is designed for automatic deployment to GitHub Pages.
+CandyMark 是一个移动端优化的用户脚本（Greasemonkey/Tampermonkey），在任何网站上提供浮动书签导航功能。项目使用原生 JavaScript 编写，包含性能优化，并设计为自动部署到 GitHub Pages。
 
-## Development Commands
+## 部署
 
-### Local Development
 ```bash
-# Start local development server (preferred)
-python server.py
-
-# Alternative methods
-npm start
-python -m http.server 8000
-```
-
-### Deployment
-```bash
-# Deploy to GitHub Pages
-npm run deploy
-
-# Manual deployment
+# 部署到 GitHub Pages
 git add .
 git commit -m "feat: update"
 git push origin main
 ```
 
-### Access URLs
-- Main page: `http://localhost:8000`
-- Manager: `http://localhost:8000/manager.html`
-- Script file: `http://localhost:8000/candymark.user.js`
+脚本安装地址: `https://unixliang.github.io/candymark/candymark.user.js`
 
-## Architecture Overview
+## 架构概述
 
-### Core Class: CandyMarkManager
-The main class manages all bookmark functionality with these key areas:
+### 核心类: CandyMarkManager
+主类管理所有书签功能，包含以下关键领域：
 
-**State Management:**
-- `bookmarks[]`: Array of bookmark objects with id, name, url, x, y, domain
-- `currentBookmarkId`: Currently selected bookmark for operations
-- `isContextMenuOpen`: Prevents conflicts between menu and click events
+**状态管理：**
+- `bookmarks[]`: 书签对象数组，包含 id、name、url、x、y、domain
+- `currentBookmarkId`: 当前选中用于操作的书签
+- `isContextMenuOpen`: 防止菜单与点击事件冲突
 
-**Performance Optimizations:**
-- **Event Delegation**: Container-level event handling instead of per-element listeners
-- **Incremental Rendering**: Only updates changed bookmarks, not full re-render
-- **Debounced Storage**: 300ms delay for frequent operations, immediate for critical ones
-- **CSS Classes**: Replaces inline styles for better performance
+**性能优化：**
+- **事件委托**: 容器级别的事件处理，替代每个元素单独监听
+- **增量渲染**: 仅更新变化的书签，而非全量重新渲染
+- **防抖存储**: 高频操作延迟 300ms，关键操作立即保存
+- **CSS 类**: 使用 CSS 类替代内联样式以提升性能
 
-### Userscript Integration
-- **GM_setValue/GM_getValue**: Cross-domain persistent storage
-- **GM_registerMenuCommand**: Script configuration access
-- **Auto-execution**: Runs on all sites except blacklisted domains
-- **Configuration System**: Runtime settings via CONFIG object
+### 用户脚本集成
+- **GM_setValue/GM_getValue**: 跨域持久化存储
+- **GM_registerMenuCommand**: 脚本配置入口
+- **自动执行**: 在所有网站运行，除了黑名单域名
+- **配置系统**: 通过 CONFIG 对象进行运行时设置
 
-### Mobile Touch Optimization
-- **Long Press Detection**: 1000ms (1 second) threshold for context menu
-- **Touch Event Handling**: Unified touch/mouse event delegation
-- **Gesture Prevention**: Disables conflicting browser gestures during drag
+### 移动端触摸优化
+- **长按检测**: 600ms 阈值触发右键菜单
+- **触摸事件处理**: 统一的触摸/鼠标事件委托
+- **手势防护**: 拖拽时禁用冲突的浏览器手势
 
-## Key Technical Features
+## 关键技术特性
 
-### Configuration Management System
-- **Export/Import**: Support for exporting and importing complete configurations
-- **Multiple Formats**: File-based (.json) and clipboard-based transfer
-- **Data Validation**: Comprehensive validation during import process
-- **Settings Backup**: Includes bookmarks, visual settings, and behavioral settings
+### 配置管理系统
+- **导出/导入**: 支持导出和导入完整配置
+- **多种格式**: 基于文件（.json）和剪贴板传输
+- **数据验证**: 导入过程中的全面验证
+- **设置备份**: 包含书签、视觉设置和行为设置
 
-### Menu System Architecture
-- **Hierarchical Menus**: Main menu with configuration management submenu
-- **Touch/Click Delegation**: Unified event handling for mobile and desktop
-- **Action Routing**: Centralized action handlers for menu interactions
-- **Visual Feedback**: CSS-based menu animations and state management
+### 菜单系统架构
+- **层级菜单**: 主菜单与配置管理子菜单
+- **触摸/点击委托**: 移动端和桌面端统一的事件处理
+- **动作路由**: 集中式的菜单交互动作处理器
+- **视觉反馈**: 基于 CSS 的菜单动画和状态管理
 
-### Special URL Handling
-- URLs set to `"back"` trigger `window.history.back()` instead of navigation
-- **Double Back**: Support for `"double-back"` with configurable intervals
-- Domain extraction safely handles non-URL values
+### 特殊 URL 处理
+- URL 设置为 `"back"` 时触发 `window.history.back()` 而非导航
+- **穿透点击后退**: 支持 `"click-through-back"`，实现真正的点击穿透
 
-### Drag System Architecture
+**穿透点击后退功能规格：**
+
+| 项目 | 说明 |
+|------|------|
+| **功能描述** | 触按或点击书签后，点击事件直接穿透到下层元素，并在延迟后触发后退 |
+| **配置项** | 通过"👆 设置穿透点击后退"启用，"⏱️ 穿透后退延迟"配置延迟时间 |
+| **延迟参数** | `clickThroughDelay`（毫秒），用户可自定义 |
+
+**技术实现：**
+- 使用 `pointer-events: none` 实现真正的点击穿透，而非由书签接收后模拟点击
+- 点击事件直接穿过书签到达下层元素
+- 延迟指定时间后执行 `window.history.back()`
+
+**触发条件（仅在常态下触发）：**
+- ✅ 书签处于常态时，触按/点击触发穿透后退
+- ❌ 菜单打开状态（`sb-container--menu-open`）：不触发
+- ❌ 拖拽模式状态（`sb-container--drag-mode`）：不触发
+- ❌ 右键/长按打开菜单时点击书签区域：不触发
+
+**交互兼容：**
+- 触按/点击后仍触发标签点击动画（视觉反馈）
+- 右键或长按（600ms）仍可正常打开菜单进行编辑
+- 拖拽功能不受影响
+
+- 域名提取安全处理非 URL 值
+
+### 拖拽系统架构
 ```javascript
-// Drag state encapsulation
+// 拖拽状态封装
 const dragState = {
     element: HTMLElement,
     isDragging: boolean,
@@ -92,166 +100,145 @@ const dragState = {
 }
 ```
 
-**Pre-bound Event Handlers**: Reduces memory allocation during drag operations
-**State Management**: Centralized drag state prevents memory leaks
-**Visual Feedback**: Ghost position indicator and drag hints
+**预绑定事件处理器**: 减少拖拽操作时的内存分配
+**状态管理**: 集中式拖拽状态防止内存泄漏
+**视觉反馈**: 幽灵位置指示器和拖拽提示
 
-### Visual Customization System
-- **Size Adjustment**: 10-level bookmark size scaling (0.3x to 1.2x)
-- **Opacity Control**: 10-level transparency settings (0.1 to 1.0)
-- **Real-time Preview**: Live preview during adjustment with modal controls
-- **CSS Variables**: Dynamic style updates via CSS custom properties
-
-### Notification System
-- **Drop Notifications**: Configurable FFJ and hourglass drop alerts
-- **Event Detection**: Monitors specific game events and triggers notifications
-- **User Preferences**: Per-notification type enable/disable settings
-
-### Storage Strategy
-- **Immediate Save**: Critical operations (add/delete bookmarks)
-- **Debounced Save**: Position updates and non-critical changes (300ms)
-- **Data Structure**: JSON serialization with id, name, url, x, y, domain, colorIndex fields
-- **Configuration Storage**: localStorage-based settings with validation
-
-### Performance CSS Classes
+### 容器状态类
 ```css
-.sb-bookmark--dragging-prep     /* Pre-drag optimization */
-.sb-bookmark--dragging-active   /* Active drag state */
-.sb-bookmark--updating          /* Smooth transitions */
-.sb-bookmark--hidden           /* Fade out animations */
+.sb-container--menu-open      /* 菜单打开状态 */
+.sb-container--drag-mode      /* 拖拽模式状态 */
 ```
 
-## File Structure
+### 视觉自定义系统
+- **尺寸调整**: 10 级书签大小缩放（0.3x 到 1.2x）
+- **透明度控制**: 10 级透明度设置（0.1 到 1.0）
+- **实时预览**: 调整时通过模态框控件实时预览
+- **CSS 变量**: 通过 CSS 自定义属性动态更新样式
 
-### Core Files
-- **candymark.user.js**: Production userscript (auto-updates from GitHub)
-- **index.html**: Installation landing page with feature showcase
-- **manager.html**: Standalone bookmark management interface
-- **server.py**: Development server with auto-browser launch
-- **style.css**: Stylesheet for the web interface
-- **script.js**: Additional JavaScript functionality
+### 通知系统
+- **掉落通知**: 可配置的 FFJ 和沙漏掉落提醒
+- **事件检测**: 监控特定游戏事件并触发通知
+- **用户偏好**: 每种通知类型可单独启用/禁用
 
-### Configuration Files
-- **package.json**: npm scripts and GitHub Pages deployment
-- **GREASYFORK.md**: Greasyfork publishing guidelines and metadata
+### 存储策略
+- **立即保存**: 关键操作（添加/删除书签）
+- **防抖保存**: 位置更新和非关键变更（300ms）
+- **数据结构**: JSON 序列化，包含 id、name、url、x、y、domain、colorIndex 字段
+- **配置存储**: 基于 localStorage 的设置，带验证
 
-### Current Deployment
-- Configured for specific GBF (Granblue Fantasy) domains in @match directives
-- Update URL points to `unixliang.github.io/gbf-bookmark/`
+### 性能相关 CSS 类
+```css
+.sb-bookmark--dragging-prep     /* 拖拽前优化 */
+.sb-bookmark--dragging-active   /* 活动拖拽状态 */
+.sb-bookmark--updating          /* 平滑过渡 */
+.sb-bookmark--hidden           /* 淡出动画 */
+```
 
-## Development Notes
+## 文件结构
 
-### Event Delegation Pattern
-All bookmark interactions use container-level event delegation:
+### 核心文件
+- **candymark.user.js**: 油猴脚本主文件，包含所有功能
+- **GREASYFORK.md**: Greasyfork 发布指南和元数据
+- **CLAUDE.md**: Claude Code 项目指导文件
+- **README.md**: 项目说明文档
+
+### 当前部署
+- 在 @match 指令中配置了特定的 GBF（Granblue Fantasy）域名
+- 更新 URL 指向 `unixliang.github.io/candymark/`
+
+## 开发说明
+
+### 事件委托模式
+所有书签交互使用容器级别的事件委托：
 ```javascript
 container.addEventListener('click', (e) => {
     const bookmark = e.target.closest('.sb-bookmark');
     if (bookmark) {
-        // Handle bookmark click
+        // 处理书签点击
     }
 });
 ```
 
-### Incremental Rendering Logic
-- `renderBookmarks()`: Default incremental mode
-- `renderBookmarks(true)`: Force full re-render for major changes
-- `updateBookmarksIncremental()`: Smart diff-based updates
+### 增量渲染逻辑
+- `renderBookmarks()`: 默认增量模式
+- `renderBookmarks(true)`: 强制全量重新渲染用于重大变更
+- `updateBookmarksIncremental()`: 智能差异更新
 
-### Memory Management
-- Pre-bound drag handlers prevent closure recreation
-- Timeout cleanup in drag exit handlers
-- Event listener removal in cleanup methods
+### 内存管理
+- 预绑定拖拽处理器防止闭包重复创建
+- 拖拽退出处理器中的定时器清理
+- 清理方法中移除事件监听器
 
-### Browser Compatibility
-- Hardware acceleration with `transform: translateZ(0)`
-- Backdrop filters for modern browsers
-- Fallback interactions for touch devices
+### 浏览器兼容性
+- 使用 `transform: translateZ(0)` 启用硬件加速
+- 现代浏览器的 backdrop filters
+- 触摸设备的回退交互
 
-## Userscript Lifecycle
+## 用户脚本生命周期
 
-1. **Blacklist Check**: Exit early if domain blacklisted
-2. **CSS Injection**: Inline styles for immediate rendering
-3. **DOM Creation**: Container and UI elements
-4. **Event Binding**: Delegation-based event setup
-5. **Data Loading**: Restore bookmarks from GM storage
-6. **Render**: Initial bookmark display
+1. **黑名单检查**: 如果域名在黑名单中则提前退出
+2. **CSS 注入**: 内联样式用于立即渲染
+3. **DOM 创建**: 容器和 UI 元素
+4. **事件绑定**: 基于委托的事件设置
+5. **数据加载**: 从 GM 存储恢复书签
+6. **渲染**: 初始书签显示
 
-## Recent Feature Additions
+## 近期功能新增
 
-### Configuration Management (v2.0+)
-- **Unified Config Menu**: Access via "⚙️ 配置管理" in the main trigger menu
-- **Export Options**: 
-  - 📤 导出到文件 (Download JSON file)
-  - 📋 导出到剪贴板 (Copy to clipboard)
-- **Import Options**:
-  - 📥 从文件导入 (Upload JSON file)  
-  - 📝 从剪贴板导入 (Paste from clipboard)
-- **Data Validation**: Ensures imported data integrity and compatibility
+### 配置管理（v2.0+）
+- **统一配置菜单**: 通过主触发菜单中的"⚙️ 配置管理"访问
+- **导出选项**:
+  - 📤 导出到文件（下载 JSON 文件）
+  - 📋 导出到剪贴板（复制到剪贴板）
+- **导入选项**:
+  - 📥 从文件导入（上传 JSON 文件）
+  - 📝 从剪贴板导入（从剪贴板粘贴）
+- **数据验证**: 确保导入数据的完整性和兼容性
 
-### Visual Customization Controls
-- **Size Adjustment Modal**: 10-level scaling with real-time preview
-- **Opacity Adjustment Modal**: 10-level transparency with live feedback
-- **Menu Access**: Available through trigger menu "📏 调整标签大小" and "🌓 调整标签透明度"
+### 视觉自定义控件
+- **尺寸调整模态框**: 10 级缩放，带实时预览
+- **透明度调整模态框**: 10 级透明度，带实时反馈
+- **菜单访问**: 通过触发菜单的"📏 调整标签大小"和"🌓 调整标签透明度"
 
-### Enhanced Navigation Features
-- **Double Back Support**: "⏪ 设置两次后退" for complex navigation patterns
-- **Configurable Intervals**: "⏱️ 两次后退间隔" with user-defined timing
-- **Smart URL Detection**: Handles special navigation commands
+### 增强导航功能
+- **穿透点击后退**: "👆 设置穿透点击后退"用于复杂导航模式
+- **可配置延迟**: "⏱️ 穿透后退延迟"支持用户自定义时间
+- **智能 URL 检测**: 处理特殊导航命令
 
-### Notification System Integration
-- **Game Event Detection**: FFJ and hourglass drop notifications for supported games
-- **Toggle Controls**: "🔔 掉落通知" menu for enabling/disabling alerts
-- **Non-intrusive Design**: Notifications integrate with existing bookmark workflow
+### 通知系统集成
+- **游戏事件检测**: 支持游戏的 FFJ 和沙漏掉落通知
+- **开关控制**: "🔔 掉落通知"菜单用于启用/禁用提醒
+- **非侵入式设计**: 通知与现有书签工作流程集成
 
-## Common Modification Patterns
+## 常见修改模式
 
-### Adding New Configuration Options
-1. Add to CONFIG object in `loadConfig()`
-2. Include in export functions (`exportConfig()`, `exportToClipboard()`)
-3. Add validation logic in import functions
-4. Update storage keys with `sb_` prefix
+### 添加新配置选项
+1. 在 `loadConfig()` 中添加到 CONFIG 对象
+2. 包含在导出函数中（`exportConfig()`、`exportToClipboard()`）
+3. 在导入函数中添加验证逻辑
+4. 使用 `sb_` 前缀更新存储键
 
-### Extending Menu System
-1. Add menu item to appropriate menu HTML structure
-2. Define `data-action` attribute for the new action
-3. Add case handler in corresponding `handleMenuAction()` function
-4. Implement the actual functionality method
+### 扩展菜单系统
+1. 将菜单项添加到适当的菜单 HTML 结构
+2. 为新动作定义 `data-action` 属性
+3. 在相应的 `handleMenuAction()` 函数中添加 case 处理器
+4. 实现实际功能方法
 
-### Adding Visual Controls
-1. Create modal HTML structure following existing patterns
-2. Add CSS styles for the new modal
-3. Implement show/hide modal functions
-4. Add real-time preview capabilities with CSS variables
+### 添加视觉控件
+1. 按照现有模式创建模态框 HTML 结构
+2. 为新模态框添加 CSS 样式
+3. 实现显示/隐藏模态框函数
+4. 添加使用 CSS 变量的实时预览功能
 
-### Performance Tuning
-- Use CSS classes instead of inline styles
-- Leverage event delegation for new interactions
-- Implement debouncing for frequent operations
-- Pre-bind event handlers for drag operations
+### 性能调优
+- 使用 CSS 类替代内联样式
+- 为新交互利用事件委托
+- 为高频操作实现防抖
+- 为拖拽操作预绑定事件处理器
 
-### Mobile Optimization
-- Touch event duration thresholds in `setupBookmarkEventDelegation()`
-- Responsive sizing in CSS media queries
-- Hardware acceleration classes for smooth animations
+### 移动端优化
+- `setupBookmarkEventDelegation()` 中的触摸事件持续时间阈值
+- CSS 媒体查询中的响应式尺寸
+- 用于流畅动画的硬件加速类
 
-## Project Governance and Documentation
-
-### Specification Workflow
-CandyMark follows a structured specification workflow for feature development:
-- Requirements gathering and documentation
-- Design documentation aligned with technical standards
-- Task breakdown and implementation tracking
-- All specs are stored in `.spec-workflow/specs/` directory
-
-### Steering Documents
-Project direction and standards are defined in steering documents located in `.spec-workflow/steering/`:
-- **Product Vision** (`product.md`): Defines target users, key features, and business objectives
-- **Technical Standards** (`tech.md`): Specifies technology stack, architecture patterns, and coding standards
-- **Project Structure** (`structure.md`): Details code organization, naming conventions, and module boundaries
-
-### Recent Feature Development
-Latest feature development follows the specification workflow with documented:
-- Requirements with acceptance criteria
-- Design alignment with project architecture
-- Task breakdown for implementation
-- Integration with existing codebase patterns

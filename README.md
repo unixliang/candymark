@@ -19,11 +19,9 @@ CandyMark是一款专为移动端优化的书签导航工具，以用户脚本�
 - **性能优化**：轻量级实现，不影响网页正常加载和使用
 - **兼容性强**：支持主流移动浏览器和用户脚本管理器
 
-## 🚀 在线体验
+## 🚀 安装地址
 
-- **主页安装**：[https://unixliang.github.io/candymark/](https://unixliang.github.io/candymark/)
-- **直接安装**：[https://unixliang.github.io/candymark/candymark.user.js](https://unixliang.github.io/candymark/candymark.user.js)
-- **标签管理器**：[https://unixliang.github.io/candymark/manager.html](https://unixliang.github.io/candymark/manager.html)
+- **脚本安装**：[https://unixliang.github.io/candymark/candymark.user.js](https://unixliang.github.io/candymark/candymark.user.js)
 
 ## ✨ 核心功能
 
@@ -41,7 +39,7 @@ CandyMark是一款专为移动端优化的书签导航工具，以用户脚本�
 - **快捷操作**：支持Ctrl+B快捷键和右键菜单管理
 - **配置管理**：完整的导入导出系统，支持文件和剪贴板操作
 - **视觉定制**：10级大小调整和透明度控制，实时预览
-- **增强导航**：支持双击后退和可配置时间间隔
+- **增强导航**：支持穿透点击后退，点击穿透到下层元素并延迟后退
 - **通知系统**：游戏掉落提醒功能（FFJ、沙漏等）
 - **自动后退**：支持基于攻击次数、掉落、召唤、技能的自动后退功能
 
@@ -52,7 +50,6 @@ CandyMark是一款专为移动端优化的书签导航工具，以用户脚本�
 - **移动端优化**：完美适配移动端触摸交互
 - **响应式设计**：自适应不同屏幕尺寸
 - **现代CSS**：使用CSS3动画和渐变效果
-- **GitHub Pages**：支持直接部署到GitHub Pages
 
 ### 架构特点
 - **事件委托架构**：减少事件监听器数量，提升移动端性能
@@ -62,13 +59,11 @@ CandyMark是一款专为移动端优化的书签导航工具，以用户脚本�
 - **面向对象设计**：CandyMarkManager类封装核心功能
 
 ### 数据存储
-- **Primary storage**：Browser localStorage
-- **Caching**：内存缓存(bookmarkCache Map对象)
-- **Data formats**：JSON序列化存储书签数据
+- **主存储**：浏览器 localStorage
+- **缓存**：内存缓存（bookmarkCache Map对象）
+- **数据格式**：JSON序列化存储书签数据
 
 ## 🚀 快速开始
-
-### 方式一：一键安装（推荐）
 
 1. **安装Tampermonkey**
    - Chrome/Edge: [Chrome网上应用店](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo)
@@ -76,52 +71,13 @@ CandyMark是一款专为移动端优化的书签导航工具，以用户脚本�
    - Safari: [App Store](https://apps.apple.com/app/tampermonkey/id1482490089)
 
 2. **安装脚本**
-   - 访问：[https://unixliang.github.io/candymark/](https://unixliang.github.io/candymark/)
-   - 点击"🚀 安装脚本"按钮
+   - 访问：[candymark.user.js](https://unixliang.github.io/candymark/candymark.user.js)
    - 在弹出页面点击"安装"确认
 
 3. **开始使用**
    - 访问任意网站，脚本自动运行
    - 点击左上角蓝色区域或按Ctrl+B添加标签
    - 长按标签（移动端）或右键（PC端）打开菜单
-
-### 方式二：本地开发
-
-1. **克隆项目**
-   ```bash
-   git clone https://github.com/unixliang/candymark.git
-   cd candymark
-   ```
-
-2. **启动本地服务器**
-   ```bash
-   # 使用Python（推荐）
-   python server.py
-   
-   # 或使用Python内置服务器
-   python -m http.server 8000
-   ```
-
-3. **访问项目**
-   - 演示页面：`http://localhost:8000`
-   - 安装工具：`http://localhost:8000/bookmarklet.html`
-   - 管理器：`http://localhost:8000/manager.html`
-
-### 部署到GitHub Pages
-
-1. **推送到GitHub并启用Pages**
-   ```bash
-   git add .
-   git commit -m "feat: 初始化CandyMark项目"
-   git push origin main
-   ```
-
-2. **修改URL配置**
-   - 编辑相关文件中的用户名为你的GitHub用户名
-   - 编辑 `README.md` 中的链接地址
-
-3. **访问在线版本**
-   - 访问：`https://unixliang.github.io/candymark/`
 
 ## 📱 使用指南
 
@@ -132,7 +88,7 @@ CandyMark是一款专为移动端优化的书签导航工具，以用户脚本�
 - 点击"确认"按钮
 
 ### 管理标签
-- **移动端**：长按标签（500ms）弹出菜单
+- **移动端**：长按标签（600ms）弹出菜单
 - **PC端**：右键点击标签弹出菜单
 - **设置**：右键Tampermonkey图标选择"CandyMark设置"
 
@@ -157,8 +113,8 @@ CandyMark是一款专为移动端优化的书签导航工具，以用户脚本�
 - **🖱️ 拖拽移动**：进入拖拽模式，标签可移动到任意位置
 - **📍 设置当前页面**：将标签链接设置为当前页面URL
 - **⬅️ 设置后退**：设置为浏览器后退功能
-- **⏪ 设置两次后退**：双击后退，可配置时间间隔
-- **⏱️ 两次后退间隔**：调整双击后退的时间间隔
+- **👆 设置穿透点击后退**：点击穿透到下层元素，延迟后触发后退
+- **⏱️ 穿透后退延迟**：调整穿透点击后退的延迟时间
 - **✏️ 修改名称**：修改标签显示名称（最长10字符）
 - **🗑️ 删除标签**：删除选中的标签
 - **❌ 取消**：关闭菜单
@@ -166,10 +122,10 @@ CandyMark是一款专为移动端优化的书签导航工具，以用户脚本�
 ### 高级功能
 - **配置备份与恢复**：完整的配置导入导出系统，支持跨设备同步
 - **视觉定制**：实时调整标签大小和透明度，满足个人喜好
-- **智能导航**：支持单击后退、双击后退，时间间隔可调
+- **智能导航**：支持单击后退、穿透点击后退，延迟时间可调
 - **游戏增强**：针对特定游戏的掉落通知功能
 - **网站黑名单**：灵活的网站过滤，精确控制脚本运行范围
-- **数据安全**：本地存储与云端备份双重保障
+- **数据安全**：本地存储，支持配置导入导出备份
 - **自动后退**：支持基于攻击次数、掉落、召唤、技能的自动后退功能
 
 ## 🎨 自定义样式
@@ -192,24 +148,9 @@ CandyMark是一款专为移动端优化的书签导航工具，以用户脚本�
 
 ```
 candymark/
-├── candymark.user.js          # 生产环境用户脚本文件
-├── index.html                 # 安装页面和功能展示
-├── manager.html               # 独立书签管理界面
-├── style.css                  # 网页界面样式表
-├── script.js                  # 网页界面额外JavaScript功能
-├── server.py                  # 开发服务器脚本
-├── package.json               # npm脚本和GitHub Pages部署配置
+├── candymark.user.js          # 油猴脚本主文件（包含所有功能）
 ├── GREASYFORK.md              # Greasyfork发布指南和元数据
 ├── CLAUDE.md                  # Claude Code项目指导文件
-├── .spec-workflow/            # 规范文档目录
-│   ├── steering/              # 项目指导文件
-│   │   ├── product.md         # 产品愿景文档
-│   │   ├── tech.md            # 技术架构文档
-│   │   └── structure.md       # 代码结构文档
-│   └── [feature]/             # 特性规范文档目录
-│       ├── requirements.md
-│       ├── design.md
-│       └── tasks.md
 ├── README.md                  # 项目说明文档
 └── .gitignore                 # Git忽略文件
 ```
@@ -221,16 +162,6 @@ candymark/
 - 支持自动运行、配置管理、数据同步
 - 生产环境使用版本
 - 包含CandyMarkManager核心类和GameDetector游戏检测类
-
-### index.html
-- 项目主页和脚本安装页面
-- 功能介绍和使用指南
-- 一键安装入口
-
-### manager.html
-- 独立的标签管理器界面
-- 批量操作、数据导入导出
-- 统计分析功能
 
 ## 🔧 开发细节
 
@@ -285,8 +216,7 @@ candymark/
 ## 📥 安装渠道
 
 - **GitHub**: [https://github.com/unixliang/candymark](https://github.com/unixliang/candymark)
-- **Greasyfork**: [https://greasyfork.org/scripts/xxxxx](https://greasyfork.org/scripts/xxxxx)
-- **项目主页**: [https://unixliang.github.io/candymark/](https://unixliang.github.io/candymark/)
+- **脚本安装**: [https://unixliang.github.io/candymark/candymark.user.js](https://unixliang.github.io/candymark/candymark.user.js)
 
 ## 🔮 未来计划
 
@@ -319,7 +249,7 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 ### v2.0.0 (2025-07-11)
 - 🆕 **配置管理系统**：完整的导入导出功能，支持文件和剪贴板
 - 🎨 **视觉定制控制**：10级标签大小和透明度调整，实时预览
-- 🚀 **增强导航功能**：双击后退支持，可配置时间间隔
+- 🚀 **增强导航功能**：穿透点击后退支持，可配置延迟时间
 - 🔔 **通知系统集成**：游戏事件通知（FFJ、沙漏掉落）
 - 📋 **菜单系统重构**：层级化菜单设计，更好的用户体验
 - 🔧 **代码优化**：移除无用配置项，提升性能和稳定性
@@ -331,22 +261,7 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 - 📱 完善的移动端触摸优化
 - 💾 跨网站数据同步功能
 
-## 📋 项目治理与开发流程
-
-CandyMark采用结构化的项目治理和开发流程，确保代码质量和功能开发的一致性。
-
-### 规范文档体系
-项目采用三层规范文档体系：
-- **Steering文档**：定义产品愿景、技术标准和代码结构
-  - `product.md`：产品目标、用户群体和关键特性
-  - `tech.md`：技术栈、架构决策和开发环境
-  - `structure.md`：代码组织、命名约定和模块边界
-- **特性规范文档**：每个新功能都需经过完整的规范流程
-  - `requirements.md`：功能需求和验收标准
-  - `design.md`：技术设计和架构对齐
-  - `tasks.md`：实施任务分解和跟踪
-
-### 开发原则
+## 📋 开发原则
 - **移动端优先**：所有设计和优化都以移动设备使用体验为核心
 - **简洁易用**：界面简单直观，操作符合用户直觉
 - **隐私保护**：所有数据本地存储，不收集用户隐私信息
