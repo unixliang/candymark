@@ -3036,17 +3036,20 @@
         }
 
         // === 召唤过滤器（按 imageId 唯一）===
+        // 列表包含 5 个自携栏位 + 友方借召（如有）
+        _currentSummonChoices() {
+            const bd = (gameDetectorInstance && gameDetectorInstance.battleData) || {};
+            const list = (bd.summonList || []).slice();
+            if (bd.supporterSummon) list.push(bd.supporterSummon);
+            return list;
+        }
         renderSummonFilterGrid(gridId, hintId, savedFilter) {
-            const list = (gameDetectorInstance && gameDetectorInstance.battleData
-                && gameDetectorInstance.battleData.summonList) || [];
-            this._renderFilterGrid(gridId, hintId, savedFilter, list, 'imageId',
+            this._renderFilterGrid(gridId, hintId, savedFilter, this._currentSummonChoices(), 'imageId',
                 '进入战斗后可在此选择具体召唤石。不选则任意召唤触发都满足条件。',
                 '勾选要监听的召唤石；不选则任意召唤触发都满足条件。');
         }
         collectSummonFilter(gridId) {
-            const list = (gameDetectorInstance && gameDetectorInstance.battleData
-                && gameDetectorInstance.battleData.summonList) || [];
-            return this._collectFilter(gridId, list, 'imageId');
+            return this._collectFilter(gridId, this._currentSummonChoices(), 'imageId');
         }
 
         // 只重置 UI 状态，需要用户再点"确认"才落盘
@@ -4056,8 +4059,9 @@
                 maxTurn: 0,
                 startTime: null,
                 lastUpdateTime: null,
-                abilityList: [], // {id, iconId, icon}[]
-                summonList: []   // {id, imageId, icon}[]
+                abilityList: [],     // {id, iconId, icon}[]
+                summonList: [],      // {id, imageId, icon}[]，按 summon_id 1-based 顺序排列
+                supporterSummon: null // {id, imageId, icon} —— 友方借召
             };
             this.lastAbilityIdUsed = null; // 最近一次 ability 请求里的 ability_id
             this.lastSummonIdUsed = null;  // 最近一次 summon 请求里的 summon_id
@@ -4534,30 +4538,29 @@
         }
 
         // 从 start.json 的 data.summon 数组里提取召唤石列表：{id, imageId, icon}
+        // 注意：召唤请求体里的 summon_id 是 1-based 栏位下标（"1"~"5"）或 "supporter"，
+        // 不是召唤石本身的 id（如 "2040368000"）。matchesSummonFilter 走相应翻译。
         cacheSummonList(data) {
-            if (!data || !Array.isArray(data.summon)) return;
-            const list = [];
-            try {
-                data.summon.forEach(s => {
-                    if (!s) return;
-                    const id = s.id;
-                    const imageId = String(s.image_id || s.id || '');
-                    if (!id || !imageId) return;
-                    list.push({
-                        id: String(id),
-                        imageId,
-                        icon: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img_low/sp/assets/summon/m/${imageId}.jpg`
-                    });
-                });
-            } catch (e) {
-                return;
+            if (!data) return;
+            const buildEntry = (s) => {
+                if (!s || !s.id) return null;
+                const imageId = String(s.image_id || s.id || '');
+                if (!imageId) return null;
+                return {
+                    id: String(s.id),
+                    imageId,
+                    icon: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img_low/sp/assets/summon/m/${imageId}.jpg`
+                };
+            };
+
+            if (Array.isArray(data.summon)) {
+                this.battleData.summonList = data.summon.map(buildEntry).filter(Boolean);
+            } else {
+                this.battleData.summonList = [];
             }
-            const seen = new Set();
-            this.battleData.summonList = list.filter(s => {
-                if (seen.has(s.imageId)) return false;
-                seen.add(s.imageId);
-                return true;
-            });
+
+            // 友方借召（请求体里 summon_id === "supporter"）
+            this.battleData.supporterSummon = buildEntry(data.supporter);
         }
 
         // filter 里的 id 字段是 iconId；usedAbilityId 是 ability_result 请求体里的 ability_id，
@@ -4575,13 +4578,22 @@
             });
         }
 
-        // filter 里的 id 字段是 imageId（如 "2040065000_02"）；usedSummonId 是请求体里的 summon_id，
-        // 需要通过当前 summonList 翻译成 imageId 再比对。
+        // filter 里的 id 字段是 imageId（如 "2040065000_02"）；
+        // 请求体里的 summon_id 是 1-based 栏位下标（"1"~"5"）或 "supporter"，
+        // 需要先翻译成 imageId 再比对。
         matchesSummonFilter(filter, usedSummonId) {
             if (!Array.isArray(filter) || filter.length === 0) return true;
             if (usedSummonId == null) return false;
-            const summonList = (this.battleData && this.battleData.summonList) || [];
-            const hit = summonList.find(s => String(s.id) === String(usedSummonId));
+            const bd = this.battleData || {};
+            let hit = null;
+            if (String(usedSummonId) === 'supporter') {
+                hit = bd.supporterSummon;
+            } else {
+                const idx = parseInt(usedSummonId, 10);
+                if (!isNaN(idx) && idx >= 1) {
+                    hit = (bd.summonList || [])[idx - 1];
+                }
+            }
             if (!hit || !hit.imageId) return false;
             const target = String(hit.imageId);
             return filter.some(item => {
