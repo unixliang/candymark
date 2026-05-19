@@ -4110,6 +4110,36 @@
             const self = this;
 
             // 防双装：fetch 已被本脚本包装过则跳过，避免套娃导致同一响应被处理 N 次
+            // 把不同形态的 request body 解析成普通对象，能拿到 ability_id / summon_id 即可
+            const extractRequestFields = (raw) => {
+                if (!raw) return null;
+                try {
+                    if (typeof raw === 'string') {
+                        // 试 JSON
+                        try { return JSON.parse(raw); } catch (e) {}
+                        // 退到 URL-encoded（form）
+                        if (raw.includes('=')) {
+                            const params = new URLSearchParams(raw);
+                            const obj = {};
+                            for (const [k, v] of params) obj[k] = v;
+                            return obj;
+                        }
+                        return null;
+                    }
+                    if (typeof FormData !== 'undefined' && raw instanceof FormData) {
+                        const obj = {};
+                        raw.forEach((v, k) => { obj[k] = v; });
+                        return obj;
+                    }
+                    if (typeof URLSearchParams !== 'undefined' && raw instanceof URLSearchParams) {
+                        const obj = {};
+                        raw.forEach((v, k) => { obj[k] = v; });
+                        return obj;
+                    }
+                } catch (e) {}
+                return null;
+            };
+
             if (!window.fetch.__candymark_wrapped) {
                 const originalFetch = window.fetch;
                 window.fetch = function(...args) {
@@ -4117,17 +4147,15 @@
                     const opts = args[1];
                     // 捕获 ability / summon 请求体里的 id，供后续过滤判断
                     if (typeof url === 'string' && opts && opts.body) {
-                        try {
-                            const body = typeof opts.body === 'string' ? JSON.parse(opts.body) : null;
-                            if (body) {
-                                if (url.includes('ability_result') && body.ability_id != null) {
-                                    self.lastAbilityIdUsed = String(body.ability_id);
-                                }
-                                if (url.includes('summon_result') && body.summon_id != null) {
-                                    self.lastSummonIdUsed = String(body.summon_id);
-                                }
+                        const body = extractRequestFields(opts.body);
+                        if (body) {
+                            if (url.includes('ability_result') && body.ability_id != null) {
+                                self.lastAbilityIdUsed = String(body.ability_id);
                             }
-                        } catch (e) {}
+                            if (url.includes('summon_result') && body.summon_id != null) {
+                                self.lastSummonIdUsed = String(body.summon_id);
+                            }
+                        }
                     }
                     let promise = originalFetch.apply(this, args);
 
@@ -4161,20 +4189,17 @@
                 };
 
                 XMLHttpRequest.prototype.send = function(...args) {
-                    // 捕获 ability / summon 请求体里的 id
+                    // 捕获 ability / summon 请求体里的 id（兼容 JSON / form / URLSearchParams / FormData）
                     if (this.__candymark_url) {
-                        try {
-                            const raw = args[0];
-                            const body = typeof raw === 'string' ? JSON.parse(raw) : null;
-                            if (body) {
-                                if (this.__candymark_url.includes('ability_result') && body.ability_id != null) {
-                                    self.lastAbilityIdUsed = String(body.ability_id);
-                                }
-                                if (this.__candymark_url.includes('summon_result') && body.summon_id != null) {
-                                    self.lastSummonIdUsed = String(body.summon_id);
-                                }
+                        const body = extractRequestFields(args[0]);
+                        if (body) {
+                            if (this.__candymark_url.includes('ability_result') && body.ability_id != null) {
+                                self.lastAbilityIdUsed = String(body.ability_id);
                             }
-                        } catch (e) {}
+                            if (this.__candymark_url.includes('summon_result') && body.summon_id != null) {
+                                self.lastSummonIdUsed = String(body.summon_id);
+                            }
+                        }
                     }
                     this.addEventListener('readystatechange', () => {
                         if (this.readyState === 4 && this.__candymark_url) {
