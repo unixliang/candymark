@@ -118,6 +118,8 @@
             })(),
             autoBackAbilityIds: parseAbilityFilter('sb_auto_back_ability_ids'),
             autoJumpAbilityIds: parseAbilityFilter('sb_auto_jump_ability_ids'),
+            autoBackSummonIds: parseAbilityFilter('sb_auto_back_summon_ids'),
+            autoJumpSummonIds: parseAbilityFilter('sb_auto_jump_summon_ids'),
             dropSubscriptions: dropSubscriptions
         };
     };
@@ -1256,6 +1258,8 @@
                 </div>
                 <div class="sb-ability-filter-hint" id="sb-auto-back-ability-hint"></div>
                 <div class="sb-ability-filter-grid" id="sb-auto-back-ability-grid"></div>
+                <div class="sb-ability-filter-hint" id="sb-auto-back-summon-hint"></div>
+                <div class="sb-ability-filter-grid" id="sb-auto-back-summon-grid"></div>
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-auto-back-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-auto-back-reset">重置</button>
@@ -1292,6 +1296,8 @@
                 </div>
                 <div class="sb-ability-filter-hint" id="sb-auto-jump-ability-hint"></div>
                 <div class="sb-ability-filter-grid" id="sb-auto-jump-ability-grid"></div>
+                <div class="sb-ability-filter-hint" id="sb-auto-jump-summon-hint"></div>
+                <div class="sb-ability-filter-grid" id="sb-auto-jump-summon-grid"></div>
                 <div class="sb-auto-jump-target-label">跳转目标（单选）</div>
                 <div class="sb-drop-subscribe-hint" id="sb-auto-jump-hint"></div>
                 <div class="sb-drop-subscribe-grid" id="sb-auto-jump-target-grid"></div>
@@ -1444,7 +1450,9 @@
                     autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
                     autoJumpTargetId: CONFIG.autoJumpTargetId,
                     autoBackAbilityIds: CONFIG.autoBackAbilityIds,
-                    autoJumpAbilityIds: CONFIG.autoJumpAbilityIds
+                    autoJumpAbilityIds: CONFIG.autoJumpAbilityIds,
+                    autoBackSummonIds: CONFIG.autoBackSummonIds,
+                    autoJumpSummonIds: CONFIG.autoJumpSummonIds
                 }
             };
 
@@ -1590,6 +1598,16 @@
                                         CONFIG.autoJumpAbilityIds = items;
                                         storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(items));
                                     }
+                                    if (Array.isArray(settings.autoBackSummonIds)) {
+                                        const items = normalizeAbilityFilter(settings.autoBackSummonIds);
+                                        CONFIG.autoBackSummonIds = items;
+                                        storage.setValue('sb_auto_back_summon_ids', JSON.stringify(items));
+                                    }
+                                    if (Array.isArray(settings.autoJumpSummonIds)) {
+                                        const items = normalizeAbilityFilter(settings.autoJumpSummonIds);
+                                        CONFIG.autoJumpSummonIds = items;
+                                        storage.setValue('sb_auto_jump_summon_ids', JSON.stringify(items));
+                                    }
                                 }
 
                                 updateBookmarkSize(CONFIG.bookmarkSize);
@@ -1637,7 +1655,9 @@
                         autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
                         autoJumpTargetId: CONFIG.autoJumpTargetId,
                         autoBackAbilityIds: CONFIG.autoBackAbilityIds,
-                        autoJumpAbilityIds: CONFIG.autoJumpAbilityIds
+                        autoJumpAbilityIds: CONFIG.autoJumpAbilityIds,
+                        autoBackSummonIds: CONFIG.autoBackSummonIds,
+                        autoJumpSummonIds: CONFIG.autoJumpSummonIds
                     }
                 };
                 
@@ -1775,6 +1795,16 @@
                             const items = normalizeAbilityFilter(settings.autoJumpAbilityIds);
                             CONFIG.autoJumpAbilityIds = items;
                             storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(items));
+                        }
+                        if (Array.isArray(settings.autoBackSummonIds)) {
+                            const items = normalizeAbilityFilter(settings.autoBackSummonIds);
+                            CONFIG.autoBackSummonIds = items;
+                            storage.setValue('sb_auto_back_summon_ids', JSON.stringify(items));
+                        }
+                        if (Array.isArray(settings.autoJumpSummonIds)) {
+                            const items = normalizeAbilityFilter(settings.autoJumpSummonIds);
+                            CONFIG.autoJumpSummonIds = items;
+                            storage.setValue('sb_auto_jump_summon_ids', JSON.stringify(items));
                         }
                     }
 
@@ -2863,6 +2893,11 @@
                 'sb-auto-back-ability-hint',
                 CONFIG.autoBackAbilityIds || []
             );
+            this.renderSummonFilterGrid(
+                'sb-auto-back-summon-grid',
+                'sb-auto-back-summon-hint',
+                CONFIG.autoBackSummonIds || []
+            );
         }
 
         hideAutoBackModal() {
@@ -2905,56 +2940,57 @@
                 CONFIG.autoBackAbilityIds = newAbilityIds;
                 storage.setValue('sb_auto_back_ability_ids', JSON.stringify(newAbilityIds));
             }
+            const newSummonIds = this.collectSummonFilter('sb-auto-back-summon-grid');
+            if (newSummonIds !== null) {
+                CONFIG.autoBackSummonIds = newSummonIds;
+                storage.setValue('sb_auto_back_summon_ids', JSON.stringify(newSummonIds));
+            }
 
             this.hideAutoBackModal();
             //console.log(`✅ [CandyMark] 自动后退设置已更新：攻击=${CONFIG.autoBackTurnEnabled}(TURN≥${CONFIG.autoBackTurnCount})，结算=${CONFIG.autoBackDropEnabled}，召唤=${CONFIG.autoBackSummonEnabled}，技能=${CONFIG.autoBackAbilityEnabled}`);
         }
 
-        // 渲染"技能后"过滤器网格。
-        // 唯一键统一用 iconId（如 1409_3），不再用 ability_id。
-        // 显示规则：已选项始终展示（icon 直接从 saved 自身读）+ 当前战斗未选项追加。
-        renderAbilityFilterGrid(gridId, hintId, savedFilter) {
+        // 通用过滤器网格渲染。
+        // savedFilter: [{id, icon}]，id 字段是可视唯一键（iconId / imageId）
+        // currentList: 当前战斗对应类别的列表（abilityList 或 summonList）
+        // keyField: 在 currentList 项里取唯一键的字段名（'iconId' 或 'imageId'）
+        _renderFilterGrid(gridId, hintId, savedFilter, currentList, keyField, emptyHint, normalHint) {
             const grid = document.getElementById(gridId);
             const hint = document.getElementById(hintId);
             if (!grid || !hint) return;
-
-            const currentList = (gameDetectorInstance && gameDetectorInstance.battleData
-                && gameDetectorInstance.battleData.abilityList) || [];
             const savedArr = Array.isArray(savedFilter) ? savedFilter : [];
 
-            // 顺序：先已选项（保留 savedFilter 顺序），再当前战斗里其他未选项
             const cells = [];
             const rendered = new Set();
             for (const item of savedArr) {
-                const iconId = String(item && item.id != null ? item.id : item);
-                if (!iconId || rendered.has(iconId)) continue;
-                const icon = (item && item.icon) || '';
-                cells.push({ iconId, icon, checked: true });
-                rendered.add(iconId);
+                const key = String(item && item.id != null ? item.id : item);
+                if (!key || rendered.has(key)) continue;
+                cells.push({ key, icon: (item && item.icon) || '', checked: true });
+                rendered.add(key);
             }
-            for (const ab of currentList) {
-                const iconId = String(ab.iconId || '');
-                if (!iconId || rendered.has(iconId)) continue;
-                cells.push({ iconId, icon: ab.icon, checked: false });
-                rendered.add(iconId);
+            for (const cur of currentList) {
+                const key = String(cur && cur[keyField] || '');
+                if (!key || rendered.has(key)) continue;
+                cells.push({ key, icon: cur.icon, checked: false });
+                rendered.add(key);
             }
 
             if (cells.length === 0) {
-                hint.textContent = '进入战斗后可在此选择具体技能。不选则任意技能触发都满足条件。';
+                hint.textContent = emptyHint;
                 grid.innerHTML = '';
                 return;
             }
 
-            hint.textContent = '勾选要监听的技能；不选则任意技能触发都满足条件。';
+            hint.textContent = normalHint;
             grid.innerHTML = cells.map(c => {
                 const checkedAttr = c.checked ? 'checked' : '';
                 const cls = c.checked ? 'checked' : '';
                 const visual = c.icon
-                    ? `<img src="${c.icon}" alt="${c.iconId}">`
-                    : `<div class="sb-ability-fallback">${c.iconId}</div>`;
+                    ? `<img src="${c.icon}" alt="${c.key}">`
+                    : `<div class="sb-ability-fallback">${c.key}</div>`;
                 const iconAttr = c.icon ? c.icon.replace(/"/g, '&quot;') : '';
-                return `<label class="sb-drop-sub-item ${cls}" data-ability-icon-id="${c.iconId}">
-                    <input type="checkbox" data-ability-icon-id="${c.iconId}" data-ability-icon="${iconAttr}" ${checkedAttr}>
+                return `<label class="sb-drop-sub-item ${cls}" data-filter-key="${c.key}">
+                    <input type="checkbox" data-filter-key="${c.key}" data-filter-icon="${iconAttr}" ${checkedAttr}>
                     ${visual}
                 </label>`;
             }).join('');
@@ -2966,32 +3002,51 @@
             });
         }
 
-        // 从 grid 收集勾选项，返回 [{id, icon}] 数组（id 字段存的是 iconId，例如 "1409_3"）
-        // grid 完全为空时返回 null（保留已有配置）
-        collectAbilityFilter(gridId) {
+        _collectFilter(gridId, currentList, keyField) {
             const grid = document.getElementById(gridId);
             if (!grid) return null;
             const inputs = grid.querySelectorAll('input[type="checkbox"]');
             if (inputs.length === 0) return null;
 
-            // 兜底：data-attr 缺失时退回当前战斗的图标
-            const currentList = (gameDetectorInstance && gameDetectorInstance.battleData
-                && gameDetectorInstance.battleData.abilityList) || [];
-            const battleIcons = new Map(currentList.map(a => [String(a.iconId), a.icon]));
-
+            const battleIcons = new Map((currentList || []).map(c => [String(c && c[keyField]), c && c.icon]));
             const items = [];
             inputs.forEach(cb => {
                 if (cb.checked) {
-                    const iconId = cb.dataset.abilityIconId;
-                    const dataIcon = cb.dataset.abilityIcon || '';
-                    const fallbackIcon = battleIcons.get(String(iconId)) || '';
-                    items.push({
-                        id: iconId,
-                        icon: dataIcon || fallbackIcon
-                    });
+                    const key = cb.dataset.filterKey;
+                    const dataIcon = cb.dataset.filterIcon || '';
+                    const fallbackIcon = battleIcons.get(String(key)) || '';
+                    items.push({ id: key, icon: dataIcon || fallbackIcon });
                 }
             });
             return items;
+        }
+
+        // === 技能过滤器（按 iconId 唯一）===
+        renderAbilityFilterGrid(gridId, hintId, savedFilter) {
+            const list = (gameDetectorInstance && gameDetectorInstance.battleData
+                && gameDetectorInstance.battleData.abilityList) || [];
+            this._renderFilterGrid(gridId, hintId, savedFilter, list, 'iconId',
+                '进入战斗后可在此选择具体技能。不选则任意技能触发都满足条件。',
+                '勾选要监听的技能；不选则任意技能触发都满足条件。');
+        }
+        collectAbilityFilter(gridId) {
+            const list = (gameDetectorInstance && gameDetectorInstance.battleData
+                && gameDetectorInstance.battleData.abilityList) || [];
+            return this._collectFilter(gridId, list, 'iconId');
+        }
+
+        // === 召唤过滤器（按 imageId 唯一）===
+        renderSummonFilterGrid(gridId, hintId, savedFilter) {
+            const list = (gameDetectorInstance && gameDetectorInstance.battleData
+                && gameDetectorInstance.battleData.summonList) || [];
+            this._renderFilterGrid(gridId, hintId, savedFilter, list, 'imageId',
+                '进入战斗后可在此选择具体召唤石。不选则任意召唤触发都满足条件。',
+                '勾选要监听的召唤石；不选则任意召唤触发都满足条件。');
+        }
+        collectSummonFilter(gridId) {
+            const list = (gameDetectorInstance && gameDetectorInstance.battleData
+                && gameDetectorInstance.battleData.summonList) || [];
+            return this._collectFilter(gridId, list, 'imageId');
         }
 
         // 只重置 UI 状态，需要用户再点"确认"才落盘
@@ -3002,6 +3057,7 @@
             document.getElementById('sb-auto-back-summon').checked = false;
             document.getElementById('sb-auto-back-ability').checked = false;
             this.clearAbilityFilterUI('sb-auto-back-ability-grid');
+            this.clearAbilityFilterUI('sb-auto-back-summon-grid');
         }
 
         resetAutoJumpForm() {
@@ -3016,6 +3072,7 @@
                 grid.querySelectorAll('.sb-drop-sub-item').forEach(el => el.classList.remove('checked'));
             }
             this.clearAbilityFilterUI('sb-auto-jump-ability-grid');
+            this.clearAbilityFilterUI('sb-auto-jump-summon-grid');
         }
 
         clearAbilityFilterUI(gridId) {
@@ -3044,6 +3101,11 @@
                 'sb-auto-jump-ability-grid',
                 'sb-auto-jump-ability-hint',
                 CONFIG.autoJumpAbilityIds || []
+            );
+            this.renderSummonFilterGrid(
+                'sb-auto-jump-summon-grid',
+                'sb-auto-jump-summon-hint',
+                CONFIG.autoJumpSummonIds || []
             );
 
 
@@ -3127,6 +3189,11 @@
             if (newAbilityIds !== null) {
                 CONFIG.autoJumpAbilityIds = newAbilityIds;
                 storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(newAbilityIds));
+            }
+            const newSummonIds = this.collectSummonFilter('sb-auto-jump-summon-grid');
+            if (newSummonIds !== null) {
+                CONFIG.autoJumpSummonIds = newSummonIds;
+                storage.setValue('sb_auto_jump_summon_ids', JSON.stringify(newSummonIds));
             }
 
             this.hideAutoJumpModal();
@@ -3989,9 +4056,11 @@
                 maxTurn: 0,
                 startTime: null,
                 lastUpdateTime: null,
-                abilityList: [] // {id, image}[] —— 当前战斗可用的技能列表，由 start.json 刷新
+                abilityList: [], // {id, iconId, icon}[]
+                summonList: []   // {id, imageId, icon}[]
             };
-            this.lastAbilityIdUsed = null; // 最近一次 ability 请求里的 ability_id，用于过滤判断
+            this.lastAbilityIdUsed = null; // 最近一次 ability 请求里的 ability_id
+            this.lastSummonIdUsed = null;  // 最近一次 summon 请求里的 summon_id
             this.autoBackAfterDropCheck = {
                 enabled: true, // 新功能开关
                 lastProcessed: {
@@ -4046,12 +4115,17 @@
                 window.fetch = function(...args) {
                     const url = args[0];
                     const opts = args[1];
-                    // 捕获 ability 请求体里的 ability_id，供后续过滤判断
-                    if (typeof url === 'string' && url.includes('ability_result') && opts && opts.body) {
+                    // 捕获 ability / summon 请求体里的 id，供后续过滤判断
+                    if (typeof url === 'string' && opts && opts.body) {
                         try {
                             const body = typeof opts.body === 'string' ? JSON.parse(opts.body) : null;
-                            if (body && body.ability_id != null) {
-                                self.lastAbilityIdUsed = String(body.ability_id);
+                            if (body) {
+                                if (url.includes('ability_result') && body.ability_id != null) {
+                                    self.lastAbilityIdUsed = String(body.ability_id);
+                                }
+                                if (url.includes('summon_result') && body.summon_id != null) {
+                                    self.lastSummonIdUsed = String(body.summon_id);
+                                }
                             }
                         } catch (e) {}
                     }
@@ -4087,13 +4161,18 @@
                 };
 
                 XMLHttpRequest.prototype.send = function(...args) {
-                    // 捕获 ability 请求体里的 ability_id
-                    if (this.__candymark_url && this.__candymark_url.includes('ability_result')) {
+                    // 捕获 ability / summon 请求体里的 id
+                    if (this.__candymark_url) {
                         try {
                             const raw = args[0];
                             const body = typeof raw === 'string' ? JSON.parse(raw) : null;
-                            if (body && body.ability_id != null) {
-                                self.lastAbilityIdUsed = String(body.ability_id);
+                            if (body) {
+                                if (this.__candymark_url.includes('ability_result') && body.ability_id != null) {
+                                    self.lastAbilityIdUsed = String(body.ability_id);
+                                }
+                                if (this.__candymark_url.includes('summon_result') && body.summon_id != null) {
+                                    self.lastSummonIdUsed = String(body.summon_id);
+                                }
                             }
                         } catch (e) {}
                     }
@@ -4126,8 +4205,9 @@
                     currentTurn = data.turn;
                     this.battleData.startTime = Date.now();
                     //console.log('🔮 [CandyMark] 战斗开始！初始TURN =', currentTurn);
-                    // 缓存当前战斗的技能列表，供"技能后"过滤器使用
+                    // 缓存当前战斗的技能 / 召唤列表，供"技能后" / "召唤后"过滤器使用
                     this.cacheAbilityList(data);
+                    this.cacheSummonList(data);
                 }
                 
                 // 检查是否是战斗结果数据
@@ -4170,16 +4250,23 @@
                     this.onTurnChange(currentTurn, url, data);
                 }
 
-                // 新增：召唤结果后的后退/跳转
+                // 新增：召唤结果后的后退/跳转，可被召唤过滤器收窄
                 if (url.includes('summon_result')) {
                     const config = loadConfig();
-                    if (!this.tryAutoJump('summon', config) && config.autoBackSummonEnabled) {
+                    const usedId = this.lastSummonIdUsed;
+                    let jumped = false;
+                    if (this.matchesSummonFilter(config.autoJumpSummonIds, usedId)) {
+                        jumped = this.tryAutoJump('summon', config);
+                    }
+                    if (!jumped && config.autoBackSummonEnabled
+                            && this.matchesSummonFilter(config.autoBackSummonIds, usedId)) {
                         setTimeout(() => {
                             if (window.history.length > 1) {
                                 history.back();
                             }
                         }, 50);
                     }
+                    this.lastSummonIdUsed = null;
                 }
 
                 // 新增：能力结果后的后退/跳转，可被技能过滤器收窄
@@ -4421,6 +4508,33 @@
             });
         }
 
+        // 从 start.json 的 data.summon 数组里提取召唤石列表：{id, imageId, icon}
+        cacheSummonList(data) {
+            if (!data || !Array.isArray(data.summon)) return;
+            const list = [];
+            try {
+                data.summon.forEach(s => {
+                    if (!s) return;
+                    const id = s.id;
+                    const imageId = String(s.image_id || s.id || '');
+                    if (!id || !imageId) return;
+                    list.push({
+                        id: String(id),
+                        imageId,
+                        icon: `https://prd-game-a-granbluefantasy.akamaized.net/assets/img_low/sp/assets/summon/m/${imageId}.jpg`
+                    });
+                });
+            } catch (e) {
+                return;
+            }
+            const seen = new Set();
+            this.battleData.summonList = list.filter(s => {
+                if (seen.has(s.imageId)) return false;
+                seen.add(s.imageId);
+                return true;
+            });
+        }
+
         // filter 里的 id 字段是 iconId；usedAbilityId 是 ability_result 请求体里的 ability_id，
         // 需要先翻译成 iconId 再比对。
         matchesAbilityFilter(filter, usedAbilityId) {
@@ -4430,6 +4544,21 @@
             const hit = abilityList.find(a => String(a.id) === String(usedAbilityId));
             if (!hit || !hit.iconId) return false;
             const target = String(hit.iconId);
+            return filter.some(item => {
+                const id = (typeof item === 'string' || typeof item === 'number') ? item : (item && item.id);
+                return String(id) === target;
+            });
+        }
+
+        // filter 里的 id 字段是 imageId（如 "2040065000_02"）；usedSummonId 是请求体里的 summon_id，
+        // 需要通过当前 summonList 翻译成 imageId 再比对。
+        matchesSummonFilter(filter, usedSummonId) {
+            if (!Array.isArray(filter) || filter.length === 0) return true;
+            if (usedSummonId == null) return false;
+            const summonList = (this.battleData && this.battleData.summonList) || [];
+            const hit = summonList.find(s => String(s.id) === String(usedSummonId));
+            if (!hit || !hit.imageId) return false;
+            const target = String(hit.imageId);
             return filter.some(item => {
                 const id = (typeof item === 'string' || typeof item === 'number') ? item : (item && item.id);
                 return String(id) === target;
