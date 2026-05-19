@@ -76,6 +76,7 @@
             bookmarksVisible: storage.getValue('sb_bookmarks_visible', 'true') === 'true',
             notifyFFJ: storage.getValue('sb_notify_ffj', 'false') === 'true',
             notifyHourglass: storage.getValue('sb_notify_hourglass', 'false') === 'true',
+            notifyBahaHorn: storage.getValue('sb_notify_baha_horn', 'false') === 'true',
             autoBackTurnEnabled: storage.getValue('sb_auto_back_turn_enabled', 'false') === 'true',
             autoBackTurnCount: parseInt(storage.getValue('sb_auto_back_turn_count', '3')),
             autoBackDropEnabled: storage.getValue('sb_auto_back_drop_enabled', 'false') === 'true',
@@ -1077,6 +1078,10 @@
                         <input type="checkbox" id="sb-notify-hourglass">
                         ⏳ 沙漏
                     </label>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-notify-baha-horn">
+                        🦄 大巴角
+                    </label>
                 </div>
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-drop-notify-confirm">确认</button>
@@ -1198,6 +1203,7 @@
                     blacklist: CONFIG.blacklist,
                     notifyFFJ: CONFIG.notifyFFJ,
                     notifyHourglass: CONFIG.notifyHourglass,
+                    notifyBahaHorn: CONFIG.notifyBahaHorn,
                     bookmarksVisible: CONFIG.bookmarksVisible
                 }
             };
@@ -1306,6 +1312,10 @@
                                         storage.setValue('sb_notify_hourglass', settings.notifyHourglass.toString());
                                         CONFIG.notifyHourglass = settings.notifyHourglass;
                                     }
+                                    if (settings.notifyBahaHorn !== undefined) {
+                                        storage.setValue('sb_notify_baha_horn', settings.notifyBahaHorn.toString());
+                                        CONFIG.notifyBahaHorn = settings.notifyBahaHorn;
+                                    }
                                     if (settings.bookmarksVisible !== undefined) {
                                         storage.setValue('sb_bookmarks_visible', settings.bookmarksVisible.toString());
                                         CONFIG.bookmarksVisible = settings.bookmarksVisible;
@@ -1347,6 +1357,7 @@
                         blacklist: CONFIG.blacklist,
                         notifyFFJ: CONFIG.notifyFFJ,
                         notifyHourglass: CONFIG.notifyHourglass,
+                        notifyBahaHorn: CONFIG.notifyBahaHorn,
                         bookmarksVisible: CONFIG.bookmarksVisible,
                         autoBackTurnEnabled: CONFIG.autoBackTurnEnabled,
                         autoBackTurnCount: CONFIG.autoBackTurnCount,
@@ -1450,6 +1461,10 @@
                         if (typeof settings.notifyHourglass === 'boolean') {
                             CONFIG.notifyHourglass = settings.notifyHourglass;
                             storage.setValue('sb_notify_hourglass', settings.notifyHourglass.toString());
+                        }
+                        if (typeof settings.notifyBahaHorn === 'boolean') {
+                            CONFIG.notifyBahaHorn = settings.notifyBahaHorn;
+                            storage.setValue('sb_notify_baha_horn', settings.notifyBahaHorn.toString());
                         }
                         if (typeof settings.bookmarksVisible === 'boolean') {
                             CONFIG.bookmarksVisible = settings.bookmarksVisible;
@@ -2488,12 +2503,16 @@
             // 设置当前选项状态
             const ffjCheckbox = document.getElementById('sb-notify-ffj');
             const hourglassCheckbox = document.getElementById('sb-notify-hourglass');
-            
+            const bahaHornCheckbox = document.getElementById('sb-notify-baha-horn');
+
             if (ffjCheckbox) {
                 ffjCheckbox.checked = CONFIG.notifyFFJ;
             }
             if (hourglassCheckbox) {
                 hourglassCheckbox.checked = CONFIG.notifyHourglass;
+            }
+            if (bahaHornCheckbox) {
+                bahaHornCheckbox.checked = CONFIG.notifyBahaHorn;
             }
         }
         
@@ -2571,15 +2590,18 @@
         confirmDropNotifyChange() {
             const ffjCheckbox = document.getElementById('sb-notify-ffj');
             const hourglassCheckbox = document.getElementById('sb-notify-hourglass');
-            
+            const bahaHornCheckbox = document.getElementById('sb-notify-baha-horn');
+
             // 更新配置
             CONFIG.notifyFFJ = ffjCheckbox ? ffjCheckbox.checked : false;
             CONFIG.notifyHourglass = hourglassCheckbox ? hourglassCheckbox.checked : false;
-            
+            CONFIG.notifyBahaHorn = bahaHornCheckbox ? bahaHornCheckbox.checked : false;
+
             // 保存到存储
             storage.setValue('sb_notify_ffj', CONFIG.notifyFFJ.toString());
             storage.setValue('sb_notify_hourglass', CONFIG.notifyHourglass.toString());
-            
+            storage.setValue('sb_notify_baha_horn', CONFIG.notifyBahaHorn.toString());
+
             this.hideDropNotifyModal();
         }
         
@@ -3371,55 +3393,61 @@
          */
         monitorGameData() {
             const self = this;
-            
-            // 监控战斗API调用，类似Chrome-Extension的/dataCenter.ts中的做法
-            const originalFetch = window.fetch;
-            window.fetch = function(...args) {
-                const url = args[0];
-                let promise = originalFetch.apply(this, args);
-                
-                // 检查是否是战斗相关的API调用
-                if (url && (url.includes('/raid/') || url.includes('/multiraid/'))) {
-                    promise = promise.then(response => {
-                        // 创建新的响应以便我们能读取内容
-                        const clonedResponse = response.clone();
-                        clonedResponse.json().then(data => {
-                            self.handleGameResponse(data, url);
-                        }).catch(() => {
-                            // 非JSON响应，忽略
-                        });
-                        return response;
-                    });
-                }
-                
-                return promise;
-            };
 
-            // 同时监控XHR请求，覆盖更多场景
-            const originalXHRSend = XMLHttpRequest.prototype.send;
-            const originalXHROpen = XMLHttpRequest.prototype.open;
-            
-            XMLHttpRequest.prototype.open = function(method, url) {
-                this._url = url;
-                return originalXHROpen.apply(this, arguments);
-            };
-            
-            XMLHttpRequest.prototype.send = function(...args) {
-                this.addEventListener('readystatechange', () => {
-                    if (this.readyState === 4 && this._url) {
-                        const url = this._url;
-                        if (url.includes('/raid/') || url.includes('/multiraid/')) {
-                            try {
-                                const data = JSON.parse(this.responseText);
+            // 防双装：fetch 已被本脚本包装过则跳过，避免套娃导致同一响应被处理 N 次
+            if (!window.fetch.__candymark_wrapped) {
+                const originalFetch = window.fetch;
+                window.fetch = function(...args) {
+                    const url = args[0];
+                    let promise = originalFetch.apply(this, args);
+
+                    // 检查是否是战斗相关的API调用
+                    if (url && (url.includes('/raid/') || url.includes('/multiraid/'))) {
+                        promise = promise.then(response => {
+                            // 创建新的响应以便我们能读取内容
+                            const clonedResponse = response.clone();
+                            clonedResponse.json().then(data => {
                                 self.handleGameResponse(data, url);
-                            } catch (e) {
-                                // 解析失败，忽略
+                            }).catch(() => {
+                                // 非JSON响应，忽略
+                            });
+                            return response;
+                        });
+                    }
+
+                    return promise;
+                };
+                window.fetch.__candymark_wrapped = true;
+            }
+
+            // 同时监控XHR请求，覆盖更多场景；同样防双装
+            if (!XMLHttpRequest.prototype.send.__candymark_wrapped) {
+                const originalXHRSend = XMLHttpRequest.prototype.send;
+                const originalXHROpen = XMLHttpRequest.prototype.open;
+
+                XMLHttpRequest.prototype.open = function(method, url) {
+                    this.__candymark_url = url;
+                    return originalXHROpen.apply(this, arguments);
+                };
+
+                XMLHttpRequest.prototype.send = function(...args) {
+                    this.addEventListener('readystatechange', () => {
+                        if (this.readyState === 4 && this.__candymark_url) {
+                            const url = this.__candymark_url;
+                            if (url.includes('/raid/') || url.includes('/multiraid/')) {
+                                try {
+                                    const data = JSON.parse(this.responseText);
+                                    self.handleGameResponse(data, url);
+                                } catch (e) {
+                                    // 解析失败，忽略
+                                }
                             }
                         }
-                    }
-                });
-                return originalXHRSend.apply(this, args);
-            };
+                    });
+                    return originalXHRSend.apply(this, args);
+                };
+                XMLHttpRequest.prototype.send.__candymark_wrapped = true;
+            }
         }
 
         handleGameResponse(data, url) {
@@ -3607,7 +3635,18 @@
                     return;
                 }
             }
-            
+
+            // 检查大巴角掉落
+            if (config.notifyBahaHorn) {
+                const bahaHornElement = document.querySelector("[data-key='10_79']");
+                if (bahaHornElement) {
+                    clearInterval(this.dropCheckInterval);
+                    this.showDropAlert('大巴角', 'gold');
+                    this.triggerAutoBack();
+                    return;
+                }
+            }
+
             // 检查是否有任何掉落物品（即使没有通知设置也触发返回）
             const dropElements = document.querySelectorAll('[data-key*="10_"], [data-key*="17_"], [data-key*="12_"]');
             if (dropElements.length > 0) {
