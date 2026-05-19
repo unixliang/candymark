@@ -1601,29 +1601,26 @@
         }
         
         bindEvents() {
-            // 触发器长按处理
+            // 触发器长按处理：用时间戳替代 boolean 状态机，避免
+            //  1) 触屏 PC 上 mouse + touch 双事件各起一个 timer 互相覆盖泄漏，
+            //     导致短按时仍有 600ms 旧 timer 后台触发 toggleAllBookmarks；
+            //  2) iOS 长按 touchend 后追发的合成 mousedown 把 boolean 清掉，
+            //     紧随其后的合成 click 误判为短按。
             let triggerPressTimer = null;
-            let isLongPressing = false;
-            let longPressCompleted = false;
-            
-            const triggerElement = document.getElementById('sb-trigger');
-            
-            const handleTriggerStart = (e) => {
-                isLongPressing = false;
-                // 不在这里重置 longPressCompleted：iOS 长按 touchend 之后会追发一组
-                // synthetic mousedown/mouseup/click，那次 mousedown 走到这里如果把
-                // longPressCompleted 清掉，紧随其后的合成 click 就误判成短按弹菜单。
-                // 由 click 处理器或下面 500ms 兜底来清。
+            let lastLongPressTime = 0;
+            const LONG_PRESS_GUARD_MS = 800; // 长按触发后这段时间内的 click 一律阻止
 
-                // 设置长按定时器 (600ms)
+            const triggerElement = document.getElementById('sb-trigger');
+
+            const handleTriggerStart = () => {
+                // 触屏 PC 上 touchstart 和 mousedown 会相继触发，必须先清掉前一个
+                if (triggerPressTimer) {
+                    clearTimeout(triggerPressTimer);
+                }
                 triggerPressTimer = setTimeout(() => {
-                    isLongPressing = true;
-                    longPressCompleted = true;
+                    triggerPressTimer = null;
+                    lastLongPressTime = Date.now();
                     this.toggleAllBookmarks();
-                    // 兜底：长按触发 500ms 后自动清除，避免 click 没派发时永久卡住
-                    setTimeout(() => {
-                        longPressCompleted = false;
-                    }, 500);
                 }, 600);
             };
 
@@ -1632,12 +1629,10 @@
                     clearTimeout(triggerPressTimer);
                     triggerPressTimer = null;
                 }
-
-                // 如果是长按，阻止click事件
-                if (isLongPressing) {
+                // 长按刚触发：阻断本轮 mouseup/touchend
+                if (Date.now() - lastLongPressTime < LONG_PRESS_GUARD_MS) {
                     e.preventDefault();
                     e.stopPropagation();
-                    // 不要立即重置，让click事件也能检测到
                 }
             };
 
@@ -1646,33 +1641,25 @@
                     clearTimeout(triggerPressTimer);
                     triggerPressTimer = null;
                 }
-                isLongPressing = false;
-                // 同上：不清 longPressCompleted，留给 click / 500ms 兜底清理
             };
-            
+
             // 绑定鼠标事件
             triggerElement.addEventListener('mousedown', handleTriggerStart);
             triggerElement.addEventListener('mouseup', handleTriggerEnd);
             triggerElement.addEventListener('mouseleave', handleTriggerCancel);
-            
+
             // 绑定触摸事件
             triggerElement.addEventListener('touchstart', handleTriggerStart);
             triggerElement.addEventListener('touchend', handleTriggerEnd);
             triggerElement.addEventListener('touchcancel', handleTriggerCancel);
-            
-            // 触发器点击 - 只有在没有长按时才触发
+
+            // 触发器点击 - 长按窗口内的 click 一律阻止
             triggerElement.addEventListener('click', (e) => {
-                if (longPressCompleted) {
+                if (Date.now() - lastLongPressTime < LONG_PRESS_GUARD_MS) {
                     e.preventDefault();
                     e.stopPropagation();
-                    // 重置状态，延迟一点时间以确保阻止
-                    setTimeout(() => {
-                        longPressCompleted = false;
-                        isLongPressing = false;
-                    }, 100);
                     return;
                 }
-                
                 e.stopPropagation();
                 this.showAddMenu(e);
             });
