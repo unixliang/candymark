@@ -2911,7 +2911,8 @@
         }
 
         // 渲染"技能后"过滤器网格。
-        // 显示规则：已选项始终展示（icon 直接从 saved 自身读，不依赖全局缓存）+ 当前战斗未选项追加。
+        // 唯一键统一用 iconId（如 1409_3），不再用 ability_id。
+        // 显示规则：已选项始终展示（icon 直接从 saved 自身读）+ 当前战斗未选项追加。
         renderAbilityFilterGrid(gridId, hintId, savedFilter) {
             const grid = document.getElementById(gridId);
             const hint = document.getElementById(hintId);
@@ -2925,18 +2926,17 @@
             const cells = [];
             const rendered = new Set();
             for (const item of savedArr) {
-                const id = String(item && item.id != null ? item.id : item);
-                if (!id || rendered.has(id)) continue;
-                // 已选项的图标直接用 saved 里存的 URL，不再叠加当前战斗的图标逻辑
+                const iconId = String(item && item.id != null ? item.id : item);
+                if (!iconId || rendered.has(iconId)) continue;
                 const icon = (item && item.icon) || '';
-                cells.push({ id, icon, checked: true });
-                rendered.add(id);
+                cells.push({ iconId, icon, checked: true });
+                rendered.add(iconId);
             }
             for (const ab of currentList) {
-                const id = String(ab.id);
-                if (rendered.has(id)) continue;
-                cells.push({ id, icon: ab.icon, checked: false });
-                rendered.add(id);
+                const iconId = String(ab.iconId || '');
+                if (!iconId || rendered.has(iconId)) continue;
+                cells.push({ iconId, icon: ab.icon, checked: false });
+                rendered.add(iconId);
             }
 
             if (cells.length === 0) {
@@ -2950,11 +2950,11 @@
                 const checkedAttr = c.checked ? 'checked' : '';
                 const cls = c.checked ? 'checked' : '';
                 const visual = c.icon
-                    ? `<img src="${c.icon}" alt="${c.id}">`
-                    : `<div class="sb-ability-fallback">${c.id}</div>`;
+                    ? `<img src="${c.icon}" alt="${c.iconId}">`
+                    : `<div class="sb-ability-fallback">${c.iconId}</div>`;
                 const iconAttr = c.icon ? c.icon.replace(/"/g, '&quot;') : '';
-                return `<label class="sb-drop-sub-item ${cls}" data-ability-id="${c.id}">
-                    <input type="checkbox" data-ability-id="${c.id}" data-ability-icon="${iconAttr}" ${checkedAttr}>
+                return `<label class="sb-drop-sub-item ${cls}" data-ability-icon-id="${c.iconId}">
+                    <input type="checkbox" data-ability-icon-id="${c.iconId}" data-ability-icon="${iconAttr}" ${checkedAttr}>
                     ${visual}
                 </label>`;
             }).join('');
@@ -2966,7 +2966,8 @@
             });
         }
 
-        // 从 grid 收集勾选项，返回 [{id, icon}] 数组。grid 完全为空时返回 null（保留已有配置）
+        // 从 grid 收集勾选项，返回 [{id, icon}] 数组（id 字段存的是 iconId，例如 "1409_3"）
+        // grid 完全为空时返回 null（保留已有配置）
         collectAbilityFilter(gridId) {
             const grid = document.getElementById(gridId);
             if (!grid) return null;
@@ -2976,16 +2977,16 @@
             // 兜底：data-attr 缺失时退回当前战斗的图标
             const currentList = (gameDetectorInstance && gameDetectorInstance.battleData
                 && gameDetectorInstance.battleData.abilityList) || [];
-            const battleIcons = new Map(currentList.map(a => [String(a.id), a.icon]));
+            const battleIcons = new Map(currentList.map(a => [String(a.iconId), a.icon]));
 
             const items = [];
             inputs.forEach(cb => {
                 if (cb.checked) {
-                    const id = cb.dataset.abilityId;
+                    const iconId = cb.dataset.abilityIconId;
                     const dataIcon = cb.dataset.abilityIcon || '';
-                    const fallbackIcon = battleIcons.get(String(id)) || '';
+                    const fallbackIcon = battleIcons.get(String(iconId)) || '';
                     items.push({
-                        id,
+                        id: iconId,
                         icon: dataIcon || fallbackIcon
                     });
                 }
@@ -4420,10 +4421,15 @@
             });
         }
 
-        matchesAbilityFilter(filter, usedId) {
+        // filter 里的 id 字段是 iconId；usedAbilityId 是 ability_result 请求体里的 ability_id，
+        // 需要先翻译成 iconId 再比对。
+        matchesAbilityFilter(filter, usedAbilityId) {
             if (!Array.isArray(filter) || filter.length === 0) return true;
-            if (usedId == null) return false;
-            const target = String(usedId);
+            if (usedAbilityId == null) return false;
+            const abilityList = (this.battleData && this.battleData.abilityList) || [];
+            const hit = abilityList.find(a => String(a.id) === String(usedAbilityId));
+            if (!hit || !hit.iconId) return false;
+            const target = String(hit.iconId);
             return filter.some(item => {
                 const id = (typeof item === 'string' || typeof item === 'number') ? item : (item && item.id);
                 return String(id) === target;
