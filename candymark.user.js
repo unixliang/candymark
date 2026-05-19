@@ -1194,6 +1194,7 @@
                 </div>
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-auto-back-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-auto-back-reset">默认</button>
                     <button class="sb-btn-secondary" id="sb-auto-back-cancel">取消</button>
                 </div>
             </div>
@@ -1230,6 +1231,7 @@
                 <div class="sb-drop-subscribe-grid" id="sb-auto-jump-target-grid"></div>
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-auto-jump-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-auto-jump-reset">默认</button>
                     <button class="sb-btn-secondary" id="sb-auto-jump-cancel">取消</button>
                 </div>
             </div>
@@ -1832,6 +1834,10 @@
                 this.hideAutoBackModal();
             });
 
+            document.getElementById('sb-auto-back-reset').addEventListener('click', () => {
+                this.resetAutoBackForm();
+            });
+
             // 自动跳转设置
             document.getElementById('sb-auto-jump-confirm').addEventListener('click', () => {
                 this.confirmAutoJumpChange();
@@ -1839,6 +1845,10 @@
 
             document.getElementById('sb-auto-jump-cancel').addEventListener('click', () => {
                 this.hideAutoJumpModal();
+            });
+
+            document.getElementById('sb-auto-jump-reset').addEventListener('click', () => {
+                this.resetAutoJumpForm();
             });
             
             // 监听输入框变化限制，实时验证输入值范围(1-99)
@@ -2771,6 +2781,28 @@
             
             this.hideAutoBackModal();
             //console.log(`✅ [CandyMark] 自动后退设置已更新：攻击=${CONFIG.autoBackTurnEnabled}(TURN≥${CONFIG.autoBackTurnCount})，结算=${CONFIG.autoBackDropEnabled}，召唤=${CONFIG.autoBackSummonEnabled}，技能=${CONFIG.autoBackAbilityEnabled}`);
+        }
+
+        // 只重置 UI 状态，需要用户再点"确认"才落盘
+        resetAutoBackForm() {
+            document.getElementById('sb-auto-back-turn').checked = false;
+            document.getElementById('sb-auto-back-turn-count').value = 3;
+            document.getElementById('sb-auto-back-drop').checked = false;
+            document.getElementById('sb-auto-back-summon').checked = false;
+            document.getElementById('sb-auto-back-ability').checked = false;
+        }
+
+        resetAutoJumpForm() {
+            document.getElementById('sb-auto-jump-turn').checked = false;
+            document.getElementById('sb-auto-jump-turn-count').value = 3;
+            document.getElementById('sb-auto-jump-drop').checked = false;
+            document.getElementById('sb-auto-jump-summon').checked = false;
+            document.getElementById('sb-auto-jump-ability').checked = false;
+            const grid = document.getElementById('sb-auto-jump-target-grid');
+            if (grid) {
+                grid.querySelectorAll('input[name="sb-auto-jump-target"]').forEach(r => { r.checked = false; });
+                grid.querySelectorAll('.sb-drop-sub-item').forEach(el => el.classList.remove('checked'));
+            }
         }
 
         showAutoJumpModal() {
