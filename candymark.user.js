@@ -1610,22 +1610,29 @@
             
             const handleTriggerStart = (e) => {
                 isLongPressing = false;
-                longPressCompleted = false;
-                
+                // 不在这里重置 longPressCompleted：iOS 长按 touchend 之后会追发一组
+                // synthetic mousedown/mouseup/click，那次 mousedown 走到这里如果把
+                // longPressCompleted 清掉，紧随其后的合成 click 就误判成短按弹菜单。
+                // 由 click 处理器或下面 500ms 兜底来清。
+
                 // 设置长按定时器 (600ms)
                 triggerPressTimer = setTimeout(() => {
                     isLongPressing = true;
                     longPressCompleted = true;
                     this.toggleAllBookmarks();
+                    // 兜底：长按触发 500ms 后自动清除，避免 click 没派发时永久卡住
+                    setTimeout(() => {
+                        longPressCompleted = false;
+                    }, 500);
                 }, 600);
             };
-            
+
             const handleTriggerEnd = (e) => {
                 if (triggerPressTimer) {
                     clearTimeout(triggerPressTimer);
                     triggerPressTimer = null;
                 }
-                
+
                 // 如果是长按，阻止click事件
                 if (isLongPressing) {
                     e.preventDefault();
@@ -1633,14 +1640,14 @@
                     // 不要立即重置，让click事件也能检测到
                 }
             };
-            
+
             const handleTriggerCancel = () => {
                 if (triggerPressTimer) {
                     clearTimeout(triggerPressTimer);
                     triggerPressTimer = null;
                 }
                 isLongPressing = false;
-                longPressCompleted = false;
+                // 同上：不清 longPressCompleted，留给 click / 500ms 兜底清理
             };
             
             // 绑定鼠标事件
