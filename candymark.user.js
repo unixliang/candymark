@@ -81,9 +81,6 @@
             bookmarkSize: parseInt(storage.getValue('sb_bookmark_size', '3')),
             bookmarkOpacity: parseInt(storage.getValue('sb_bookmark_opacity', '10')),
             bookmarksVisible: storage.getValue('sb_bookmarks_visible', 'true') === 'true',
-            notifyFFJ: storage.getValue('sb_notify_ffj', 'false') === 'true',
-            notifyHourglass: storage.getValue('sb_notify_hourglass', 'false') === 'true',
-            notifyBahaHorn: storage.getValue('sb_notify_baha_horn', 'false') === 'true',
             autoBackTurnEnabled: storage.getValue('sb_auto_back_turn_enabled', 'false') === 'true',
             autoBackTurnCount: parseInt(storage.getValue('sb_auto_back_turn_count', '3')),
             autoBackDropEnabled: storage.getValue('sb_auto_back_drop_enabled', 'false') === 'true',
@@ -979,7 +976,6 @@
             <div class="sb-menu-item" data-action="edit">✏️ 修改名称</div>
             <div class="sb-menu-item" data-action="delete">🗑️ 删除标签</div>
             <div class="sb-menu-item" data-action="auto-back-global">🚪 自动后退【全局】</div>
-            <div class="sb-menu-item" data-action="drop-notify-global">🔔 掉落通知【全局】</div>
             <div class="sb-menu-item" data-action="drop-subscribe-global">📋 掉落订阅管理【全局】</div>
             <div class="sb-menu-item" data-action="cancel">❌ 取消</div>
         </div>
@@ -988,7 +984,6 @@
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
             <div class="sb-menu-item" data-action="auto-back">🚪 自动后退</div>
-            <div class="sb-menu-item" data-action="drop-notify">🔔 掉落通知</div>
             <div class="sb-menu-item" data-action="subscribe-from-drop-list">📋 掉落订阅管理</div>
             <div class="sb-menu-item" data-action="config-management">⚙️ 配置管理</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
@@ -1153,29 +1148,6 @@
                 </div>
             </div>
         </div>
-        <div id="sb-drop-notify-modal" class="sb-modal">
-            <div class="sb-modal-content">
-                <h3>掉落通知设置</h3>
-                <div class="sb-drop-notify-options">
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-notify-ffj">
-                        🏅 FFJ
-                    </label>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-notify-hourglass">
-                        ⏳ 沙漏
-                    </label>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-notify-baha-horn">
-                        🦄 大巴角
-                    </label>
-                </div>
-                <div class="sb-modal-buttons">
-                    <button class="sb-btn-primary" id="sb-drop-notify-confirm">确认</button>
-                    <button class="sb-btn-secondary" id="sb-drop-notify-cancel">取消</button>
-                </div>
-            </div>
-        </div>
         <div id="sb-drop-subscribe-modal" class="sb-modal">
             <div class="sb-modal-content">
                 <h3>掉落订阅管理</h3>
@@ -1309,9 +1281,6 @@
                     maxBookmarks: CONFIG.maxBookmarks,
                     shortcutKey: CONFIG.shortcutKey,
                     blacklist: CONFIG.blacklist,
-                    notifyFFJ: CONFIG.notifyFFJ,
-                    notifyHourglass: CONFIG.notifyHourglass,
-                    notifyBahaHorn: CONFIG.notifyBahaHorn,
                     bookmarksVisible: CONFIG.bookmarksVisible
                 }
             };
@@ -1412,18 +1381,6 @@
                                         storage.setValue('sb_blacklist', JSON.stringify(settings.blacklist));
                                         CONFIG.blacklist = settings.blacklist;
                                     }
-                                    if (settings.notifyFFJ !== undefined) {
-                                        storage.setValue('sb_notify_ffj', settings.notifyFFJ.toString());
-                                        CONFIG.notifyFFJ = settings.notifyFFJ;
-                                    }
-                                    if (settings.notifyHourglass !== undefined) {
-                                        storage.setValue('sb_notify_hourglass', settings.notifyHourglass.toString());
-                                        CONFIG.notifyHourglass = settings.notifyHourglass;
-                                    }
-                                    if (settings.notifyBahaHorn !== undefined) {
-                                        storage.setValue('sb_notify_baha_horn', settings.notifyBahaHorn.toString());
-                                        CONFIG.notifyBahaHorn = settings.notifyBahaHorn;
-                                    }
                                     if (settings.bookmarksVisible !== undefined) {
                                         storage.setValue('sb_bookmarks_visible', settings.bookmarksVisible.toString());
                                         CONFIG.bookmarksVisible = settings.bookmarksVisible;
@@ -1463,9 +1420,6 @@
                         maxBookmarks: CONFIG.maxBookmarks,
                         shortcutKey: CONFIG.shortcutKey,
                         blacklist: CONFIG.blacklist,
-                        notifyFFJ: CONFIG.notifyFFJ,
-                        notifyHourglass: CONFIG.notifyHourglass,
-                        notifyBahaHorn: CONFIG.notifyBahaHorn,
                         bookmarksVisible: CONFIG.bookmarksVisible,
                         autoBackTurnEnabled: CONFIG.autoBackTurnEnabled,
                         autoBackTurnCount: CONFIG.autoBackTurnCount,
@@ -1561,18 +1515,6 @@
                         if (Array.isArray(settings.blacklist)) {
                             CONFIG.blacklist = settings.blacklist;
                             storage.setValue('sb_blacklist', JSON.stringify(settings.blacklist));
-                        }
-                        if (typeof settings.notifyFFJ === 'boolean') {
-                            CONFIG.notifyFFJ = settings.notifyFFJ;
-                            storage.setValue('sb_notify_ffj', settings.notifyFFJ.toString());
-                        }
-                        if (typeof settings.notifyHourglass === 'boolean') {
-                            CONFIG.notifyHourglass = settings.notifyHourglass;
-                            storage.setValue('sb_notify_hourglass', settings.notifyHourglass.toString());
-                        }
-                        if (typeof settings.notifyBahaHorn === 'boolean') {
-                            CONFIG.notifyBahaHorn = settings.notifyBahaHorn;
-                            storage.setValue('sb_notify_baha_horn', settings.notifyBahaHorn.toString());
                         }
                         if (typeof settings.bookmarksVisible === 'boolean') {
                             CONFIG.bookmarksVisible = settings.bookmarksVisible;
@@ -1732,15 +1674,6 @@
                 this.cancelOpacityChange();
             });
             
-            // 掉落通知设置
-            document.getElementById('sb-drop-notify-confirm').addEventListener('click', () => {
-                this.confirmDropNotifyChange();
-            });
-            
-            document.getElementById('sb-drop-notify-cancel').addEventListener('click', () => {
-                this.hideDropNotifyModal();
-            });
-
             // 从掉落列表订阅
             document.getElementById('sb-drop-subscribe-confirm').addEventListener('click', () => {
                 this.confirmDropSubscribe();
@@ -2220,9 +2153,6 @@
                 case 'auto-back':
                     this.showAutoBackModal();
                     break;
-                case 'drop-notify':
-                    this.showDropNotifyModal();
-                    break;
                 case 'subscribe-from-drop-list':
                     this.showDropSubscribeModal();
                     break;
@@ -2609,32 +2539,6 @@
             this.hideOpacityModal();
         }
         
-        // 掉落通知设置相关方法
-        showDropNotifyModal() {
-            const modal = document.getElementById('sb-drop-notify-modal');
-            modal.classList.add('show');
-            
-            // 设置当前选项状态
-            const ffjCheckbox = document.getElementById('sb-notify-ffj');
-            const hourglassCheckbox = document.getElementById('sb-notify-hourglass');
-            const bahaHornCheckbox = document.getElementById('sb-notify-baha-horn');
-
-            if (ffjCheckbox) {
-                ffjCheckbox.checked = CONFIG.notifyFFJ;
-            }
-            if (hourglassCheckbox) {
-                hourglassCheckbox.checked = CONFIG.notifyHourglass;
-            }
-            if (bahaHornCheckbox) {
-                bahaHornCheckbox.checked = CONFIG.notifyBahaHorn;
-            }
-        }
-        
-        hideDropNotifyModal() {
-            const modal = document.getElementById('sb-drop-notify-modal');
-            modal.classList.remove('show');
-        }
-        
         // 自动后退设置相关方法
         showAutoBackModal() {
             this.hideAddMenu();
@@ -2701,24 +2605,6 @@
             //console.log(`✅ [CandyMark] 自动后退设置已更新：攻击=${CONFIG.autoBackTurnEnabled}(TURN≥${CONFIG.autoBackTurnCount})，结算=${CONFIG.autoBackDropEnabled}，召唤=${CONFIG.autoBackSummonEnabled}，技能=${CONFIG.autoBackAbilityEnabled}`);
         }
         
-        confirmDropNotifyChange() {
-            const ffjCheckbox = document.getElementById('sb-notify-ffj');
-            const hourglassCheckbox = document.getElementById('sb-notify-hourglass');
-            const bahaHornCheckbox = document.getElementById('sb-notify-baha-horn');
-
-            // 更新配置
-            CONFIG.notifyFFJ = ffjCheckbox ? ffjCheckbox.checked : false;
-            CONFIG.notifyHourglass = hourglassCheckbox ? hourglassCheckbox.checked : false;
-            CONFIG.notifyBahaHorn = bahaHornCheckbox ? bahaHornCheckbox.checked : false;
-
-            // 保存到存储
-            storage.setValue('sb_notify_ffj', CONFIG.notifyFFJ.toString());
-            storage.setValue('sb_notify_hourglass', CONFIG.notifyHourglass.toString());
-            storage.setValue('sb_notify_baha_horn', CONFIG.notifyBahaHorn.toString());
-
-            this.hideDropNotifyModal();
-        }
-
         showDropSubscribeModal() {
             const modal = document.getElementById('sb-drop-subscribe-modal');
             const grid = document.getElementById('sb-drop-subscribe-grid');
@@ -2943,9 +2829,6 @@
                     break;
                 case 'auto-back-global':
                     this.showAutoBackModal();
-                    break;
-                case 'drop-notify-global':
-                    this.showDropNotifyModal();
                     break;
                 case 'drop-subscribe-global':
                     this.showDropSubscribeModal();
@@ -3836,10 +3719,6 @@
             const config = loadConfig();
             const currentUrl = window.location.href;
 
-    		// 大巴角 物品id=79（任意前缀，如 10_79 / 12_79 等）
-		    // FFJ 物品id=20004（任意前缀，如 17_20004）
-		    // 沙漏 物品id=215（任意前缀，如 10_215 / 蓝箱区块可能换前缀）
-
             // URL过滤：重复的URL不处理
             if (this.autoBackAfterDropCheck.lastProcessed.url === currentUrl) {
                 return;
@@ -3852,40 +3731,7 @@
                 return;
             }
 
-            // 检查FFJ掉落（按物品id后缀匹配，不限品类前缀）
-            if (config.notifyFFJ) {
-                const ffjElement = dropList.querySelector("[data-key$='_20004']");
-                if (ffjElement) {
-                    clearInterval(this.dropCheckInterval);
-                    this.showDropAlert('FFJ', 'gold');
-                    this.triggerAutoBack();
-                    return;
-                }
-            }
-
-            // 检查沙漏掉落（按物品id后缀匹配，不限品类前缀）
-            if (config.notifyHourglass) {
-                const hourglassElement = dropList.querySelector("[data-key$='_215']");
-                if (hourglassElement) {
-                    clearInterval(this.dropCheckInterval);
-                    this.showDropAlert('沙漏', 'brown');
-                    this.triggerAutoBack();
-                    return;
-                }
-            }
-
-            // 检查大巴角掉落（按物品id后缀匹配，不限品类前缀）
-            if (config.notifyBahaHorn) {
-                const bahaHornElement = dropList.querySelector("[data-key$='_79']");
-                if (bahaHornElement) {
-                    clearInterval(this.dropCheckInterval);
-                    this.showDropAlert('大巴角', 'gold');
-                    this.triggerAutoBack();
-                    return;
-                }
-            }
-
-            // 检查自定义订阅（用户从掉落预览页订阅的物品）
+            // 检查用户订阅的掉落物品
             const subs = config.dropSubscriptions || [];
             const hitIcons = [];
             for (const sub of subs) {
@@ -3910,12 +3756,6 @@
             }
         }
         
-        showDropAlert(itemName, colorType) {
-            // 使用简单的 alert，在所有平台上都可靠
-            const time = new Date().toLocaleTimeString();
-            alert(`🎉 ${itemName}掉落了！🎉\n恭喜获得${itemName}！\n时间：${time}`);
-        }
-
         showDropHitModal(iconUrls) {
             const urls = (Array.isArray(iconUrls) ? iconUrls : [iconUrls]).filter(Boolean);
             const modal = document.getElementById('sb-drop-hit-modal');
