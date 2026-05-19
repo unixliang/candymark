@@ -795,12 +795,14 @@
 
         .sb-drop-hit-icon-wrap {
             display: flex;
+            flex-wrap: wrap;
             justify-content: center;
+            gap: 10px;
             margin: 16px 0;
         }
         .sb-drop-hit-icon-wrap img {
-            max-width: 160px;
-            max-height: 160px;
+            max-width: 120px;
+            max-height: 120px;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         }
@@ -1187,9 +1189,7 @@
         <div id="sb-drop-hit-modal" class="sb-modal">
             <div class="sb-modal-content">
                 <h3>🎉 订阅物品掉落了！🎉</h3>
-                <div class="sb-drop-hit-icon-wrap">
-                    <img id="sb-drop-hit-icon" alt="掉落物">
-                </div>
+                <div class="sb-drop-hit-icon-wrap" id="sb-drop-hit-icons"></div>
                 <div class="sb-drop-hit-time">时间：<span id="sb-drop-hit-time"></span></div>
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-drop-hit-ok">好的</button>
@@ -3846,15 +3846,18 @@
 
             // 检查自定义订阅（用户从掉落预览页订阅的物品）
             const subs = config.dropSubscriptions || [];
+            const hitIcons = [];
             for (const sub of subs) {
                 if (!sub || !sub.itemId) continue;
                 const el = document.querySelector(`[data-key$='_${sub.itemId}']`);
                 if (el) {
-                    clearInterval(this.dropCheckInterval);
-                    const iconUrl = sub.iconUrl || el.querySelector('img')?.src || '';
-                    this.showDropHitModal(iconUrl);
-                    return;
+                    hitIcons.push(sub.iconUrl || el.querySelector('img')?.src || '');
                 }
+            }
+            if (hitIcons.length > 0) {
+                clearInterval(this.dropCheckInterval);
+                this.showDropHitModal(hitIcons);
+                return;
             }
 
             // 检查是否有任何掉落物品（即使没有通知设置也触发返回）
@@ -3872,7 +3875,8 @@
             alert(`🎉 ${itemName}掉落了！🎉\n恭喜获得${itemName}！\n时间：${time}`);
         }
 
-        showDropHitModal(iconUrl) {
+        showDropHitModal(iconUrls) {
+            const urls = (Array.isArray(iconUrls) ? iconUrls : [iconUrls]).filter(Boolean);
             const modal = document.getElementById('sb-drop-hit-modal');
             if (!modal) {
                 // 兜底：UI 还没建好就退化成 alert
@@ -3880,7 +3884,8 @@
                 this.triggerAutoBack();
                 return;
             }
-            document.getElementById('sb-drop-hit-icon').src = iconUrl || '';
+            const wrap = document.getElementById('sb-drop-hit-icons');
+            wrap.innerHTML = urls.map(u => `<img src="${u}" alt="掉落物">`).join('');
             document.getElementById('sb-drop-hit-time').textContent = new Date().toLocaleTimeString();
             const okBtn = document.getElementById('sb-drop-hit-ok');
             okBtn.onclick = () => {
