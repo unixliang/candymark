@@ -980,6 +980,7 @@
             <div class="sb-menu-item" data-action="delete">🗑️ 删除标签</div>
             <div class="sb-menu-item" data-action="auto-back-global">🚪 自动后退【全局】</div>
             <div class="sb-menu-item" data-action="drop-notify-global">🔔 掉落通知【全局】</div>
+            <div class="sb-menu-item" data-action="drop-subscribe-global">📋 掉落订阅管理【全局】</div>
             <div class="sb-menu-item" data-action="cancel">❌ 取消</div>
         </div>
         <div id="sb-add-menu">
@@ -2951,6 +2952,9 @@
                     break;
                 case 'drop-notify-global':
                     this.showDropNotifyModal();
+                    break;
+                case 'drop-subscribe-global':
+                    this.showDropSubscribeModal();
                     break;
                 case 'cancel':
                     // 什么都不做，只是关闭菜单
