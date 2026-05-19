@@ -976,7 +976,7 @@
             <div class="sb-menu-item" data-action="edit">✏️ 修改名称</div>
             <div class="sb-menu-item" data-action="delete">🗑️ 删除标签</div>
             <div class="sb-menu-item" data-action="auto-back-global">🚪 自动后退【全局】</div>
-            <div class="sb-menu-item" data-action="drop-subscribe-global">📋 掉落通知【全局】</div>
+            <div class="sb-menu-item" data-action="drop-subscribe-global">🔔 掉落通知【全局】</div>
             <div class="sb-menu-item" data-action="cancel">❌ 取消</div>
         </div>
         <div id="sb-add-menu">
@@ -984,7 +984,7 @@
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
             <div class="sb-menu-item" data-action="auto-back">🚪 自动后退</div>
-            <div class="sb-menu-item" data-action="subscribe-from-drop-list">📋 掉落通知</div>
+            <div class="sb-menu-item" data-action="subscribe-from-drop-list">🔔 掉落通知</div>
             <div class="sb-menu-item" data-action="config-management">⚙️ 配置管理</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
         </div>
