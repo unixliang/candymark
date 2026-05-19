@@ -2185,10 +2185,14 @@
         handleBookmarkClick(url, element) {
             // 触发点击动画
             this.triggerClickAnimation(element);
-            
+
             // 特殊URL（back, reload等）已通过onclick属性处理
-            // 这里只处理普通URL
-            window.location.href = url;
+            // 这里只处理普通URL；若已经在目标 URL，直接刷新以更新页面状态
+            if (url === window.location.href) {
+                window.location.reload();
+            } else {
+                window.location.href = url;
+            }
         }
         
         triggerClickAnimation(element) {
