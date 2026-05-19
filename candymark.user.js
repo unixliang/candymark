@@ -62,7 +62,14 @@
         } catch (e) {
             blacklist = ['greasyfork.org', 'github.com'];
         }
-        
+
+        let dropSubscriptions;
+        try {
+            dropSubscriptions = JSON.parse(storage.getValue('sb_drop_subscriptions', '[]'));
+        } catch (e) {
+            dropSubscriptions = [];
+        }
+
         return {
             enabled: storage.getValue('sb_enabled', 'true') === 'true',
             showTrigger: storage.getValue('sb_show_trigger', 'true') === 'true',
@@ -81,7 +88,8 @@
             autoBackTurnCount: parseInt(storage.getValue('sb_auto_back_turn_count', '3')),
             autoBackDropEnabled: storage.getValue('sb_auto_back_drop_enabled', 'false') === 'true',
             autoBackSummonEnabled: storage.getValue('sb_auto_back_summon_enabled', 'false') === 'true',
-            autoBackAbilityEnabled: storage.getValue('sb_auto_back_ability_enabled', 'false') === 'true'
+            autoBackAbilityEnabled: storage.getValue('sb_auto_back_ability_enabled', 'false') === 'true',
+            dropSubscriptions: dropSubscriptions
         };
     };
     
@@ -727,6 +735,63 @@
             align-self: center;
             flex-shrink: 0;
         }
+
+        .sb-drop-subscribe-hint {
+            font-size: 13px;
+            color: #666;
+            margin: 8px 0 12px;
+            line-height: 1.4;
+        }
+        .sb-drop-subscribe-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 12px 0 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+            padding: 4px;
+        }
+        .sb-drop-sub-item {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            background: #f7f7f7;
+            padding: 4px;
+            transition: all 0.15s;
+        }
+        .sb-drop-sub-item img {
+            width: 100%;
+            height: auto;
+            display: block;
+            pointer-events: none;
+        }
+        .sb-drop-sub-item input[type="checkbox"] {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            margin: 0;
+            width: 18px;
+            height: 18px;
+            z-index: 2;
+        }
+        .sb-drop-sub-item.checked {
+            border-color: #4caf50;
+            background: #e8f5e9;
+        }
+        .sb-drop-sub-item .sb-low-prob {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            background: rgba(255, 87, 34, 0.85);
+            color: #fff;
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 3px;
+        }
         
         /* 数值调节器样式 */
         .sb-number-adjuster {
@@ -903,6 +968,7 @@
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
             <div class="sb-menu-item" data-action="auto-back">🚪 自动后退</div>
             <div class="sb-menu-item" data-action="drop-notify">🔔 掉落通知</div>
+            <div class="sb-menu-item" data-action="subscribe-from-drop-list">➕ 从掉落列表订阅</div>
             <div class="sb-menu-item" data-action="config-management">⚙️ 配置管理</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
         </div>
@@ -1086,6 +1152,17 @@
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-drop-notify-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-drop-notify-cancel">取消</button>
+                </div>
+            </div>
+        </div>
+        <div id="sb-drop-subscribe-modal" class="sb-modal">
+            <div class="sb-modal-content">
+                <h3>从掉落列表订阅</h3>
+                <div class="sb-drop-subscribe-hint" id="sb-drop-subscribe-hint"></div>
+                <div class="sb-drop-subscribe-grid" id="sb-drop-subscribe-grid"></div>
+                <div class="sb-modal-buttons">
+                    <button class="sb-btn-primary" id="sb-drop-subscribe-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-drop-subscribe-cancel">取消</button>
                 </div>
             </div>
         </div>
@@ -1639,6 +1716,15 @@
                 this.hideDropNotifyModal();
             });
 
+            // 从掉落列表订阅
+            document.getElementById('sb-drop-subscribe-confirm').addEventListener('click', () => {
+                this.confirmDropSubscribe();
+            });
+
+            document.getElementById('sb-drop-subscribe-cancel').addEventListener('click', () => {
+                this.hideDropSubscribeModal();
+            });
+
             // 自动后退设置
             document.getElementById('sb-auto-back-confirm').addEventListener('click', () => {
                 this.confirmAutoBackChange();
@@ -2111,6 +2197,9 @@
                     break;
                 case 'drop-notify':
                     this.showDropNotifyModal();
+                    break;
+                case 'subscribe-from-drop-list':
+                    this.showDropSubscribeModal();
                     break;
                 case 'config-management':
                     this.showConfigMenu();
@@ -2604,7 +2693,85 @@
 
             this.hideDropNotifyModal();
         }
-        
+
+        showDropSubscribeModal() {
+            const modal = document.getElementById('sb-drop-subscribe-modal');
+            const grid = document.getElementById('sb-drop-subscribe-grid');
+            const hint = document.getElementById('sb-drop-subscribe-hint');
+
+            const list = document.querySelector('.prt-drop-item-list');
+            const items = list ? Array.from(list.querySelectorAll('.btn-drop-item-image')) : [];
+
+            if (items.length === 0) {
+                hint.textContent = '当前页面未找到掉落列表（.prt-drop-item-list）。请先打开副本掉落预览页后再试。';
+                grid.innerHTML = '';
+                modal.classList.add('show');
+                return;
+            }
+
+            const subscribed = new Set(CONFIG.dropSubscriptions.map(s => `${s.kind}_${s.itemId}`));
+            hint.textContent = '勾选要监听的物品，再次打开此页面可调整。';
+            grid.innerHTML = items.map(el => {
+                const id = el.dataset.itemId || '';
+                const kind = el.dataset.itemKind || '';
+                const img = el.querySelector('img')?.src || '';
+                const key = `${kind}_${id}`;
+                const checked = subscribed.has(key) ? 'checked' : '';
+                const lowProb = el.querySelector('.txt-low-probability')
+                    ? '<div class="sb-low-prob">低</div>' : '';
+                return `<label class="sb-drop-sub-item ${checked ? 'checked' : ''}" data-key="${key}">
+                    <input type="checkbox" data-item-id="${id}" data-kind="${kind}" data-icon="${img}" ${checked}>
+                    <img src="${img}" alt="${key}">
+                    ${lowProb}
+                </label>`;
+            }).join('');
+
+            grid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    cb.closest('.sb-drop-sub-item').classList.toggle('checked', cb.checked);
+                });
+            });
+
+            modal.classList.add('show');
+        }
+
+        hideDropSubscribeModal() {
+            document.getElementById('sb-drop-subscribe-modal').classList.remove('show');
+        }
+
+        confirmDropSubscribe() {
+            const grid = document.getElementById('sb-drop-subscribe-grid');
+            const checked = grid.querySelectorAll('input[type="checkbox"]:checked');
+            const seenInDom = new Set();
+            const newSubs = [];
+            checked.forEach(cb => {
+                const itemId = cb.dataset.itemId;
+                const kind = cb.dataset.kind;
+                seenInDom.add(`${kind}_${itemId}`);
+                newSubs.push({
+                    itemId,
+                    kind,
+                    iconUrl: cb.dataset.icon
+                });
+            });
+
+            // 保留当前页未出现的旧订阅（不要因为本次掉落列表里没有就误删）
+            const allDomKeys = new Set();
+            grid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                allDomKeys.add(`${cb.dataset.kind}_${cb.dataset.itemId}`);
+            });
+            CONFIG.dropSubscriptions.forEach(s => {
+                const key = `${s.kind}_${s.itemId}`;
+                if (!allDomKeys.has(key)) {
+                    newSubs.push(s);
+                }
+            });
+
+            CONFIG.dropSubscriptions = newSubs;
+            storage.setValue('sb_drop_subscriptions', JSON.stringify(newSubs));
+            this.hideDropSubscribeModal();
+        }
+
         showMenu(e, bookmarkId) {
             e.preventDefault();
             e.stopPropagation();
@@ -3642,6 +3809,20 @@
                 if (bahaHornElement) {
                     clearInterval(this.dropCheckInterval);
                     this.showDropAlert('大巴角', 'gold');
+                    this.triggerAutoBack();
+                    return;
+                }
+            }
+
+            // 检查自定义订阅（用户从掉落预览页订阅的物品）
+            const subs = config.dropSubscriptions || [];
+            for (const sub of subs) {
+                if (!sub || !sub.itemId) continue;
+                const el = document.querySelector(`[data-key$='_${sub.itemId}']`);
+                if (el) {
+                    clearInterval(this.dropCheckInterval);
+                    const time = new Date().toLocaleTimeString();
+                    alert(`🎉 订阅物品掉落了！🎉\n时间：${time}`);
                     this.triggerAutoBack();
                     return;
                 }
