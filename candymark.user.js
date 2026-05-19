@@ -1251,15 +1251,15 @@
                         <input type="checkbox" id="sb-auto-back-summon">
                         🔮 召唤后
                     </label>
+                    <div class="sb-ability-filter-hint" id="sb-auto-back-summon-hint"></div>
+                    <div class="sb-ability-filter-grid" id="sb-auto-back-summon-grid"></div>
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-auto-back-ability">
                         ⚡ 技能后
                     </label>
+                    <div class="sb-ability-filter-hint" id="sb-auto-back-ability-hint"></div>
+                    <div class="sb-ability-filter-grid" id="sb-auto-back-ability-grid"></div>
                 </div>
-                <div class="sb-ability-filter-hint" id="sb-auto-back-ability-hint"></div>
-                <div class="sb-ability-filter-grid" id="sb-auto-back-ability-grid"></div>
-                <div class="sb-ability-filter-hint" id="sb-auto-back-summon-hint"></div>
-                <div class="sb-ability-filter-grid" id="sb-auto-back-summon-grid"></div>
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-auto-back-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-auto-back-reset">重置</button>
@@ -1289,15 +1289,15 @@
                         <input type="checkbox" id="sb-auto-jump-summon">
                         🔮 召唤后
                     </label>
+                    <div class="sb-ability-filter-hint" id="sb-auto-jump-summon-hint"></div>
+                    <div class="sb-ability-filter-grid" id="sb-auto-jump-summon-grid"></div>
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-auto-jump-ability">
                         ⚡ 技能后
                     </label>
+                    <div class="sb-ability-filter-hint" id="sb-auto-jump-ability-hint"></div>
+                    <div class="sb-ability-filter-grid" id="sb-auto-jump-ability-grid"></div>
                 </div>
-                <div class="sb-ability-filter-hint" id="sb-auto-jump-ability-hint"></div>
-                <div class="sb-ability-filter-grid" id="sb-auto-jump-ability-grid"></div>
-                <div class="sb-ability-filter-hint" id="sb-auto-jump-summon-hint"></div>
-                <div class="sb-ability-filter-grid" id="sb-auto-jump-summon-grid"></div>
                 <div class="sb-auto-jump-target-label">跳转目标（单选）</div>
                 <div class="sb-drop-subscribe-hint" id="sb-auto-jump-hint"></div>
                 <div class="sb-drop-subscribe-grid" id="sb-auto-jump-target-grid"></div>
