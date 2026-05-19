@@ -2919,7 +2919,6 @@
 
             const currentList = (gameDetectorInstance && gameDetectorInstance.battleData
                 && gameDetectorInstance.battleData.abilityList) || [];
-            const currentMap = new Map(currentList.map(a => [String(a.id), a]));
             const savedArr = Array.isArray(savedFilter) ? savedFilter : [];
 
             // 顺序：先已选项（保留 savedFilter 顺序），再当前战斗里其他未选项
@@ -2928,11 +2927,8 @@
             for (const item of savedArr) {
                 const id = String(item && item.id != null ? item.id : item);
                 if (!id || rendered.has(id)) continue;
-                const fromBattle = currentMap.get(id);
-                // 优先用当前战斗的图标，但只在非空时；否则退回 saved 自带的 icon
-                const battleIcon = (fromBattle && fromBattle.icon) || '';
-                const savedIcon = (item && item.icon) || '';
-                const icon = battleIcon || savedIcon;
+                // 已选项的图标直接用 saved 里存的 URL，不再叠加当前战斗的图标逻辑
+                const icon = (item && item.icon) || '';
                 cells.push({ id, icon, checked: true });
                 rendered.add(id);
             }
