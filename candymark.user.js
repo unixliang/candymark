@@ -4306,8 +4306,9 @@
                         const id = first['ability-id'];
                         if (!id) return;
                         const cls = first['class'] || '';
-                        const iconClass = cls.split(/\s+/).find(c => c.startsWith('ico-ability-'));
-                        const iconId = iconClass ? iconClass.substring('ico-ability-'.length) : '';
+                        // GBF 的 class 是 "ico-ability1921_1"（注意：ability 后没有连字符）
+                        const iconClass = cls.split(/\s+/).find(c => c.startsWith('ico-ability'));
+                        const iconId = iconClass ? iconClass.substring('ico-ability'.length) : '';
                         list.push({
                             id: String(id),
                             iconId,
