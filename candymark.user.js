@@ -2973,12 +2973,21 @@
             if (!grid) return null;
             const inputs = grid.querySelectorAll('input[type="checkbox"]');
             if (inputs.length === 0) return null;
+
+            // 兜底：data-attr 缺失时退回当前战斗的图标
+            const currentList = (gameDetectorInstance && gameDetectorInstance.battleData
+                && gameDetectorInstance.battleData.abilityList) || [];
+            const battleIcons = new Map(currentList.map(a => [String(a.id), a.icon]));
+
             const items = [];
             inputs.forEach(cb => {
                 if (cb.checked) {
+                    const id = cb.dataset.abilityId;
+                    const dataIcon = cb.dataset.abilityIcon || '';
+                    const fallbackIcon = battleIcons.get(String(id)) || '';
                     items.push({
-                        id: cb.dataset.abilityId,
-                        icon: cb.dataset.abilityIcon || ''
+                        id,
+                        icon: dataIcon || fallbackIcon
                     });
                 }
             });
