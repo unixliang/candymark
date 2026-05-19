@@ -1194,7 +1194,7 @@
                 </div>
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-auto-back-confirm">确认</button>
-                    <button class="sb-btn-secondary" id="sb-auto-back-reset">默认</button>
+                    <button class="sb-btn-secondary" id="sb-auto-back-reset">重置</button>
                     <button class="sb-btn-secondary" id="sb-auto-back-cancel">取消</button>
                 </div>
             </div>
@@ -1231,7 +1231,7 @@
                 <div class="sb-drop-subscribe-grid" id="sb-auto-jump-target-grid"></div>
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-auto-jump-confirm">确认</button>
-                    <button class="sb-btn-secondary" id="sb-auto-jump-reset">默认</button>
+                    <button class="sb-btn-secondary" id="sb-auto-jump-reset">重置</button>
                     <button class="sb-btn-secondary" id="sb-auto-jump-cancel">取消</button>
                 </div>
             </div>
@@ -2786,7 +2786,7 @@
         // 只重置 UI 状态，需要用户再点"确认"才落盘
         resetAutoBackForm() {
             document.getElementById('sb-auto-back-turn').checked = false;
-            document.getElementById('sb-auto-back-turn-count').value = 3;
+            document.getElementById('sb-auto-back-turn-count').value = 1;
             document.getElementById('sb-auto-back-drop').checked = false;
             document.getElementById('sb-auto-back-summon').checked = false;
             document.getElementById('sb-auto-back-ability').checked = false;
@@ -2794,7 +2794,7 @@
 
         resetAutoJumpForm() {
             document.getElementById('sb-auto-jump-turn').checked = false;
-            document.getElementById('sb-auto-jump-turn-count').value = 3;
+            document.getElementById('sb-auto-jump-turn-count').value = 1;
             document.getElementById('sb-auto-jump-drop').checked = false;
             document.getElementById('sb-auto-jump-summon').checked = false;
             document.getElementById('sb-auto-jump-ability').checked = false;
