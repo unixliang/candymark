@@ -784,6 +784,22 @@
             border-radius: 4px;
             pointer-events: none;
         }
+        .sb-ability-fallback {
+            width: 40px;
+            height: 40px;
+            background: #ccc;
+            color: #333;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            word-break: break-all;
+            text-align: center;
+            padding: 2px;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
         .sb-auto-jump-target-label {
             font-size: 14px;
             font-weight: 600;
@@ -2859,28 +2875,62 @@
             //console.log(`✅ [CandyMark] 自动后退设置已更新：攻击=${CONFIG.autoBackTurnEnabled}(TURN≥${CONFIG.autoBackTurnCount})，结算=${CONFIG.autoBackDropEnabled}，召唤=${CONFIG.autoBackSummonEnabled}，技能=${CONFIG.autoBackAbilityEnabled}`);
         }
 
-        // 渲染"技能后"过滤器网格。saved 是当前已存的 ability id 数组。
+        // 渲染"技能后"过滤器网格。
+        // 显示规则：已选项始终展示（即便不在当前战斗，也用缓存图标）+ 当前战斗未选项追加。
         renderAbilityFilterGrid(gridId, hintId, savedIds) {
             const grid = document.getElementById(gridId);
             const hint = document.getElementById(hintId);
             if (!grid || !hint) return;
 
-            const abilityList = (gameDetectorInstance && gameDetectorInstance.battleData
+            const currentList = (gameDetectorInstance && gameDetectorInstance.battleData
                 && gameDetectorInstance.battleData.abilityList) || [];
-            const savedSet = new Set((savedIds || []).map(String));
+            const currentMap = new Map(currentList.map(a => [String(a.id), a]));
+            const savedArr = (savedIds || []).map(String);
 
-            if (abilityList.length === 0) {
+            let iconCache = {};
+            try { iconCache = JSON.parse(storage.getValue('sb_ability_icon_cache', '{}')) || {}; } catch (e) {}
+
+            const iconUrlFromCache = (id) => {
+                const v = iconCache[id];
+                return v ? `https://prd-game-a-granbluefantasy.akamaized.net/assets/img_mid/sp/ui/icon/ability/m/${v}.png` : '';
+            };
+
+            // 顺序：先已选项（保留 savedIds 顺序），再当前战斗里其他未选项
+            const cells = [];
+            const rendered = new Set();
+            for (const id of savedArr) {
+                if (rendered.has(id)) continue;
+                const fromBattle = currentMap.get(id);
+                cells.push({
+                    id,
+                    icon: fromBattle ? fromBattle.icon : iconUrlFromCache(id),
+                    checked: true
+                });
+                rendered.add(id);
+            }
+            for (const ab of currentList) {
+                const id = String(ab.id);
+                if (rendered.has(id)) continue;
+                cells.push({ id, icon: ab.icon, checked: false });
+                rendered.add(id);
+            }
+
+            if (cells.length === 0) {
                 hint.textContent = '进入战斗后可在此选择具体技能。不选则任意技能触发都满足条件。';
                 grid.innerHTML = '';
                 return;
             }
 
             hint.textContent = '勾选要监听的技能；不选则任意技能触发都满足条件。';
-            grid.innerHTML = abilityList.map(ab => {
-                const checked = savedSet.has(String(ab.id));
-                return `<label class="sb-drop-sub-item ${checked ? 'checked' : ''}" data-ability-id="${ab.id}">
-                    <input type="checkbox" data-ability-id="${ab.id}" ${checked ? 'checked' : ''}>
-                    <img src="${ab.icon}" alt="${ab.id}">
+            grid.innerHTML = cells.map(c => {
+                const checkedAttr = c.checked ? 'checked' : '';
+                const cls = c.checked ? 'checked' : '';
+                const visual = c.icon
+                    ? `<img src="${c.icon}" alt="${c.id}">`
+                    : `<div class="sb-ability-fallback">${c.id}</div>`;
+                return `<label class="sb-drop-sub-item ${cls}" data-ability-id="${c.id}">
+                    <input type="checkbox" data-ability-id="${c.id}" ${checkedAttr}>
+                    ${visual}
                 </label>`;
             }).join('');
 
@@ -4329,6 +4379,22 @@
                 seen.add(a.id);
                 return true;
             });
+
+            // 同步更新持久化图标缓存：让用户在别的战斗里仍能看到此前选中的技能图标
+            try {
+                let cache = {};
+                try { cache = JSON.parse(storage.getValue('sb_ability_icon_cache', '{}')) || {}; } catch (e) {}
+                this.battleData.abilityList.forEach(a => {
+                    if (a.iconId) cache[a.id] = a.iconId;
+                });
+                // 简单上限：超过 500 条删最早的，避免无限增长
+                const keys = Object.keys(cache);
+                if (keys.length > 500) {
+                    const trim = keys.slice(0, keys.length - 500);
+                    trim.forEach(k => { delete cache[k]; });
+                }
+                storage.setValue('sb_ability_icon_cache', JSON.stringify(cache));
+            } catch (e) {}
         }
 
         matchesAbilityFilter(filterIds, usedId) {
