@@ -766,30 +766,19 @@
             display: block;
             pointer-events: none;
         }
-        /* 自绘 checkbox，避免移动端原生控件被系统放大遮住图片 */
+        /* 隐藏 checkbox 本体，只靠 .checked 外框反馈，避免移动端原生控件遮挡图片 */
         .sb-drop-sub-item input[type="checkbox"] {
-            appearance: none;
-            -webkit-appearance: none;
             position: absolute;
-            top: 3px;
-            left: 3px;
+            opacity: 0;
+            pointer-events: none;
+            width: 0;
+            height: 0;
             margin: 0;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.85);
-            border: 1.5px solid rgba(0, 0, 0, 0.35);
-            box-sizing: border-box;
-            cursor: pointer;
-            z-index: 2;
-        }
-        .sb-drop-sub-item input[type="checkbox"]:checked {
-            background: #4caf50 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' d='M3 8l3.5 3.5L13 5'/></svg>") center/72% no-repeat;
-            border-color: #4caf50;
         }
         .sb-drop-sub-item.checked {
             border-color: #4caf50;
             background: #e8f5e9;
+            box-shadow: 0 0 0 1px #4caf50; /* 外加 1px 环，不影响布局 */
         }
         .sb-drop-sub-item .sb-low-prob {
             position: absolute;
