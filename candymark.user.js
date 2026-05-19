@@ -4410,6 +4410,27 @@
                 seen.add(a.id);
                 return true;
             });
+
+            // 给已有 saved 过滤器里 icon 缺失的条目回填图标（应对老格式迁移 / 跨队伍场景）
+            this.backfillAbilityFilter(CONFIG.autoBackAbilityIds, 'sb_auto_back_ability_ids');
+            this.backfillAbilityFilter(CONFIG.autoJumpAbilityIds, 'sb_auto_jump_ability_ids');
+        }
+
+        backfillAbilityFilter(filter, storageKey) {
+            if (!Array.isArray(filter) || filter.length === 0) return;
+            const battleMap = new Map(this.battleData.abilityList.map(a => [String(a.id), a]));
+            let changed = false;
+            for (const item of filter) {
+                if (!item || item.icon) continue;
+                const hit = battleMap.get(String(item.id));
+                if (hit && hit.icon) {
+                    item.icon = hit.icon;
+                    changed = true;
+                }
+            }
+            if (changed) {
+                try { storage.setValue(storageKey, JSON.stringify(filter)); } catch (e) {}
+            }
         }
 
         matchesAbilityFilter(filter, usedId) {
