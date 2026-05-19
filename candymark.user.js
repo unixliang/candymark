@@ -70,6 +70,15 @@
             dropSubscriptions = [];
         }
 
+        const parseIdArray = (key) => {
+            try {
+                const arr = JSON.parse(storage.getValue(key, '[]'));
+                return Array.isArray(arr) ? arr.filter(x => x != null).map(String) : [];
+            } catch (e) {
+                return [];
+            }
+        };
+
         return {
             enabled: storage.getValue('sb_enabled', 'true') === 'true',
             showTrigger: storage.getValue('sb_show_trigger', 'true') === 'true',
@@ -96,6 +105,8 @@
                 const n = parseInt(raw, 10);
                 return Number.isNaN(n) ? null : n;
             })(),
+            autoBackAbilityIds: parseIdArray('sb_auto_back_ability_ids'),
+            autoJumpAbilityIds: parseIdArray('sb_auto_jump_ability_ids'),
             dropSubscriptions: dropSubscriptions
         };
     };
@@ -749,6 +760,30 @@
             margin: 8px 0 12px;
             line-height: 1.4;
         }
+        .sb-ability-filter-hint {
+            font-size: 12px;
+            color: #888;
+            margin: 4px 0 4px 24px;
+            line-height: 1.3;
+        }
+        .sb-ability-filter-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 0 0 8px 24px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .sb-ability-filter-grid .sb-drop-sub-item {
+            padding: 2px;
+        }
+        .sb-ability-filter-grid img {
+            width: 40px;
+            height: 40px;
+            display: block;
+            border-radius: 4px;
+            pointer-events: none;
+        }
         .sb-auto-jump-target-label {
             font-size: 14px;
             font-weight: 600;
@@ -1192,6 +1227,8 @@
                         ⚡ 技能后
                     </label>
                 </div>
+                <div class="sb-ability-filter-hint" id="sb-auto-back-ability-hint"></div>
+                <div class="sb-ability-filter-grid" id="sb-auto-back-ability-grid"></div>
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-auto-back-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-auto-back-reset">重置</button>
@@ -1226,6 +1263,8 @@
                         ⚡ 技能后
                     </label>
                 </div>
+                <div class="sb-ability-filter-hint" id="sb-auto-jump-ability-hint"></div>
+                <div class="sb-ability-filter-grid" id="sb-auto-jump-ability-grid"></div>
                 <div class="sb-auto-jump-target-label">跳转目标（单选）</div>
                 <div class="sb-drop-subscribe-hint" id="sb-auto-jump-hint"></div>
                 <div class="sb-drop-subscribe-grid" id="sb-auto-jump-target-grid"></div>
@@ -1376,7 +1415,9 @@
                     autoJumpDropEnabled: CONFIG.autoJumpDropEnabled,
                     autoJumpSummonEnabled: CONFIG.autoJumpSummonEnabled,
                     autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
-                    autoJumpTargetId: CONFIG.autoJumpTargetId
+                    autoJumpTargetId: CONFIG.autoJumpTargetId,
+                    autoBackAbilityIds: CONFIG.autoBackAbilityIds,
+                    autoJumpAbilityIds: CONFIG.autoJumpAbilityIds
                 }
             };
 
@@ -1500,6 +1541,16 @@
                                         CONFIG.autoJumpTargetId = settings.autoJumpTargetId;
                                         storage.setValue('sb_auto_jump_target_id', settings.autoJumpTargetId == null ? '' : String(settings.autoJumpTargetId));
                                     }
+                                    if (Array.isArray(settings.autoBackAbilityIds)) {
+                                        const ids = settings.autoBackAbilityIds.filter(x => x != null).map(String);
+                                        CONFIG.autoBackAbilityIds = ids;
+                                        storage.setValue('sb_auto_back_ability_ids', JSON.stringify(ids));
+                                    }
+                                    if (Array.isArray(settings.autoJumpAbilityIds)) {
+                                        const ids = settings.autoJumpAbilityIds.filter(x => x != null).map(String);
+                                        CONFIG.autoJumpAbilityIds = ids;
+                                        storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(ids));
+                                    }
                                 }
 
                                 updateBookmarkSize(CONFIG.bookmarkSize);
@@ -1545,7 +1596,9 @@
                         autoJumpDropEnabled: CONFIG.autoJumpDropEnabled,
                         autoJumpSummonEnabled: CONFIG.autoJumpSummonEnabled,
                         autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
-                        autoJumpTargetId: CONFIG.autoJumpTargetId
+                        autoJumpTargetId: CONFIG.autoJumpTargetId,
+                        autoBackAbilityIds: CONFIG.autoBackAbilityIds,
+                        autoJumpAbilityIds: CONFIG.autoJumpAbilityIds
                     }
                 };
                 
@@ -1661,6 +1714,16 @@
                         if (settings.autoJumpTargetId === null || typeof settings.autoJumpTargetId === 'number') {
                             CONFIG.autoJumpTargetId = settings.autoJumpTargetId;
                             storage.setValue('sb_auto_jump_target_id', settings.autoJumpTargetId == null ? '' : String(settings.autoJumpTargetId));
+                        }
+                        if (Array.isArray(settings.autoBackAbilityIds)) {
+                            const ids = settings.autoBackAbilityIds.filter(x => x != null).map(String);
+                            CONFIG.autoBackAbilityIds = ids;
+                            storage.setValue('sb_auto_back_ability_ids', JSON.stringify(ids));
+                        }
+                        if (Array.isArray(settings.autoJumpAbilityIds)) {
+                            const ids = settings.autoJumpAbilityIds.filter(x => x != null).map(String);
+                            CONFIG.autoJumpAbilityIds = ids;
+                            storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(ids));
                         }
                     }
 
@@ -2743,8 +2806,14 @@
             if (abilityCheckbox) {
                 abilityCheckbox.checked = CONFIG.autoBackAbilityEnabled;
             }
+
+            this.renderAbilityFilterGrid(
+                'sb-auto-back-ability-grid',
+                'sb-auto-back-ability-hint',
+                CONFIG.autoBackAbilityIds || []
+            );
         }
-        
+
         hideAutoBackModal() {
             const modal = document.getElementById('sb-auto-back-modal');
             modal.classList.remove('show');
@@ -2778,9 +2847,61 @@
             storage.setValue('sb_auto_back_drop_enabled', CONFIG.autoBackDropEnabled.toString());
             storage.setValue('sb_auto_back_summon_enabled', CONFIG.autoBackSummonEnabled.toString());
             storage.setValue('sb_auto_back_ability_enabled', CONFIG.autoBackAbilityEnabled.toString());
-            
+
+            // 仅在 grid 实际渲染了技能时更新过滤器；不在战斗中（grid 为空）则保留旧值
+            const newAbilityIds = this.collectAbilityFilter('sb-auto-back-ability-grid');
+            if (newAbilityIds !== null) {
+                CONFIG.autoBackAbilityIds = newAbilityIds;
+                storage.setValue('sb_auto_back_ability_ids', JSON.stringify(newAbilityIds));
+            }
+
             this.hideAutoBackModal();
             //console.log(`✅ [CandyMark] 自动后退设置已更新：攻击=${CONFIG.autoBackTurnEnabled}(TURN≥${CONFIG.autoBackTurnCount})，结算=${CONFIG.autoBackDropEnabled}，召唤=${CONFIG.autoBackSummonEnabled}，技能=${CONFIG.autoBackAbilityEnabled}`);
+        }
+
+        // 渲染"技能后"过滤器网格。saved 是当前已存的 ability id 数组。
+        renderAbilityFilterGrid(gridId, hintId, savedIds) {
+            const grid = document.getElementById(gridId);
+            const hint = document.getElementById(hintId);
+            if (!grid || !hint) return;
+
+            const abilityList = (gameDetectorInstance && gameDetectorInstance.battleData
+                && gameDetectorInstance.battleData.abilityList) || [];
+            const savedSet = new Set((savedIds || []).map(String));
+
+            if (abilityList.length === 0) {
+                hint.textContent = '进入战斗后可在此选择具体技能。不选则任意技能触发都满足条件。';
+                grid.innerHTML = '';
+                return;
+            }
+
+            hint.textContent = '勾选要监听的技能；不选则任意技能触发都满足条件。';
+            grid.innerHTML = abilityList.map(ab => {
+                const checked = savedSet.has(String(ab.id));
+                return `<label class="sb-drop-sub-item ${checked ? 'checked' : ''}" data-ability-id="${ab.id}">
+                    <input type="checkbox" data-ability-id="${ab.id}" ${checked ? 'checked' : ''}>
+                    <img src="${ab.icon}" alt="${ab.id}">
+                </label>`;
+            }).join('');
+
+            grid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    cb.closest('.sb-drop-sub-item').classList.toggle('checked', cb.checked);
+                });
+            });
+        }
+
+        // 从 grid 收集勾选项。若 grid 是空（不在战斗中），返回 null 表示"别动已有的"
+        collectAbilityFilter(gridId) {
+            const grid = document.getElementById(gridId);
+            if (!grid) return null;
+            const inputs = grid.querySelectorAll('input[type="checkbox"]');
+            if (inputs.length === 0) return null; // 没有渲染任何技能
+            const ids = [];
+            inputs.forEach(cb => {
+                if (cb.checked) ids.push(cb.dataset.abilityId);
+            });
+            return ids;
         }
 
         // 只重置 UI 状态，需要用户再点"确认"才落盘
@@ -2790,6 +2911,7 @@
             document.getElementById('sb-auto-back-drop').checked = false;
             document.getElementById('sb-auto-back-summon').checked = false;
             document.getElementById('sb-auto-back-ability').checked = false;
+            this.clearAbilityFilterUI('sb-auto-back-ability-grid');
         }
 
         resetAutoJumpForm() {
@@ -2803,6 +2925,16 @@
                 grid.querySelectorAll('input[name="sb-auto-jump-target"]').forEach(r => { r.checked = false; });
                 grid.querySelectorAll('.sb-drop-sub-item').forEach(el => el.classList.remove('checked'));
             }
+            this.clearAbilityFilterUI('sb-auto-jump-ability-grid');
+        }
+
+        clearAbilityFilterUI(gridId) {
+            const grid = document.getElementById(gridId);
+            if (!grid) return;
+            grid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+                cb.closest('.sb-drop-sub-item').classList.remove('checked');
+            });
         }
 
         showAutoJumpModal() {
@@ -2817,6 +2949,13 @@
             document.getElementById('sb-auto-jump-drop').checked = !!CONFIG.autoJumpDropEnabled;
             document.getElementById('sb-auto-jump-summon').checked = !!CONFIG.autoJumpSummonEnabled;
             document.getElementById('sb-auto-jump-ability').checked = !!CONFIG.autoJumpAbilityEnabled;
+
+            this.renderAbilityFilterGrid(
+                'sb-auto-jump-ability-grid',
+                'sb-auto-jump-ability-hint',
+                CONFIG.autoJumpAbilityIds || []
+            );
+
 
             // 过滤可选标签：必须有真实 URL，排除 back / click-through-back
             const candidates = (this.bookmarks || []).filter(b =>
@@ -2893,6 +3032,12 @@
             storage.setValue('sb_auto_jump_summon_enabled', CONFIG.autoJumpSummonEnabled.toString());
             storage.setValue('sb_auto_jump_ability_enabled', CONFIG.autoJumpAbilityEnabled.toString());
             storage.setValue('sb_auto_jump_target_id', CONFIG.autoJumpTargetId == null ? '' : String(CONFIG.autoJumpTargetId));
+
+            const newAbilityIds = this.collectAbilityFilter('sb-auto-jump-ability-grid');
+            if (newAbilityIds !== null) {
+                CONFIG.autoJumpAbilityIds = newAbilityIds;
+                storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(newAbilityIds));
+            }
 
             this.hideAutoJumpModal();
         }
@@ -3753,8 +3898,10 @@
                 currentTurn: 0,
                 maxTurn: 0,
                 startTime: null,
-                lastUpdateTime: null
+                lastUpdateTime: null,
+                abilityList: [] // {id, image}[] —— 当前战斗可用的技能列表，由 start.json 刷新
             };
+            this.lastAbilityIdUsed = null; // 最近一次 ability 请求里的 ability_id，用于过滤判断
             this.autoBackAfterDropCheck = {
                 enabled: true, // 新功能开关
                 lastProcessed: {
@@ -3808,6 +3955,16 @@
                 const originalFetch = window.fetch;
                 window.fetch = function(...args) {
                     const url = args[0];
+                    const opts = args[1];
+                    // 捕获 ability 请求体里的 ability_id，供后续过滤判断
+                    if (typeof url === 'string' && url.includes('ability_result') && opts && opts.body) {
+                        try {
+                            const body = typeof opts.body === 'string' ? JSON.parse(opts.body) : null;
+                            if (body && body.ability_id != null) {
+                                self.lastAbilityIdUsed = String(body.ability_id);
+                            }
+                        } catch (e) {}
+                    }
                     let promise = originalFetch.apply(this, args);
 
                     // 检查是否是战斗相关的API调用
@@ -3840,6 +3997,16 @@
                 };
 
                 XMLHttpRequest.prototype.send = function(...args) {
+                    // 捕获 ability 请求体里的 ability_id
+                    if (this.__candymark_url && this.__candymark_url.includes('ability_result')) {
+                        try {
+                            const raw = args[0];
+                            const body = typeof raw === 'string' ? JSON.parse(raw) : null;
+                            if (body && body.ability_id != null) {
+                                self.lastAbilityIdUsed = String(body.ability_id);
+                            }
+                        } catch (e) {}
+                    }
                     this.addEventListener('readystatechange', () => {
                         if (this.readyState === 4 && this.__candymark_url) {
                             const url = this.__candymark_url;
@@ -3869,6 +4036,8 @@
                     currentTurn = data.turn;
                     this.battleData.startTime = Date.now();
                     //console.log('🔮 [CandyMark] 战斗开始！初始TURN =', currentTurn);
+                    // 缓存当前战斗的技能列表，供"技能后"过滤器使用
+                    this.cacheAbilityList(data);
                 }
                 
                 // 检查是否是战斗结果数据
@@ -3923,16 +4092,23 @@
                     }
                 }
 
-                // 新增：能力结果后的后退/跳转
+                // 新增：能力结果后的后退/跳转，可被技能过滤器收窄
                 if (url.includes('ability_result')) {
                     const config = loadConfig();
-                    if (!this.tryAutoJump('ability', config) && config.autoBackAbilityEnabled) {
+                    const usedId = this.lastAbilityIdUsed;
+                    let jumped = false;
+                    if (this.matchesAbilityFilter(config.autoJumpAbilityIds, usedId)) {
+                        jumped = this.tryAutoJump('ability', config);
+                    }
+                    if (!jumped && config.autoBackAbilityEnabled
+                            && this.matchesAbilityFilter(config.autoBackAbilityIds, usedId)) {
                         setTimeout(() => {
                             if (window.history.length > 1) {
                                 history.back();
                             }
                         }, 50);
                     }
+                    this.lastAbilityIdUsed = null;
                 }
             }
         }
@@ -4118,6 +4294,47 @@
          * @param {'turn'|'drop'|'summon'|'ability'} timing
          * @param {object} [cachedConfig] 可选，已 loadConfig 过的结果
          */
+        cacheAbilityList(data) {
+            if (!data || !data.ability) return;
+            const list = [];
+            try {
+                Object.values(data.ability).forEach(charAbility => {
+                    if (!charAbility || !charAbility.list) return;
+                    Object.values(charAbility.list).forEach(slot => {
+                        const first = Array.isArray(slot) ? slot[0] : slot;
+                        if (!first) return;
+                        const id = first['ability-id'];
+                        if (!id) return;
+                        const cls = first['class'] || '';
+                        const iconClass = cls.split(/\s+/).find(c => c.startsWith('ico-ability-'));
+                        const iconId = iconClass ? iconClass.substring('ico-ability-'.length) : '';
+                        list.push({
+                            id: String(id),
+                            iconId,
+                            icon: iconId
+                                ? `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/ui/icon/ability/m/${iconId}.png`
+                                : ''
+                        });
+                    });
+                });
+            } catch (e) {
+                // 数据结构若有变化就静默放弃
+                return;
+            }
+            // 按 id 去重，避免不同角色的同名技能重复
+            const seen = new Set();
+            this.battleData.abilityList = list.filter(a => {
+                if (seen.has(a.id)) return false;
+                seen.add(a.id);
+                return true;
+            });
+        }
+
+        matchesAbilityFilter(filterIds, usedId) {
+            if (!Array.isArray(filterIds) || filterIds.length === 0) return true;
+            return usedId != null && filterIds.map(String).includes(String(usedId));
+        }
+
         tryAutoJump(timing, cachedConfig) {
             const config = cachedConfig || loadConfig();
             const enabledMap = {
