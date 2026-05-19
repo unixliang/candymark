@@ -4165,13 +4165,20 @@
                 return null;
             };
 
+            // 快速识别 GBF 域名的请求，其他全部直接放行，省下绝大部分页面里发生的 hook 开销
+            const isGbfUrl = (url) => typeof url === 'string'
+                && (url.includes('granbluefantasy') || url.includes('mbga'));
+
             if (!window.fetch.__candymark_wrapped) {
                 const originalFetch = window.fetch;
                 window.fetch = function(...args) {
                     const url = args[0];
+                    // 非 GBF 请求直通，零开销
+                    if (!isGbfUrl(url)) {
+                        return originalFetch.apply(this, args);
+                    }
                     const opts = args[1];
-                    // 捕获 ability / summon 请求体里的 id，供后续过滤判断
-                    if (typeof url === 'string' && opts && opts.body) {
+                    if (opts && opts.body) {
                         const body = extractRequestFields(opts.body);
                         if (body) {
                             if (url.includes('ability_result') && body.ability_id != null) {
@@ -4184,10 +4191,8 @@
                     }
                     let promise = originalFetch.apply(this, args);
 
-                    // 检查是否是战斗相关的API调用
-                    if (url && (url.includes('/raid/') || url.includes('/multiraid/'))) {
+                    if (url.includes('/raid/') || url.includes('/multiraid/')) {
                         promise = promise.then(response => {
-                            // 创建新的响应以便我们能读取内容
                             const clonedResponse = response.clone();
                             clonedResponse.json().then(data => {
                                 self.handleGameResponse(data, url);
@@ -4209,12 +4214,15 @@
                 const originalXHROpen = XMLHttpRequest.prototype.open;
 
                 XMLHttpRequest.prototype.open = function(method, url) {
-                    this.__candymark_url = url;
+                    // 只记录 GBF 域名的 URL，其它请求 __candymark_url 为 undefined，send hook 直接跳过
+                    if (isGbfUrl(url)) {
+                        this.__candymark_url = url;
+                    }
                     return originalXHROpen.apply(this, arguments);
                 };
 
                 XMLHttpRequest.prototype.send = function(...args) {
-                    // 捕获 ability / summon 请求体里的 id（兼容 JSON / form / URLSearchParams / FormData）
+                    // 非 GBF 请求（__candymark_url 没设）一路放行，不挂任何监听
                     if (this.__candymark_url) {
                         const body = extractRequestFields(args[0]);
                         if (body) {
@@ -4225,20 +4233,20 @@
                                 self.lastSummonIdUsed = String(body.summon_id);
                             }
                         }
-                    }
-                    this.addEventListener('readystatechange', () => {
-                        if (this.readyState === 4 && this.__candymark_url) {
-                            const url = this.__candymark_url;
-                            if (url.includes('/raid/') || url.includes('/multiraid/')) {
-                                try {
-                                    const data = JSON.parse(this.responseText);
-                                    self.handleGameResponse(data, url);
-                                } catch (e) {
-                                    // 解析失败，忽略
+                        this.addEventListener('readystatechange', () => {
+                            if (this.readyState === 4) {
+                                const url = this.__candymark_url;
+                                if (url.includes('/raid/') || url.includes('/multiraid/')) {
+                                    try {
+                                        const data = JSON.parse(this.responseText);
+                                        self.handleGameResponse(data, url);
+                                    } catch (e) {
+                                        // 解析失败，忽略
+                                    }
                                 }
                             }
-                        }
-                    });
+                        });
+                    }
                     return originalXHRSend.apply(this, args);
                 };
                 XMLHttpRequest.prototype.send.__candymark_wrapped = true;
