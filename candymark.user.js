@@ -1210,7 +1210,7 @@
                             <input type="number" id="sb-auto-jump-turn-count" class="sb-number-adjuster-input" min="1" max="99" value="3">
                             <button class="sb-number-adjuster-btn" id="sb-auto-jump-turn-increase">+</button>
                         </div>
-                        <div style="margin-left: 20px;">第 N 回合攻击后</div>
+                        <div style="margin-left: 20px;">该回合攻击后</div>
                     </label>
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-auto-jump-drop">
