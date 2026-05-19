@@ -988,7 +988,7 @@
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
             <div class="sb-menu-item" data-action="auto-back">🚪 自动后退</div>
             <div class="sb-menu-item" data-action="drop-notify">🔔 掉落通知</div>
-            <div class="sb-menu-item" data-action="subscribe-from-drop-list">➕ 从掉落列表订阅</div>
+            <div class="sb-menu-item" data-action="subscribe-from-drop-list">📋 掉落订阅管理</div>
             <div class="sb-menu-item" data-action="config-management">⚙️ 配置管理</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
         </div>
@@ -1177,7 +1177,7 @@
         </div>
         <div id="sb-drop-subscribe-modal" class="sb-modal">
             <div class="sb-modal-content">
-                <h3>从掉落列表订阅</h3>
+                <h3>掉落订阅管理</h3>
                 <div class="sb-drop-subscribe-hint" id="sb-drop-subscribe-hint"></div>
                 <div class="sb-drop-subscribe-grid" id="sb-drop-subscribe-grid"></div>
                 <div class="sb-modal-buttons">
@@ -2730,28 +2730,55 @@
             const hint = document.getElementById('sb-drop-subscribe-hint');
 
             const list = document.querySelector('.prt-drop-item-list');
-            const items = list ? Array.from(list.querySelectorAll('.btn-drop-item-image')) : [];
+            const domItems = list ? Array.from(list.querySelectorAll('.btn-drop-item-image')) : [];
 
-            if (items.length === 0) {
-                hint.textContent = '当前页面未找到掉落列表（.prt-drop-item-list）。请先打开副本掉落预览页后再试。';
-                grid.innerHTML = '';
-                modal.classList.add('show');
-                return;
+            // 渲染单元：已订阅在前，掉落列表新增项在后，按 kind_id 去重
+            const renderedKeys = new Set();
+            const cells = [];
+
+            for (const sub of CONFIG.dropSubscriptions) {
+                if (!sub || !sub.itemId || !sub.kind) continue;
+                const key = `${sub.kind}_${sub.itemId}`;
+                if (renderedKeys.has(key)) continue;
+                cells.push({
+                    itemId: sub.itemId,
+                    kind: sub.kind,
+                    iconUrl: sub.iconUrl || '',
+                    isLowProb: false,
+                    checked: true
+                });
+                renderedKeys.add(key);
             }
 
-            const subscribed = new Set(CONFIG.dropSubscriptions.map(s => `${s.kind}_${s.itemId}`));
-            hint.textContent = '勾选要监听的物品，再次打开此页面可调整。';
-            grid.innerHTML = items.map(el => {
+            for (const el of domItems) {
                 const id = el.dataset.itemId || '';
                 const kind = el.dataset.itemKind || '';
-                const img = el.querySelector('img')?.src || '';
                 const key = `${kind}_${id}`;
-                const checked = subscribed.has(key) ? 'checked' : '';
-                const lowProb = el.querySelector('.txt-low-probability')
-                    ? '<div class="sb-low-prob">低</div>' : '';
-                return `<label class="sb-drop-sub-item ${checked ? 'checked' : ''}" data-key="${key}">
-                    <input type="checkbox" data-item-id="${id}" data-kind="${kind}" data-icon="${img}" ${checked}>
-                    <img src="${img}" alt="${key}">
+                if (!id || !kind || renderedKeys.has(key)) continue;
+                cells.push({
+                    itemId: id,
+                    kind: kind,
+                    iconUrl: el.querySelector('img')?.src || '',
+                    isLowProb: !!el.querySelector('.txt-low-probability'),
+                    checked: false
+                });
+                renderedKeys.add(key);
+            }
+
+            if (cells.length === 0) {
+                hint.textContent = '当前没有订阅，且当前页面也没有掉落列表。请到副本掉落预览页（含 .prt-drop-item-list）再打开此对话框以添加。';
+            } else if (domItems.length === 0) {
+                hint.textContent = '当前页面没有掉落列表，仅显示已订阅。取消勾选并确认即可删除订阅。';
+            } else {
+                hint.textContent = '已订阅项已勾选；勾选新项以添加，取消勾选以删除。';
+            }
+
+            grid.innerHTML = cells.map(c => {
+                const checkedAttr = c.checked ? 'checked' : '';
+                const lowProb = c.isLowProb ? '<div class="sb-low-prob">低</div>' : '';
+                return `<label class="sb-drop-sub-item ${c.checked ? 'checked' : ''}" data-key="${c.kind}_${c.itemId}">
+                    <input type="checkbox" data-item-id="${c.itemId}" data-kind="${c.kind}" data-icon="${c.iconUrl}" ${checkedAttr}>
+                    <img src="${c.iconUrl}" alt="${c.kind}_${c.itemId}">
                     ${lowProb}
                 </label>`;
             }).join('');
@@ -2772,29 +2799,13 @@
         confirmDropSubscribe() {
             const grid = document.getElementById('sb-drop-subscribe-grid');
             const checked = grid.querySelectorAll('input[type="checkbox"]:checked');
-            const seenInDom = new Set();
             const newSubs = [];
             checked.forEach(cb => {
-                const itemId = cb.dataset.itemId;
-                const kind = cb.dataset.kind;
-                seenInDom.add(`${kind}_${itemId}`);
                 newSubs.push({
-                    itemId,
-                    kind,
+                    itemId: cb.dataset.itemId,
+                    kind: cb.dataset.kind,
                     iconUrl: cb.dataset.icon
                 });
-            });
-
-            // 保留当前页未出现的旧订阅（不要因为本次掉落列表里没有就误删）
-            const allDomKeys = new Set();
-            grid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                allDomKeys.add(`${cb.dataset.kind}_${cb.dataset.itemId}`);
-            });
-            CONFIG.dropSubscriptions.forEach(s => {
-                const key = `${s.kind}_${s.itemId}`;
-                if (!allDomKeys.has(key)) {
-                    newSubs.push(s);
-                }
             });
 
             CONFIG.dropSubscriptions = newSubs;
