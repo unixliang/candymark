@@ -87,6 +87,7 @@
             autoBackSummonEnabled: storage.getValue('sb_auto_back_summon_enabled', 'false') === 'true',
             autoBackAbilityEnabled: storage.getValue('sb_auto_back_ability_enabled', 'false') === 'true',
             autoJumpTurnEnabled: storage.getValue('sb_auto_jump_turn_enabled', 'false') === 'true',
+            autoJumpTurnCount: parseInt(storage.getValue('sb_auto_jump_turn_count', '3')),
             autoJumpDropEnabled: storage.getValue('sb_auto_jump_drop_enabled', 'false') === 'true',
             autoJumpSummonEnabled: storage.getValue('sb_auto_jump_summon_enabled', 'false') === 'true',
             autoJumpAbilityEnabled: storage.getValue('sb_auto_jump_ability_enabled', 'false') === 'true',
@@ -1183,7 +1184,12 @@
                     <label class="sb-checkbox-item sb-auto-back-item">
                         <input type="checkbox" id="sb-auto-jump-turn">
                         <div class="sb-auto-back-icon">⚔️</div>
-                        <div style="margin-left: 20px;">回合内攻击后</div>
+                        <div class="sb-number-adjuster" style="margin-bottom: 4px; margin-top: 8px; margin-left: 20px;">
+                            <button class="sb-number-adjuster-btn" id="sb-auto-jump-turn-decrease">-</button>
+                            <input type="number" id="sb-auto-jump-turn-count" class="sb-number-adjuster-input" min="1" max="99" value="3">
+                            <button class="sb-number-adjuster-btn" id="sb-auto-jump-turn-increase">+</button>
+                        </div>
+                        <div style="margin-left: 20px;">第 N 回合攻击后</div>
                     </label>
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-auto-jump-drop">
@@ -1343,6 +1349,7 @@
                     bookmarksVisible: CONFIG.bookmarksVisible,
                     dropSubscriptions: CONFIG.dropSubscriptions,
                     autoJumpTurnEnabled: CONFIG.autoJumpTurnEnabled,
+                    autoJumpTurnCount: CONFIG.autoJumpTurnCount,
                     autoJumpDropEnabled: CONFIG.autoJumpDropEnabled,
                     autoJumpSummonEnabled: CONFIG.autoJumpSummonEnabled,
                     autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
@@ -1462,6 +1469,10 @@
                                             storage.setValue('sb_auto_jump_' + t.toLowerCase() + '_enabled', settings[k].toString());
                                         }
                                     });
+                                    if (typeof settings.autoJumpTurnCount === 'number' && settings.autoJumpTurnCount >= 1 && settings.autoJumpTurnCount <= 99) {
+                                        CONFIG.autoJumpTurnCount = settings.autoJumpTurnCount;
+                                        storage.setValue('sb_auto_jump_turn_count', String(settings.autoJumpTurnCount));
+                                    }
                                     if (settings.autoJumpTargetId === null || typeof settings.autoJumpTargetId === 'number') {
                                         CONFIG.autoJumpTargetId = settings.autoJumpTargetId;
                                         storage.setValue('sb_auto_jump_target_id', settings.autoJumpTargetId == null ? '' : String(settings.autoJumpTargetId));
@@ -1507,6 +1518,7 @@
                         autoBackDropEnabled: CONFIG.autoBackDropEnabled,
                         dropSubscriptions: CONFIG.dropSubscriptions,
                         autoJumpTurnEnabled: CONFIG.autoJumpTurnEnabled,
+                        autoJumpTurnCount: CONFIG.autoJumpTurnCount,
                         autoJumpDropEnabled: CONFIG.autoJumpDropEnabled,
                         autoJumpSummonEnabled: CONFIG.autoJumpSummonEnabled,
                         autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
@@ -1619,6 +1631,10 @@
                                 storage.setValue('sb_auto_jump_' + t.toLowerCase() + '_enabled', settings[k].toString());
                             }
                         });
+                        if (typeof settings.autoJumpTurnCount === 'number' && settings.autoJumpTurnCount >= 1 && settings.autoJumpTurnCount <= 99) {
+                            CONFIG.autoJumpTurnCount = settings.autoJumpTurnCount;
+                            storage.setValue('sb_auto_jump_turn_count', String(settings.autoJumpTurnCount));
+                        }
                         if (settings.autoJumpTargetId === null || typeof settings.autoJumpTargetId === 'number') {
                             CONFIG.autoJumpTargetId = settings.autoJumpTargetId;
                             storage.setValue('sb_auto_jump_target_id', settings.autoJumpTargetId == null ? '' : String(settings.autoJumpTargetId));
@@ -1842,7 +1858,23 @@
                 value = Math.min(99, value + 1);
                 input.value = value;
             });
-            
+
+            // 自动跳转的回合数调节器
+            document.getElementById('sb-auto-jump-turn-decrease').addEventListener('click', () => {
+                const input = document.getElementById('sb-auto-jump-turn-count');
+                let value = parseInt(input.value, 10);
+                if (isNaN(value)) value = 4;
+                value = Math.max(1, value - 1);
+                input.value = value;
+            });
+            document.getElementById('sb-auto-jump-turn-increase').addEventListener('click', () => {
+                const input = document.getElementById('sb-auto-jump-turn-count');
+                let value = parseInt(input.value, 10);
+                if (isNaN(value)) value = 2;
+                value = Math.min(99, value + 1);
+                input.value = value;
+            });
+
             // 菜单事件
             document.getElementById('sb-menu').addEventListener('click', (e) => {
                 const action = e.target.dataset.action;
@@ -2728,6 +2760,7 @@
 
             // 同步 4 个时机开关
             document.getElementById('sb-auto-jump-turn').checked = !!CONFIG.autoJumpTurnEnabled;
+            document.getElementById('sb-auto-jump-turn-count').value = CONFIG.autoJumpTurnCount || 3;
             document.getElementById('sb-auto-jump-drop').checked = !!CONFIG.autoJumpDropEnabled;
             document.getElementById('sb-auto-jump-summon').checked = !!CONFIG.autoJumpSummonEnabled;
             document.getElementById('sb-auto-jump-ability').checked = !!CONFIG.autoJumpAbilityEnabled;
@@ -2790,10 +2823,16 @@
             CONFIG.autoJumpSummonEnabled = document.getElementById('sb-auto-jump-summon').checked;
             CONFIG.autoJumpAbilityEnabled = document.getElementById('sb-auto-jump-ability').checked;
 
+            let turnCount = parseInt(document.getElementById('sb-auto-jump-turn-count').value, 10);
+            if (isNaN(turnCount) || turnCount < 1) turnCount = 1;
+            else if (turnCount > 99) turnCount = 99;
+            CONFIG.autoJumpTurnCount = turnCount;
+
             const chosen = document.querySelector('input[name="sb-auto-jump-target"]:checked');
             CONFIG.autoJumpTargetId = chosen ? parseInt(chosen.value, 10) : null;
 
             storage.setValue('sb_auto_jump_turn_enabled', CONFIG.autoJumpTurnEnabled.toString());
+            storage.setValue('sb_auto_jump_turn_count', CONFIG.autoJumpTurnCount.toString());
             storage.setValue('sb_auto_jump_drop_enabled', CONFIG.autoJumpDropEnabled.toString());
             storage.setValue('sb_auto_jump_summon_enabled', CONFIG.autoJumpSummonEnabled.toString());
             storage.setValue('sb_auto_jump_ability_enabled', CONFIG.autoJumpAbilityEnabled.toString());
@@ -3837,11 +3876,17 @@
             // 获取当前配置
             const config = loadConfig();
             
-            // 前N次攻击后自动后退/跳转
+            // 攻击后自动跳转 / 自动后退
+            // 注意：两者条件不同。
+            //   自动后退：前 N 回合（newTurn <= autoBackTurnCount + 1，即第 1..N 回合都触发）
+            //   自动跳转：第 N 回合（newTurn === autoJumpTurnCount + 1，只在 N 那一次触发）
             const isAttackResult = /attack_result/.test(window.location.href) || url.includes('attack_result');
-            const turnMatch = isAttackResult && newTurn <= config.autoBackTurnCount + 1;
-            if (turnMatch) {
-                if (!this.tryAutoJump('turn', config) && config.autoBackTurnEnabled) {
+            if (isAttackResult) {
+                // 跳转优先；仅在恰好第 N 回合触发
+                if (newTurn === config.autoJumpTurnCount + 1 && this.tryAutoJump('turn', config)) {
+                    return;
+                }
+                if (config.autoBackTurnEnabled && newTurn <= config.autoBackTurnCount + 1) {
                     setTimeout(() => {
                         if (window.history.length > 1) {
                             history.back();
