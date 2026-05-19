@@ -2729,10 +2729,15 @@
             const grid = document.getElementById('sb-drop-subscribe-grid');
             const hint = document.getElementById('sb-drop-subscribe-hint');
 
-            const list = document.querySelector('.prt-drop-item-list');
-            const domItems = list ? Array.from(list.querySelectorAll('.btn-drop-item-image')) : [];
+            // 来源 A：副本掉落预览页
+            const previewList = document.querySelector('.prt-drop-item-list');
+            const previewItems = previewList ? Array.from(previewList.querySelectorAll('.btn-drop-item-image')) : [];
 
-            // 渲染单元：已订阅在前，掉落列表新增项在后，按 kind_id 去重
+            // 来源 B：战斗结算页
+            const resultList = document.querySelector('.prt-item-list');
+            const resultItems = resultList ? Array.from(resultList.querySelectorAll('[data-key]')) : [];
+
+            // 渲染单元：已订阅在前，DOM 新增项在后，按 kind_id 去重
             const renderedKeys = new Set();
             const cells = [];
 
@@ -2750,7 +2755,8 @@
                 renderedKeys.add(key);
             }
 
-            for (const el of domItems) {
+            // 副本掉落预览页：data-item-kind / data-item-id
+            for (const el of previewItems) {
                 const id = el.dataset.itemId || '';
                 const kind = el.dataset.itemKind || '';
                 const key = `${kind}_${id}`;
@@ -2765,10 +2771,29 @@
                 renderedKeys.add(key);
             }
 
+            // 战斗结算页：data-key="kind_id"
+            for (const el of resultItems) {
+                const m = (el.dataset.key || '').match(/^(\d+)_(.+)$/);
+                if (!m) continue;
+                const kind = m[1];
+                const id = m[2];
+                const key = `${kind}_${id}`;
+                if (renderedKeys.has(key)) continue;
+                cells.push({
+                    itemId: id,
+                    kind: kind,
+                    iconUrl: el.querySelector('.img-treasure-item')?.src || el.querySelector('img')?.src || '',
+                    isLowProb: false,
+                    checked: false
+                });
+                renderedKeys.add(key);
+            }
+
+            const hasNewSource = previewItems.length > 0 || resultItems.length > 0;
             if (cells.length === 0) {
-                hint.textContent = '当前没有订阅，且当前页面也没有掉落列表。请到副本掉落预览页（含 .prt-drop-item-list）再打开此对话框以添加。';
-            } else if (domItems.length === 0) {
-                hint.textContent = '当前页面没有掉落列表，仅显示已订阅。取消勾选并确认即可删除订阅。';
+                hint.textContent = '当前没有订阅，且当前页面没有可订阅的物品。请到副本掉落预览页或战斗结算页打开本对话框以添加。';
+            } else if (!hasNewSource) {
+                hint.textContent = '当前页面没有可订阅的新物品，仅显示已订阅。取消勾选并确认即可删除订阅。';
             } else {
                 hint.textContent = '已订阅项已勾选；勾选新项以添加，取消勾选以删除。';
             }
@@ -3822,9 +3847,16 @@
                 return;
             }
 
+            // 限定在真正的掉落容器内查询，避免与下一战预览/角色面板等带 data-key 的区域撞 id
+            const dropList = document.querySelector('.prt-item-list');
+            if (!dropList) {
+                // 结算 DOM 还没渲染或不在结算页：跳过本轮
+                return;
+            }
+
             // 检查FFJ掉落（按物品id后缀匹配，不限品类前缀）
             if (config.notifyFFJ) {
-                const ffjElement = document.querySelector("[data-key$='_20004']");
+                const ffjElement = dropList.querySelector("[data-key$='_20004']");
                 if (ffjElement) {
                     clearInterval(this.dropCheckInterval);
                     this.showDropAlert('FFJ', 'gold');
@@ -3835,7 +3867,7 @@
 
             // 检查沙漏掉落（按物品id后缀匹配，不限品类前缀）
             if (config.notifyHourglass) {
-                const hourglassElement = document.querySelector("[data-key$='_215']");
+                const hourglassElement = dropList.querySelector("[data-key$='_215']");
                 if (hourglassElement) {
                     clearInterval(this.dropCheckInterval);
                     this.showDropAlert('沙漏', 'brown');
@@ -3846,7 +3878,7 @@
 
             // 检查大巴角掉落（按物品id后缀匹配，不限品类前缀）
             if (config.notifyBahaHorn) {
-                const bahaHornElement = document.querySelector("[data-key$='_79']");
+                const bahaHornElement = dropList.querySelector("[data-key$='_79']");
                 if (bahaHornElement) {
                     clearInterval(this.dropCheckInterval);
                     this.showDropAlert('大巴角', 'gold');
@@ -3860,7 +3892,7 @@
             const hitIcons = [];
             for (const sub of subs) {
                 if (!sub || !sub.itemId) continue;
-                const el = document.querySelector(`[data-key$='_${sub.itemId}']`);
+                const el = dropList.querySelector(`[data-key$='_${sub.itemId}']`);
                 if (el) {
                     hitIcons.push(sub.iconUrl || el.querySelector('img')?.src || '');
                 }
@@ -3872,7 +3904,7 @@
             }
 
             // 检查是否有任何掉落物品（即使没有通知设置也触发返回）
-            const dropElements = document.querySelectorAll('[data-key*="10_"], [data-key*="17_"], [data-key*="12_"]');
+            const dropElements = dropList.querySelectorAll('[data-key*="10_"], [data-key*="17_"], [data-key*="12_"]');
             if (dropElements.length > 0) {
                 clearInterval(this.dropCheckInterval);
                 this.triggerAutoBack();
