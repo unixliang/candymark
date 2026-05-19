@@ -755,15 +755,23 @@
             color: #333;
             margin: 16px 0 4px;
         }
-        .sb-bookmark-pick-name {
+        .sb-bookmark-pick-icon {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 600;
             font-size: 12px;
-            color: #333;
+            line-height: 1.15;
             text-align: center;
-            margin-top: 4px;
+            padding: 4px;
+            box-sizing: border-box;
             word-break: break-all;
-            line-height: 1.2;
-            max-height: 2.4em;
             overflow: hidden;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
         }
         .sb-drop-subscribe-grid {
             display: grid;
@@ -2775,14 +2783,17 @@
                 grid.innerHTML = '';
             } else {
                 hint.textContent = '勾选一个标签作为跳转目标；不勾选则不跳转。';
+                const escAttr = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
                 grid.innerHTML = candidates.map(b => {
                     const isTarget = b.id === CONFIG.autoJumpTargetId;
                     const checked = isTarget ? 'checked' : '';
                     const cls = isTarget ? 'checked' : '';
-                    const safeName = String(b.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const colorIndex = (b.colorIndex !== undefined ? b.colorIndex : 0) % this.colorPresets.length;
+                    const name = escAttr(b.name);
+                    const tip = escAttr(`${b.name || ''}\n${b.url || ''}`);
                     return `<label class="sb-drop-sub-item ${cls}" data-bookmark-id="${b.id}">
                         <input type="radio" name="sb-auto-jump-target" value="${b.id}" ${checked}>
-                        <div class="sb-bookmark-pick-name">${safeName || '(未命名)'}</div>
+                        <div class="sb-bookmark-pick-icon sb-bookmark--color-${colorIndex}" title="${tip}">${name}</div>
                     </label>`;
                 }).join('');
 
