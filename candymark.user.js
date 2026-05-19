@@ -325,7 +325,26 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
             animation: sbModalAppear 0.3s ease;
         }
-        
+
+        /* 标题 / 按钮粘在视口顶/底，中间区域滚动 */
+        .sb-modal-content > h3 {
+            position: sticky;
+            top: 0;
+            margin-top: 0;
+            padding-bottom: 8px;
+            background: white;
+            z-index: 2;
+        }
+        .sb-modal-content > .sb-modal-buttons {
+            position: sticky;
+            bottom: 0;
+            margin-top: 16px;
+            padding-top: 12px;
+            background: white;
+            border-top: 1px solid #eee;
+            z-index: 2;
+        }
+
         @keyframes sbModalAppear {
             from {
                 opacity: 0;
