@@ -800,8 +800,9 @@
             display: block;
             pointer-events: none;
         }
-        /* 隐藏 checkbox 本体，只靠 .checked 外框反馈，避免移动端原生控件遮挡图片 */
-        .sb-drop-sub-item input[type="checkbox"] {
+        /* 隐藏 checkbox / radio 本体，只靠 .checked 外框反馈，避免移动端原生控件遮挡图片 */
+        .sb-drop-sub-item input[type="checkbox"],
+        .sb-drop-sub-item input[type="radio"] {
             position: absolute;
             opacity: 0;
             pointer-events: none;
