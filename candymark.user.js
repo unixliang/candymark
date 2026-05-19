@@ -976,7 +976,7 @@
             <div class="sb-menu-item" data-action="edit">✏️ 修改名称</div>
             <div class="sb-menu-item" data-action="delete">🗑️ 删除标签</div>
             <div class="sb-menu-item" data-action="auto-back-global">🚪 自动后退【全局】</div>
-            <div class="sb-menu-item" data-action="drop-subscribe-global">📋 掉落订阅管理【全局】</div>
+            <div class="sb-menu-item" data-action="drop-subscribe-global">📋 掉落通知【全局】</div>
             <div class="sb-menu-item" data-action="cancel">❌ 取消</div>
         </div>
         <div id="sb-add-menu">
@@ -984,7 +984,7 @@
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
             <div class="sb-menu-item" data-action="auto-back">🚪 自动后退</div>
-            <div class="sb-menu-item" data-action="subscribe-from-drop-list">📋 掉落订阅管理</div>
+            <div class="sb-menu-item" data-action="subscribe-from-drop-list">📋 掉落通知</div>
             <div class="sb-menu-item" data-action="config-management">⚙️ 配置管理</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
         </div>
@@ -1150,7 +1150,7 @@
         </div>
         <div id="sb-drop-subscribe-modal" class="sb-modal">
             <div class="sb-modal-content">
-                <h3>掉落订阅管理</h3>
+                <h3>掉落通知</h3>
                 <div class="sb-drop-subscribe-hint" id="sb-drop-subscribe-hint"></div>
                 <div class="sb-drop-subscribe-grid" id="sb-drop-subscribe-grid"></div>
                 <div class="sb-modal-buttons">
@@ -1161,7 +1161,7 @@
         </div>
         <div id="sb-drop-hit-modal" class="sb-modal">
             <div class="sb-modal-content">
-                <h3>🎉 订阅物品掉落了！🎉</h3>
+                <h3>🎉 物品掉落了！🎉</h3>
                 <div class="sb-drop-hit-icon-wrap" id="sb-drop-hit-icons"></div>
                 <div class="sb-drop-hit-time">时间：<span id="sb-drop-hit-time"></span></div>
                 <div class="sb-modal-buttons">
@@ -2672,11 +2672,11 @@
 
             const hasNewSource = previewItems.length > 0 || resultItems.length > 0;
             if (cells.length === 0) {
-                hint.textContent = '当前没有订阅，且当前页面没有可订阅的物品。请到副本掉落预览页或战斗结算页打开本对话框以添加。';
+                hint.textContent = '当前未开启任何掉落通知，且本页面也没有可添加的物品。请到副本掉落预览页或战斗结算页再打开本对话框以添加。';
             } else if (!hasNewSource) {
-                hint.textContent = '当前页面没有可订阅的新物品，仅显示已订阅。取消勾选并确认即可删除订阅。';
+                hint.textContent = '本页面没有可添加的新物品，仅显示已开启通知的物品。取消勾选并确认即可移除。';
             } else {
-                hint.textContent = '已订阅项已勾选；勾选新项以添加，取消勾选以删除。';
+                hint.textContent = '已开启通知的物品已勾选；勾选新项添加，取消勾选移除。';
             }
 
             grid.innerHTML = cells.map(c => {
@@ -3761,7 +3761,7 @@
             const modal = document.getElementById('sb-drop-hit-modal');
             if (!modal) {
                 // 兜底：UI 还没建好就退化成 alert
-                alert(`🎉 订阅物品掉落了！🎉\n时间：${new Date().toLocaleTimeString()}`);
+                alert(`🎉 物品掉落了！🎉\n时间：${new Date().toLocaleTimeString()}`);
                 this.triggerAutoBack();
                 return;
             }
