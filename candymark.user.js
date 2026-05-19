@@ -86,6 +86,15 @@
             autoBackDropEnabled: storage.getValue('sb_auto_back_drop_enabled', 'false') === 'true',
             autoBackSummonEnabled: storage.getValue('sb_auto_back_summon_enabled', 'false') === 'true',
             autoBackAbilityEnabled: storage.getValue('sb_auto_back_ability_enabled', 'false') === 'true',
+            autoJumpTurnEnabled: storage.getValue('sb_auto_jump_turn_enabled', 'false') === 'true',
+            autoJumpDropEnabled: storage.getValue('sb_auto_jump_drop_enabled', 'false') === 'true',
+            autoJumpSummonEnabled: storage.getValue('sb_auto_jump_summon_enabled', 'false') === 'true',
+            autoJumpAbilityEnabled: storage.getValue('sb_auto_jump_ability_enabled', 'false') === 'true',
+            autoJumpTargetId: (() => {
+                const raw = storage.getValue('sb_auto_jump_target_id', '');
+                const n = parseInt(raw, 10);
+                return Number.isNaN(n) ? null : n;
+            })(),
             dropSubscriptions: dropSubscriptions
         };
     };
@@ -739,6 +748,22 @@
             margin: 8px 0 12px;
             line-height: 1.4;
         }
+        .sb-auto-jump-target-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin: 16px 0 4px;
+        }
+        .sb-bookmark-pick-name {
+            font-size: 12px;
+            color: #333;
+            text-align: center;
+            margin-top: 4px;
+            word-break: break-all;
+            line-height: 1.2;
+            max-height: 2.4em;
+            overflow: hidden;
+        }
         .sb-drop-subscribe-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -977,6 +1002,7 @@
             <div class="sb-menu-item" data-action="edit">✏️ 修改名称</div>
             <div class="sb-menu-item" data-action="delete">🗑️ 删除标签</div>
             <div class="sb-menu-item" data-action="auto-back-global">🚪 自动后退【全局】</div>
+            <div class="sb-menu-item" data-action="auto-jump-global">🛫 自动跳转【全局】</div>
             <div class="sb-menu-item" data-action="drop-subscribe-global">🔔 掉落通知【全局】</div>
             <div class="sb-menu-item" data-action="cancel">❌ 取消</div>
         </div>
@@ -985,6 +1011,7 @@
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
             <div class="sb-menu-item" data-action="auto-back">🚪 自动后退</div>
+            <div class="sb-menu-item" data-action="auto-jump">🛫 自动跳转</div>
             <div class="sb-menu-item" data-action="subscribe-from-drop-list">🔔 掉落通知</div>
             <div class="sb-menu-item" data-action="config-management">⚙️ 配置管理</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
@@ -1149,6 +1176,37 @@
                 </div>
             </div>
         </div>
+        <div id="sb-auto-jump-modal" class="sb-modal">
+            <div class="sb-modal-content">
+                <h3>自动跳转设置</h3>
+                <div class="sb-drop-notify-options">
+                    <label class="sb-checkbox-item sb-auto-back-item">
+                        <input type="checkbox" id="sb-auto-jump-turn">
+                        <div class="sb-auto-back-icon">⚔️</div>
+                        <div style="margin-left: 20px;">回合内攻击后</div>
+                    </label>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-jump-drop">
+                        🎯 结算后
+                    </label>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-jump-summon">
+                        🔮 召唤后
+                    </label>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-jump-ability">
+                        ⚡ 技能后
+                    </label>
+                </div>
+                <div class="sb-auto-jump-target-label">跳转目标（单选）</div>
+                <div class="sb-drop-subscribe-hint" id="sb-auto-jump-hint"></div>
+                <div class="sb-drop-subscribe-grid" id="sb-auto-jump-target-grid"></div>
+                <div class="sb-modal-buttons">
+                    <button class="sb-btn-primary" id="sb-auto-jump-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-auto-jump-cancel">取消</button>
+                </div>
+            </div>
+        </div>
         <div id="sb-drop-subscribe-modal" class="sb-modal">
             <div class="sb-modal-content">
                 <h3>掉落通知</h3>
@@ -1283,10 +1341,15 @@
                     shortcutKey: CONFIG.shortcutKey,
                     blacklist: CONFIG.blacklist,
                     bookmarksVisible: CONFIG.bookmarksVisible,
-                    dropSubscriptions: CONFIG.dropSubscriptions
+                    dropSubscriptions: CONFIG.dropSubscriptions,
+                    autoJumpTurnEnabled: CONFIG.autoJumpTurnEnabled,
+                    autoJumpDropEnabled: CONFIG.autoJumpDropEnabled,
+                    autoJumpSummonEnabled: CONFIG.autoJumpSummonEnabled,
+                    autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
+                    autoJumpTargetId: CONFIG.autoJumpTargetId
                 }
             };
-            
+
             const data = JSON.stringify(configData, null, 2);
             const blob = new Blob([data], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -1392,8 +1455,19 @@
                                         storage.setValue('sb_drop_subscriptions', JSON.stringify(subs));
                                         CONFIG.dropSubscriptions = subs;
                                     }
+                                    ['Turn', 'Drop', 'Summon', 'Ability'].forEach(t => {
+                                        const k = 'autoJump' + t + 'Enabled';
+                                        if (typeof settings[k] === 'boolean') {
+                                            CONFIG[k] = settings[k];
+                                            storage.setValue('sb_auto_jump_' + t.toLowerCase() + '_enabled', settings[k].toString());
+                                        }
+                                    });
+                                    if (settings.autoJumpTargetId === null || typeof settings.autoJumpTargetId === 'number') {
+                                        CONFIG.autoJumpTargetId = settings.autoJumpTargetId;
+                                        storage.setValue('sb_auto_jump_target_id', settings.autoJumpTargetId == null ? '' : String(settings.autoJumpTargetId));
+                                    }
                                 }
-                                
+
                                 updateBookmarkSize(CONFIG.bookmarkSize);
                                 updateBookmarkOpacity(CONFIG.bookmarkOpacity);
                                 this.renderBookmarks(true);
@@ -1431,7 +1505,12 @@
                         autoBackTurnEnabled: CONFIG.autoBackTurnEnabled,
                         autoBackTurnCount: CONFIG.autoBackTurnCount,
                         autoBackDropEnabled: CONFIG.autoBackDropEnabled,
-                        dropSubscriptions: CONFIG.dropSubscriptions
+                        dropSubscriptions: CONFIG.dropSubscriptions,
+                        autoJumpTurnEnabled: CONFIG.autoJumpTurnEnabled,
+                        autoJumpDropEnabled: CONFIG.autoJumpDropEnabled,
+                        autoJumpSummonEnabled: CONFIG.autoJumpSummonEnabled,
+                        autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
+                        autoJumpTargetId: CONFIG.autoJumpTargetId
                     }
                 };
                 
@@ -1533,8 +1612,19 @@
                             CONFIG.dropSubscriptions = subs;
                             storage.setValue('sb_drop_subscriptions', JSON.stringify(subs));
                         }
+                        ['Turn', 'Drop', 'Summon', 'Ability'].forEach(t => {
+                            const k = 'autoJump' + t + 'Enabled';
+                            if (typeof settings[k] === 'boolean') {
+                                CONFIG[k] = settings[k];
+                                storage.setValue('sb_auto_jump_' + t.toLowerCase() + '_enabled', settings[k].toString());
+                            }
+                        });
+                        if (settings.autoJumpTargetId === null || typeof settings.autoJumpTargetId === 'number') {
+                            CONFIG.autoJumpTargetId = settings.autoJumpTargetId;
+                            storage.setValue('sb_auto_jump_target_id', settings.autoJumpTargetId == null ? '' : String(settings.autoJumpTargetId));
+                        }
                     }
-                    
+
                     // 先更新样式，再重新渲染
                     updateBookmarkSize(CONFIG.bookmarkSize);
                     updateBookmarkOpacity(CONFIG.bookmarkOpacity);
@@ -1700,9 +1790,18 @@
             document.getElementById('sb-auto-back-confirm').addEventListener('click', () => {
                 this.confirmAutoBackChange();
             });
-            
+
             document.getElementById('sb-auto-back-cancel').addEventListener('click', () => {
                 this.hideAutoBackModal();
+            });
+
+            // 自动跳转设置
+            document.getElementById('sb-auto-jump-confirm').addEventListener('click', () => {
+                this.confirmAutoJumpChange();
+            });
+
+            document.getElementById('sb-auto-jump-cancel').addEventListener('click', () => {
+                this.hideAutoJumpModal();
             });
             
             // 监听输入框变化限制，实时验证输入值范围(1-99)
@@ -2166,6 +2265,9 @@
                 case 'auto-back':
                     this.showAutoBackModal();
                     break;
+                case 'auto-jump':
+                    this.showAutoJumpModal();
+                    break;
                 case 'subscribe-from-drop-list':
                     this.showDropSubscribeModal();
                     break;
@@ -2617,7 +2719,89 @@
             this.hideAutoBackModal();
             //console.log(`✅ [CandyMark] 自动后退设置已更新：攻击=${CONFIG.autoBackTurnEnabled}(TURN≥${CONFIG.autoBackTurnCount})，结算=${CONFIG.autoBackDropEnabled}，召唤=${CONFIG.autoBackSummonEnabled}，技能=${CONFIG.autoBackAbilityEnabled}`);
         }
-        
+
+        showAutoJumpModal() {
+            this.hideAddMenu();
+            const modal = document.getElementById('sb-auto-jump-modal');
+            const grid = document.getElementById('sb-auto-jump-target-grid');
+            const hint = document.getElementById('sb-auto-jump-hint');
+
+            // 同步 4 个时机开关
+            document.getElementById('sb-auto-jump-turn').checked = !!CONFIG.autoJumpTurnEnabled;
+            document.getElementById('sb-auto-jump-drop').checked = !!CONFIG.autoJumpDropEnabled;
+            document.getElementById('sb-auto-jump-summon').checked = !!CONFIG.autoJumpSummonEnabled;
+            document.getElementById('sb-auto-jump-ability').checked = !!CONFIG.autoJumpAbilityEnabled;
+
+            // 过滤可选标签：必须有真实 URL，排除 back / click-through-back
+            const candidates = (this.bookmarks || []).filter(b =>
+                b && b.url && b.url !== 'back' && b.url !== 'click-through-back'
+            );
+
+            if (candidates.length === 0) {
+                hint.textContent = '请先添加 URL 标签后再来设置跳转目标。';
+                grid.innerHTML = '';
+            } else {
+                hint.textContent = '勾选一个标签作为跳转目标；不勾选则不跳转。';
+                grid.innerHTML = candidates.map(b => {
+                    const isTarget = b.id === CONFIG.autoJumpTargetId;
+                    const checked = isTarget ? 'checked' : '';
+                    const cls = isTarget ? 'checked' : '';
+                    const safeName = String(b.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    return `<label class="sb-drop-sub-item ${cls}" data-bookmark-id="${b.id}">
+                        <input type="radio" name="sb-auto-jump-target" value="${b.id}" ${checked}>
+                        <div class="sb-bookmark-pick-name">${safeName || '(未命名)'}</div>
+                    </label>`;
+                }).join('');
+
+                grid.querySelectorAll('input[type="radio"]').forEach(rb => {
+                    rb.addEventListener('change', () => {
+                        grid.querySelectorAll('.sb-drop-sub-item').forEach(el => el.classList.remove('checked'));
+                        if (rb.checked) {
+                            rb.closest('.sb-drop-sub-item').classList.add('checked');
+                        }
+                    });
+                });
+                // 允许点击同一项再次取消选择
+                grid.querySelectorAll('.sb-drop-sub-item').forEach(label => {
+                    label.addEventListener('click', (e) => {
+                        const rb = label.querySelector('input[type="radio"]');
+                        if (!rb) return;
+                        if (rb.checked && e.target !== rb) {
+                            // 点击已选项的非 input 区域，反选
+                            setTimeout(() => {
+                                rb.checked = false;
+                                label.classList.remove('checked');
+                            }, 0);
+                        }
+                    });
+                });
+            }
+
+            modal.classList.add('show');
+        }
+
+        hideAutoJumpModal() {
+            document.getElementById('sb-auto-jump-modal').classList.remove('show');
+        }
+
+        confirmAutoJumpChange() {
+            CONFIG.autoJumpTurnEnabled = document.getElementById('sb-auto-jump-turn').checked;
+            CONFIG.autoJumpDropEnabled = document.getElementById('sb-auto-jump-drop').checked;
+            CONFIG.autoJumpSummonEnabled = document.getElementById('sb-auto-jump-summon').checked;
+            CONFIG.autoJumpAbilityEnabled = document.getElementById('sb-auto-jump-ability').checked;
+
+            const chosen = document.querySelector('input[name="sb-auto-jump-target"]:checked');
+            CONFIG.autoJumpTargetId = chosen ? parseInt(chosen.value, 10) : null;
+
+            storage.setValue('sb_auto_jump_turn_enabled', CONFIG.autoJumpTurnEnabled.toString());
+            storage.setValue('sb_auto_jump_drop_enabled', CONFIG.autoJumpDropEnabled.toString());
+            storage.setValue('sb_auto_jump_summon_enabled', CONFIG.autoJumpSummonEnabled.toString());
+            storage.setValue('sb_auto_jump_ability_enabled', CONFIG.autoJumpAbilityEnabled.toString());
+            storage.setValue('sb_auto_jump_target_id', CONFIG.autoJumpTargetId == null ? '' : String(CONFIG.autoJumpTargetId));
+
+            this.hideAutoJumpModal();
+        }
+
         showDropSubscribeModal() {
             const modal = document.getElementById('sb-drop-subscribe-modal');
             const grid = document.getElementById('sb-drop-subscribe-grid');
@@ -2842,6 +3026,9 @@
                     break;
                 case 'auto-back-global':
                     this.showAutoBackModal();
+                    break;
+                case 'auto-jump-global':
+                    this.showAutoJumpModal();
                     break;
                 case 'drop-subscribe-global':
                     this.showDropSubscribeModal();
@@ -3605,11 +3792,10 @@
                     this.onTurnChange(currentTurn, url, data);
                 }
 
-                // 新增：召唤结果后的后退
+                // 新增：召唤结果后的后退/跳转
                 if (url.includes('summon_result')) {
                     const config = loadConfig();
-                    if (config.autoBackSummonEnabled) {
-                        //console.log('🔮 [CandyMark] 召唤完成，已触发返回...');
+                    if (!this.tryAutoJump('summon', config) && config.autoBackSummonEnabled) {
                         setTimeout(() => {
                             if (window.history.length > 1) {
                                 history.back();
@@ -3618,11 +3804,10 @@
                     }
                 }
 
-                // 新增：能力结果后的后退
+                // 新增：能力结果后的后退/跳转
                 if (url.includes('ability_result')) {
                     const config = loadConfig();
-                    if (config.autoBackAbilityEnabled) {
-                        //console.log('⚡ [CandyMark] 能力使用完成，已触发返回...');
+                    if (!this.tryAutoJump('ability', config) && config.autoBackAbilityEnabled) {
                         setTimeout(() => {
                             if (window.history.length > 1) {
                                 history.back();
@@ -3652,15 +3837,14 @@
             // 获取当前配置
             const config = loadConfig();
             
-            // 前N次攻击后自动后退
-            if (config.autoBackTurnEnabled) {
-                const isAttackResult = /attack_result/.test(window.location.href) || url.includes('attack_result');
-                if (isAttackResult && newTurn <= config.autoBackTurnCount + 1) {
-                    //console.log(`🚨 [CandyMark] 达到设定攻击次数限制！TURN=${newTurn}(≤${config.autoBackTurnCount})，执行撤退...`);
+            // 前N次攻击后自动后退/跳转
+            const isAttackResult = /attack_result/.test(window.location.href) || url.includes('attack_result');
+            const turnMatch = isAttackResult && newTurn <= config.autoBackTurnCount + 1;
+            if (turnMatch) {
+                if (!this.tryAutoJump('turn', config) && config.autoBackTurnEnabled) {
                     setTimeout(() => {
                         if (window.history.length > 1) {
                             history.back();
-                            //console.log('✅ [CandyMark] 攻击次数限制达成，已自动返回');
                         }
                     }, 170);
                 }
@@ -3791,32 +3975,68 @@
 
         triggerAutoBack() {
             const currentUrl = window.location.href;
-            
+
             // 如果是相同的URL就不处理
             if (this.autoBackAfterDropCheck.lastProcessed.url === currentUrl) {
                 return;
             }
-            
+
             const config = loadConfig();
+
+            // 自动跳转优先于自动后退
+            if (this.tryAutoJump('drop', config)) {
+                this.autoBackAfterDropCheck.lastProcessed.url = currentUrl;
+                return;
+            }
+
             if (!config.autoBackDropEnabled) {
                 return;
             }
-            
-            // 更新最后处理的URL
+
             this.autoBackAfterDropCheck.lastProcessed.url = currentUrl;
-            
-            // 清理超时定时器
+
             if (this.autoBackAfterDropCheck.timeoutId) {
                 clearTimeout(this.autoBackAfterDropCheck.timeoutId);
                 this.autoBackAfterDropCheck.timeoutId = null;
             }
-            
-            // 延迟100ms确保UI稳定后返回
+
             setTimeout(() => {
                 if (window.history.length > 1) {
                     history.back();
                 }
             }, 100);
+        }
+
+        /**
+         * 尝试执行自动跳转。若该时机已开启且配置了合法目标，跳转并返回 true；否则返回 false。
+         * @param {'turn'|'drop'|'summon'|'ability'} timing
+         * @param {object} [cachedConfig] 可选，已 loadConfig 过的结果
+         */
+        tryAutoJump(timing, cachedConfig) {
+            const config = cachedConfig || loadConfig();
+            const enabledMap = {
+                turn: config.autoJumpTurnEnabled,
+                drop: config.autoJumpDropEnabled,
+                summon: config.autoJumpSummonEnabled,
+                ability: config.autoJumpAbilityEnabled
+            };
+            if (!enabledMap[timing]) return false;
+            if (config.autoJumpTargetId == null) return false;
+
+            let target = null;
+            try {
+                const bookmarks = JSON.parse(localStorage.getItem('candymark-bookmarks-javascript') || '[]');
+                target = bookmarks.find(b => b && b.id === config.autoJumpTargetId);
+            } catch (e) {
+                return false;
+            }
+            if (!target || !target.url) return false;
+            if (target.url === 'back' || target.url === 'click-through-back') return false;
+
+            setTimeout(() => {
+                location.href = target.url;
+            }, 100);
+            return true;
         }
     }
 
