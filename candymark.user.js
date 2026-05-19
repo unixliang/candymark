@@ -3851,6 +3851,30 @@
                     currentTurn = data.status.turn;
                 }
 
+                // 攻击后自动跳转 / 自动后退
+                // 用 battleData.currentTurn（这次响应到来"之前"的回合数 = 攻击发起时的那一回合）
+                // 这样即便击杀导致响应里没有 newTurn，也能用上一次记录的回合触发。
+                // 注意：两者条件不同。
+                //   自动后退：前 N 回合（turnAtAttack <= autoBackTurnCount，即第 1..N 回合都触发）
+                //   自动跳转：第 N 回合（turnAtAttack === autoJumpTurnCount，只在 N 那一次触发）
+                if (url.includes('attack_result')) {
+                    const config = loadConfig();
+                    const turnAtAttack = this.battleData.currentTurn;
+                    if (turnAtAttack > 0) {
+                        let jumped = false;
+                        if (turnAtAttack === config.autoJumpTurnCount) {
+                            jumped = this.tryAutoJump('turn', config);
+                        }
+                        if (!jumped && config.autoBackTurnEnabled && turnAtAttack <= config.autoBackTurnCount) {
+                            setTimeout(() => {
+                                if (window.history.length > 1) {
+                                    history.back();
+                                }
+                            }, 170);
+                        }
+                    }
+                }
+
                 if (currentTurn !== null) {
                     this.onTurnChange(currentTurn, url, data);
                 }
@@ -3897,27 +3921,8 @@
                 this.battleData.maxTurn = newTurn;
             }
 
-            // 获取当前配置
-            const config = loadConfig();
-            
-            // 攻击后自动跳转 / 自动后退
-            // 注意：两者条件不同。
-            //   自动后退：前 N 回合（newTurn <= autoBackTurnCount + 1，即第 1..N 回合都触发）
-            //   自动跳转：第 N 回合（newTurn === autoJumpTurnCount + 1，只在 N 那一次触发）
-            const isAttackResult = /attack_result/.test(window.location.href) || url.includes('attack_result');
-            if (isAttackResult) {
-                // 跳转优先；仅在恰好第 N 回合触发
-                if (newTurn === config.autoJumpTurnCount + 1 && this.tryAutoJump('turn', config)) {
-                    return;
-                }
-                if (config.autoBackTurnEnabled && newTurn <= config.autoBackTurnCount + 1) {
-                    setTimeout(() => {
-                        if (window.history.length > 1) {
-                            history.back();
-                        }
-                    }, 170);
-                }
-            }
+            // 攻击后的后退/跳转已移至 handleGameResponse，使用攻击发起时的回合数判断
+            // （避免击杀导致响应里没有 newTurn 时漏触发）
 
             // 战斗日志记录
             const timestamp = new Date().toLocaleTimeString();
