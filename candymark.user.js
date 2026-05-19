@@ -4078,9 +4078,11 @@
             if (!target || !target.url) return false;
             if (target.url === 'back' || target.url === 'click-through-back') return false;
 
+            // 延迟与自动后退保持一致：turn 170ms，drop 100ms，summon/ability 50ms
+            const delayMap = { turn: 170, drop: 100, summon: 50, ability: 50 };
             setTimeout(() => {
                 location.href = target.url;
-            }, 100);
+            }, delayMap[timing] || 100);
             return true;
         }
     }
