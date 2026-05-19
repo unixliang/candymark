@@ -4312,7 +4312,7 @@
                             id: String(id),
                             iconId,
                             icon: iconId
-                                ? `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/ui/icon/ability/m/${iconId}.png`
+                                ? `https://prd-game-a-granbluefantasy.akamaized.net/assets/img_mid/sp/ui/icon/ability/m/${iconId}.png`
                                 : ''
                         });
                     });
