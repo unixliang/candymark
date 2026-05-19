@@ -70,10 +70,21 @@
             dropSubscriptions = [];
         }
 
-        const parseIdArray = (key) => {
+        // 技能过滤器：每条 {id, icon}。兼容旧版（纯 id 字符串数组）。
+        const parseAbilityFilter = (key) => {
             try {
                 const arr = JSON.parse(storage.getValue(key, '[]'));
-                return Array.isArray(arr) ? arr.filter(x => x != null).map(String) : [];
+                if (!Array.isArray(arr)) return [];
+                return arr.map(item => {
+                    if (item == null) return null;
+                    if (typeof item === 'string' || typeof item === 'number') {
+                        return { id: String(item), icon: '' };
+                    }
+                    if (item.id != null) {
+                        return { id: String(item.id), icon: String(item.icon || '') };
+                    }
+                    return null;
+                }).filter(Boolean);
             } catch (e) {
                 return [];
             }
@@ -105,8 +116,8 @@
                 const n = parseInt(raw, 10);
                 return Number.isNaN(n) ? null : n;
             })(),
-            autoBackAbilityIds: parseIdArray('sb_auto_back_ability_ids'),
-            autoJumpAbilityIds: parseIdArray('sb_auto_jump_ability_ids'),
+            autoBackAbilityIds: parseAbilityFilter('sb_auto_back_ability_ids'),
+            autoJumpAbilityIds: parseAbilityFilter('sb_auto_jump_ability_ids'),
             dropSubscriptions: dropSubscriptions
         };
     };
@@ -1557,15 +1568,27 @@
                                         CONFIG.autoJumpTargetId = settings.autoJumpTargetId;
                                         storage.setValue('sb_auto_jump_target_id', settings.autoJumpTargetId == null ? '' : String(settings.autoJumpTargetId));
                                     }
+                                    const normalizeAbilityFilter = (raw) => raw
+                                        .map(item => {
+                                            if (item == null) return null;
+                                            if (typeof item === 'string' || typeof item === 'number') {
+                                                return { id: String(item), icon: '' };
+                                            }
+                                            if (item.id != null) {
+                                                return { id: String(item.id), icon: String(item.icon || '') };
+                                            }
+                                            return null;
+                                        })
+                                        .filter(Boolean);
                                     if (Array.isArray(settings.autoBackAbilityIds)) {
-                                        const ids = settings.autoBackAbilityIds.filter(x => x != null).map(String);
-                                        CONFIG.autoBackAbilityIds = ids;
-                                        storage.setValue('sb_auto_back_ability_ids', JSON.stringify(ids));
+                                        const items = normalizeAbilityFilter(settings.autoBackAbilityIds);
+                                        CONFIG.autoBackAbilityIds = items;
+                                        storage.setValue('sb_auto_back_ability_ids', JSON.stringify(items));
                                     }
                                     if (Array.isArray(settings.autoJumpAbilityIds)) {
-                                        const ids = settings.autoJumpAbilityIds.filter(x => x != null).map(String);
-                                        CONFIG.autoJumpAbilityIds = ids;
-                                        storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(ids));
+                                        const items = normalizeAbilityFilter(settings.autoJumpAbilityIds);
+                                        CONFIG.autoJumpAbilityIds = items;
+                                        storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(items));
                                     }
                                 }
 
@@ -1731,15 +1754,27 @@
                             CONFIG.autoJumpTargetId = settings.autoJumpTargetId;
                             storage.setValue('sb_auto_jump_target_id', settings.autoJumpTargetId == null ? '' : String(settings.autoJumpTargetId));
                         }
+                        const normalizeAbilityFilter = (raw) => raw
+                            .map(item => {
+                                if (item == null) return null;
+                                if (typeof item === 'string' || typeof item === 'number') {
+                                    return { id: String(item), icon: '' };
+                                }
+                                if (item.id != null) {
+                                    return { id: String(item.id), icon: String(item.icon || '') };
+                                }
+                                return null;
+                            })
+                            .filter(Boolean);
                         if (Array.isArray(settings.autoBackAbilityIds)) {
-                            const ids = settings.autoBackAbilityIds.filter(x => x != null).map(String);
-                            CONFIG.autoBackAbilityIds = ids;
-                            storage.setValue('sb_auto_back_ability_ids', JSON.stringify(ids));
+                            const items = normalizeAbilityFilter(settings.autoBackAbilityIds);
+                            CONFIG.autoBackAbilityIds = items;
+                            storage.setValue('sb_auto_back_ability_ids', JSON.stringify(items));
                         }
                         if (Array.isArray(settings.autoJumpAbilityIds)) {
-                            const ids = settings.autoJumpAbilityIds.filter(x => x != null).map(String);
-                            CONFIG.autoJumpAbilityIds = ids;
-                            storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(ids));
+                            const items = normalizeAbilityFilter(settings.autoJumpAbilityIds);
+                            CONFIG.autoJumpAbilityIds = items;
+                            storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(items));
                         }
                     }
 
@@ -2876,8 +2911,8 @@
         }
 
         // 渲染"技能后"过滤器网格。
-        // 显示规则：已选项始终展示（即便不在当前战斗，也用缓存图标）+ 当前战斗未选项追加。
-        renderAbilityFilterGrid(gridId, hintId, savedIds) {
+        // 显示规则：已选项始终展示（icon 直接从 saved 自身读，不依赖全局缓存）+ 当前战斗未选项追加。
+        renderAbilityFilterGrid(gridId, hintId, savedFilter) {
             const grid = document.getElementById(gridId);
             const hint = document.getElementById(hintId);
             if (!grid || !hint) return;
@@ -2885,27 +2920,17 @@
             const currentList = (gameDetectorInstance && gameDetectorInstance.battleData
                 && gameDetectorInstance.battleData.abilityList) || [];
             const currentMap = new Map(currentList.map(a => [String(a.id), a]));
-            const savedArr = (savedIds || []).map(String);
+            const savedArr = Array.isArray(savedFilter) ? savedFilter : [];
 
-            let iconCache = {};
-            try { iconCache = JSON.parse(storage.getValue('sb_ability_icon_cache', '{}')) || {}; } catch (e) {}
-
-            const iconUrlFromCache = (id) => {
-                const v = iconCache[id];
-                return v ? `https://prd-game-a-granbluefantasy.akamaized.net/assets/img_mid/sp/ui/icon/ability/m/${v}.png` : '';
-            };
-
-            // 顺序：先已选项（保留 savedIds 顺序），再当前战斗里其他未选项
+            // 顺序：先已选项（保留 savedFilter 顺序），再当前战斗里其他未选项
             const cells = [];
             const rendered = new Set();
-            for (const id of savedArr) {
-                if (rendered.has(id)) continue;
+            for (const item of savedArr) {
+                const id = String(item && item.id != null ? item.id : item);
+                if (!id || rendered.has(id)) continue;
                 const fromBattle = currentMap.get(id);
-                cells.push({
-                    id,
-                    icon: fromBattle ? fromBattle.icon : iconUrlFromCache(id),
-                    checked: true
-                });
+                const icon = fromBattle ? fromBattle.icon : (item && item.icon) || '';
+                cells.push({ id, icon, checked: true });
                 rendered.add(id);
             }
             for (const ab of currentList) {
@@ -2928,8 +2953,9 @@
                 const visual = c.icon
                     ? `<img src="${c.icon}" alt="${c.id}">`
                     : `<div class="sb-ability-fallback">${c.id}</div>`;
+                const iconAttr = c.icon ? c.icon.replace(/"/g, '&quot;') : '';
                 return `<label class="sb-drop-sub-item ${cls}" data-ability-id="${c.id}">
-                    <input type="checkbox" data-ability-id="${c.id}" ${checkedAttr}>
+                    <input type="checkbox" data-ability-id="${c.id}" data-ability-icon="${iconAttr}" ${checkedAttr}>
                     ${visual}
                 </label>`;
             }).join('');
@@ -2941,17 +2967,22 @@
             });
         }
 
-        // 从 grid 收集勾选项。若 grid 是空（不在战斗中），返回 null 表示"别动已有的"
+        // 从 grid 收集勾选项，返回 [{id, icon}] 数组。grid 完全为空时返回 null（保留已有配置）
         collectAbilityFilter(gridId) {
             const grid = document.getElementById(gridId);
             if (!grid) return null;
             const inputs = grid.querySelectorAll('input[type="checkbox"]');
-            if (inputs.length === 0) return null; // 没有渲染任何技能
-            const ids = [];
+            if (inputs.length === 0) return null;
+            const items = [];
             inputs.forEach(cb => {
-                if (cb.checked) ids.push(cb.dataset.abilityId);
+                if (cb.checked) {
+                    items.push({
+                        id: cb.dataset.abilityId,
+                        icon: cb.dataset.abilityIcon || ''
+                    });
+                }
             });
-            return ids;
+            return items;
         }
 
         // 只重置 UI 状态，需要用户再点"确认"才落盘
@@ -4379,27 +4410,16 @@
                 seen.add(a.id);
                 return true;
             });
-
-            // 同步更新持久化图标缓存：让用户在别的战斗里仍能看到此前选中的技能图标
-            try {
-                let cache = {};
-                try { cache = JSON.parse(storage.getValue('sb_ability_icon_cache', '{}')) || {}; } catch (e) {}
-                this.battleData.abilityList.forEach(a => {
-                    if (a.iconId) cache[a.id] = a.iconId;
-                });
-                // 简单上限：超过 500 条删最早的，避免无限增长
-                const keys = Object.keys(cache);
-                if (keys.length > 500) {
-                    const trim = keys.slice(0, keys.length - 500);
-                    trim.forEach(k => { delete cache[k]; });
-                }
-                storage.setValue('sb_ability_icon_cache', JSON.stringify(cache));
-            } catch (e) {}
         }
 
-        matchesAbilityFilter(filterIds, usedId) {
-            if (!Array.isArray(filterIds) || filterIds.length === 0) return true;
-            return usedId != null && filterIds.map(String).includes(String(usedId));
+        matchesAbilityFilter(filter, usedId) {
+            if (!Array.isArray(filter) || filter.length === 0) return true;
+            if (usedId == null) return false;
+            const target = String(usedId);
+            return filter.some(item => {
+                const id = (typeof item === 'string' || typeof item === 'number') ? item : (item && item.id);
+                return String(id) === target;
+            });
         }
 
         tryAutoJump(timing, cachedConfig) {
