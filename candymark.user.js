@@ -792,6 +792,24 @@
             padding: 1px 4px;
             border-radius: 3px;
         }
+
+        .sb-drop-hit-icon-wrap {
+            display: flex;
+            justify-content: center;
+            margin: 16px 0;
+        }
+        .sb-drop-hit-icon-wrap img {
+            max-width: 160px;
+            max-height: 160px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        .sb-drop-hit-time {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
         
         /* 数值调节器样式 */
         .sb-number-adjuster {
@@ -1163,6 +1181,18 @@
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-drop-subscribe-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-drop-subscribe-cancel">取消</button>
+                </div>
+            </div>
+        </div>
+        <div id="sb-drop-hit-modal" class="sb-modal">
+            <div class="sb-modal-content">
+                <h3>🎉 订阅物品掉落了！🎉</h3>
+                <div class="sb-drop-hit-icon-wrap">
+                    <img id="sb-drop-hit-icon" alt="掉落物">
+                </div>
+                <div class="sb-drop-hit-time">时间：<span id="sb-drop-hit-time"></span></div>
+                <div class="sb-modal-buttons">
+                    <button class="sb-btn-primary" id="sb-drop-hit-ok">好的</button>
                 </div>
             </div>
         </div>
@@ -3821,9 +3851,8 @@
                 const el = document.querySelector(`[data-key$='_${sub.itemId}']`);
                 if (el) {
                     clearInterval(this.dropCheckInterval);
-                    const time = new Date().toLocaleTimeString();
-                    alert(`🎉 订阅物品掉落了！🎉\n时间：${time}`);
-                    this.triggerAutoBack();
+                    const iconUrl = sub.iconUrl || el.querySelector('img')?.src || '';
+                    this.showDropHitModal(iconUrl);
                     return;
                 }
             }
@@ -3842,7 +3871,25 @@
             const time = new Date().toLocaleTimeString();
             alert(`🎉 ${itemName}掉落了！🎉\n恭喜获得${itemName}！\n时间：${time}`);
         }
-        
+
+        showDropHitModal(iconUrl) {
+            const modal = document.getElementById('sb-drop-hit-modal');
+            if (!modal) {
+                // 兜底：UI 还没建好就退化成 alert
+                alert(`🎉 订阅物品掉落了！🎉\n时间：${new Date().toLocaleTimeString()}`);
+                this.triggerAutoBack();
+                return;
+            }
+            document.getElementById('sb-drop-hit-icon').src = iconUrl || '';
+            document.getElementById('sb-drop-hit-time').textContent = new Date().toLocaleTimeString();
+            const okBtn = document.getElementById('sb-drop-hit-ok');
+            okBtn.onclick = () => {
+                modal.classList.remove('show');
+                this.triggerAutoBack();
+            };
+            modal.classList.add('show');
+        }
+
         triggerAutoBack() {
             const currentUrl = window.location.href;
             
