@@ -1293,7 +1293,8 @@
                     maxBookmarks: CONFIG.maxBookmarks,
                     shortcutKey: CONFIG.shortcutKey,
                     blacklist: CONFIG.blacklist,
-                    bookmarksVisible: CONFIG.bookmarksVisible
+                    bookmarksVisible: CONFIG.bookmarksVisible,
+                    dropSubscriptions: CONFIG.dropSubscriptions
                 }
             };
             
@@ -1397,6 +1398,11 @@
                                         storage.setValue('sb_bookmarks_visible', settings.bookmarksVisible.toString());
                                         CONFIG.bookmarksVisible = settings.bookmarksVisible;
                                     }
+                                    if (Array.isArray(settings.dropSubscriptions)) {
+                                        const subs = settings.dropSubscriptions.filter(s => s && s.itemId && s.kind);
+                                        storage.setValue('sb_drop_subscriptions', JSON.stringify(subs));
+                                        CONFIG.dropSubscriptions = subs;
+                                    }
                                 }
                                 
                                 updateBookmarkSize(CONFIG.bookmarkSize);
@@ -1435,7 +1441,8 @@
                         bookmarksVisible: CONFIG.bookmarksVisible,
                         autoBackTurnEnabled: CONFIG.autoBackTurnEnabled,
                         autoBackTurnCount: CONFIG.autoBackTurnCount,
-                        autoBackDropEnabled: CONFIG.autoBackDropEnabled
+                        autoBackDropEnabled: CONFIG.autoBackDropEnabled,
+                        dropSubscriptions: CONFIG.dropSubscriptions
                     }
                 };
                 
@@ -1531,6 +1538,11 @@
                         if (typeof settings.bookmarksVisible === 'boolean') {
                             CONFIG.bookmarksVisible = settings.bookmarksVisible;
                             storage.setValue('sb_bookmarks_visible', settings.bookmarksVisible.toString());
+                        }
+                        if (Array.isArray(settings.dropSubscriptions)) {
+                            const subs = settings.dropSubscriptions.filter(s => s && s.itemId && s.kind);
+                            CONFIG.dropSubscriptions = subs;
+                            storage.setValue('sb_drop_subscriptions', JSON.stringify(subs));
                         }
                     }
                     
