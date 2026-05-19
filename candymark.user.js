@@ -756,22 +756,34 @@
             margin: 16px 0 4px;
         }
         .sb-bookmark-pick-icon {
-            width: 100%;
-            aspect-ratio: 1 / 1;
+            width: var(--sb-bookmark-size, 30.2px);
+            height: var(--sb-bookmark-size, 30.2px);
             border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: #fff;
             font-weight: 600;
-            font-size: 12px;
-            line-height: 1.15;
+            font-size: var(--sb-bookmark-font-size, 16px);
+            line-height: 1.05;
             text-align: center;
-            padding: 4px;
+            padding: 2px;
             box-sizing: border-box;
             word-break: break-all;
             overflow: hidden;
             text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+        }
+        /* 自动跳转的目标网格按真实标签大小排列，不用 4 列等分 */
+        #sb-auto-jump-target-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-start;
+            grid-template-columns: none;
+            padding: 4px;
+        }
+        #sb-auto-jump-target-grid .sb-drop-sub-item {
+            flex: 0 0 auto;
         }
         .sb-drop-subscribe-grid {
             display: grid;
