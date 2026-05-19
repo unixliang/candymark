@@ -3605,18 +3605,18 @@
             const config = loadConfig();
             const currentUrl = window.location.href;
 
-    		// 大巴角 "[data-key='10_79']" (调试用)
-		    // FFJ "[data-key='17_20004']"
-		    // 沙漏 "[data-key='10_215']"
+    		// 大巴角 物品id=79（任意前缀，如 10_79 / 12_79 等）
+		    // FFJ 物品id=20004（任意前缀，如 17_20004）
+		    // 沙漏 物品id=215（任意前缀，如 10_215 / 蓝箱区块可能换前缀）
 
             // URL过滤：重复的URL不处理
             if (this.autoBackAfterDropCheck.lastProcessed.url === currentUrl) {
                 return;
             }
 
-            // 检查FFJ掉落
+            // 检查FFJ掉落（按物品id后缀匹配，不限品类前缀）
             if (config.notifyFFJ) {
-                const ffjElement = document.querySelector("[data-key='17_20004']");
+                const ffjElement = document.querySelector("[data-key$='_20004']");
                 if (ffjElement) {
                     clearInterval(this.dropCheckInterval);
                     this.showDropAlert('FFJ', 'gold');
@@ -3624,10 +3624,10 @@
                     return;
                 }
             }
-            
-            // 检查沙漏掉落
+
+            // 检查沙漏掉落（按物品id后缀匹配，不限品类前缀）
             if (config.notifyHourglass) {
-                const hourglassElement = document.querySelector("[data-key='10_215']");
+                const hourglassElement = document.querySelector("[data-key$='_215']");
                 if (hourglassElement) {
                     clearInterval(this.dropCheckInterval);
                     this.showDropAlert('沙漏', 'brown');
@@ -3636,9 +3636,9 @@
                 }
             }
 
-            // 检查大巴角掉落
+            // 检查大巴角掉落（按物品id后缀匹配，不限品类前缀）
             if (config.notifyBahaHorn) {
-                const bahaHornElement = document.querySelector("[data-key='10_79']");
+                const bahaHornElement = document.querySelector("[data-key$='_79']");
                 if (bahaHornElement) {
                     clearInterval(this.dropCheckInterval);
                     this.showDropAlert('大巴角', 'gold');
