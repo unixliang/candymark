@@ -4416,15 +4416,17 @@
 
         startDropDetection() {
             // 每500ms检查一次掉落
+            this._lastDropCheckSize = undefined; // 重置渲染稳定性跟踪
             this.dropCheckInterval = setInterval(() => {
                 this.checkDrops();
-                
-                // 额外的返回触发机制：检查是否是新的结算页面
+
+                // 兜底：结算页已加载但根本没有 .prt-item-list（纯经验/无掉落场次），
+                // 也要触发返回。注意：有 .prt-item-list 的场次完全交给 checkDrops 处理，
+                // 否则会绕开 checkDrops 的稳定性闸门，把图片渐进渲染的订阅匹配吞掉。
                 if (this.autoBackAfterDropCheck.lastProcessed.url !== window.location.href) {
-                    // 检查是否已经有结果画面加载完成
                     const resultLoaded = document.querySelector('#cnt-quest');
-                    if (resultLoaded) {
-                        // 延迟100ms后自动返回，即使没有找到特定掉落
+                    const hasDropList = document.querySelector('.prt-item-list');
+                    if (resultLoaded && !hasDropList) {
                         setTimeout(() => {
                             this.triggerAutoBack();
                         }, 100);
@@ -4456,7 +4458,7 @@
                 if (key) droppedKeys.add(key);
             });
 
-            // 用户订阅匹配：把订阅的 iconUrl 也归一化后查集合
+            // 用户订阅匹配：命中即弹，无需等渲染稳定（订阅图标在场说明该图片已渲染）
             const subs = config.dropSubscriptions || [];
             const hitIcons = [];
             for (const sub of subs) {
@@ -4468,11 +4470,21 @@
             }
             if (hitIcons.length > 0) {
                 clearInterval(this.dropCheckInterval);
+                // 标记本页已处理，防止 startDropDetection 里的 100ms 兜底再次 triggerAutoBack 把用户拽走
+                this.autoBackAfterDropCheck.lastProcessed.url = currentUrl;
                 this.showDropHitModal(hitIcons);
                 return;
             }
 
-            // 只要 .prt-item-list 里有任何掉落物品就触发自动后退（保持原行为）
+            // 自动后退 / 自动跳转 fallback：等渲染稳定后再放行
+            // 否则在结算页图片渐进渲染时，第一个 tick 看到 2 张图就 back 走了，
+            // 之后才加载的订阅图标永远没机会被匹中。
+            if (this._lastDropCheckSize !== droppedKeys.size) {
+                this._lastDropCheckSize = droppedKeys.size;
+                return;
+            }
+
+            // 渲染稳定：只要 .prt-item-list 里有任何掉落物品就触发自动后退/跳转
             if (droppedKeys.size > 0 || dropList.querySelector('.lis-treasure')) {
                 clearInterval(this.dropCheckInterval);
                 this.triggerAutoBack();
