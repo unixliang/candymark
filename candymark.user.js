@@ -4129,9 +4129,9 @@
         }
 
         _teardownDropDetection() {
-            if (this.dropCheckInterval) {
-                clearInterval(this.dropCheckInterval);
-                this.dropCheckInterval = null;
+            if (this._docObserver) {
+                this._docObserver.disconnect();
+                this._docObserver = null;
             }
             if (this._dropObserver) {
                 this._dropObserver.disconnect();
@@ -4141,6 +4141,11 @@
                 clearTimeout(this._dropSettleTimer);
                 this._dropSettleTimer = null;
             }
+            if (this._noListFallbackTimer) {
+                clearTimeout(this._noListFallbackTimer);
+                this._noListFallbackTimer = null;
+            }
+            this._noListFallbackArmed = false;
             this._dropCheckDone = false;
         }
 
@@ -4428,35 +4433,49 @@
         }
 
         startDropDetection() {
-            // 策略：
-            // - 用 setInterval 周期性试图找到 .prt-item-list（容器没出来之前没法观察）。
-            // - 一旦找到，挂 MutationObserver 到容器上，"200ms 内没有 child 变化"即视为渲染稳定，
-            //   立刻做一次性检测——不再需要等多个 tick。
-            // - 兜底：结算页加载完但根本没掉落列表（纯经验场次）100ms 后 triggerAutoBack。
+            // 策略：完全用 MutationObserver 驱动，不再轮询。
+            // - 在 document 级别观察 .prt-item-list / #cnt-quest 出现。
+            // - .prt-item-list 出现 → 切到子树观察，等 200ms 没新变更视为稳定 → 一次性检查。
+            // - 只有 #cnt-quest（没 .prt-item-list）→ 表明这场没有掉落列表，100ms 后兜底 triggerAutoBack。
             this._dropCheckDone = false;
-            this.dropCheckInterval = setInterval(() => {
-                if (this._dropCheckDone) {
-                    clearInterval(this.dropCheckInterval);
-                    this.dropCheckInterval = null;
-                    return;
-                }
+            this._noListFallbackArmed = false;
 
+            const tryAct = () => {
+                if (this._dropCheckDone) return;
                 const dropList = document.querySelector('.prt-item-list');
                 if (dropList) {
+                    if (this._docObserver) {
+                        this._docObserver.disconnect();
+                        this._docObserver = null;
+                    }
                     this._watchDropListAndCheck(dropList);
                     return;
                 }
-
-                // 兜底：#cnt-quest 在但 .prt-item-list 不在 = 这场没有掉落列表
-                if (this.autoBackAfterDropCheck.lastProcessed.url !== window.location.href) {
-                    const resultLoaded = document.querySelector('#cnt-quest');
-                    if (resultLoaded) {
-                        setTimeout(() => {
-                            this.triggerAutoBack();
-                        }, 100);
-                    }
+                if (!this._noListFallbackArmed && document.querySelector('#cnt-quest')) {
+                    this._noListFallbackArmed = true;
+                    this._noListFallbackTimer = setTimeout(() => {
+                        if (this._dropCheckDone) return;
+                        // 100ms 内 .prt-item-list 才出现 → 让子树观察接手
+                        if (document.querySelector('.prt-item-list')) return;
+                        if (this._docObserver) {
+                            this._docObserver.disconnect();
+                            this._docObserver = null;
+                        }
+                        this._dropCheckDone = true;
+                        this.triggerAutoBack();
+                    }, 100);
                 }
-            }, 500);
+            };
+
+            // 首次同步检查当前 DOM
+            tryAct();
+            if (this._dropCheckDone || this._dropObserver) return;
+
+            // 还没出现 → 听 DOM 变化
+            this._docObserver = new MutationObserver(tryAct);
+            this._docObserver.observe(document.body || document.documentElement, {
+                childList: true, subtree: true
+            });
         }
 
         // 监听 .prt-item-list 子树，等 200ms 没新增/变更才算稳定，然后做一次性检查
@@ -4496,10 +4515,6 @@
             });
 
             this._dropCheckDone = true;
-            if (this.dropCheckInterval) {
-                clearInterval(this.dropCheckInterval);
-                this.dropCheckInterval = null;
-            }
 
             // 用户订阅匹配
             const subs = config.dropSubscriptions || [];
