@@ -4129,22 +4129,11 @@
         }
 
         _teardownDropDetection() {
-            if (this._docObserver) {
-                this._docObserver.disconnect();
-                this._docObserver = null;
+            if (this._dropPollTimer) {
+                clearTimeout(this._dropPollTimer);
+                this._dropPollTimer = null;
             }
-            if (this._dropObserver) {
-                this._dropObserver.disconnect();
-                this._dropObserver = null;
-            }
-            if (this._dropSettleTimer) {
-                clearTimeout(this._dropSettleTimer);
-                this._dropSettleTimer = null;
-            }
-            if (this._noListFallbackTimer) {
-                clearTimeout(this._noListFallbackTimer);
-                this._noListFallbackTimer = null;
-            }
+            this._dropPollActive = false;
             this._dropCheckDone = false;
         }
 
@@ -4293,7 +4282,14 @@
                 if (url.includes('/result') && data.status && data.status.turn !== undefined) {
                     currentTurn = data.status.turn;
                 }
-                
+
+                // 结算 API 响应回来 → 由 GBF 即将同步渲染掉落 → 启动轮询（Tarou 同款触发点）
+                // 与 hashchange 路径互为冗余：哪条先到都行，_dropPollActive 防止重复
+                if (/\/result(?:multi)?\/content\/index/.test(url)) {
+                    this.startDropDetection();
+                }
+
+
                 // 检查是否包含turn字段
                 if (data.turn !== undefined) {
                     currentTurn = data.turn;
@@ -4431,64 +4427,44 @@
             };
         }
 
+        // Tarou 风格的纯 setTimeout 轮询：
+        // - 200ms 一次查 .prt-item-list 出现，最多 5s
+        // - 容器一出来立刻 checkDrops（不再等 idle / mutation 稳定）
+        // - 5s 都没出现 → 当作纯经验场次，走自动后退
+        // 同时由 hashchange（已有）和 handleGameResponse 的结算 API 响应（新增）触发。
         startDropDetection() {
-            // 策略：完全用 MutationObserver 驱动，不再轮询。
-            // - 在 document 级别观察 .prt-item-list 出现。
-            // - .prt-item-list 出现 → 切到子树观察，等 200ms 没新变更视为稳定 → 一次性检查。
-            // - 一次性 2s 兜底：如果到时还没出现 .prt-item-list，触发自动后退（纯经验场次）。
-            //   这个延迟要给 GBF 足够时间把掉落容器渲染出来，太短（之前 100ms）会把检测锁死。
-            this._dropCheckDone = false;
-            this._noListFallbackTimer = setTimeout(() => {
-                if (this._dropCheckDone) return;
-                // .prt-item-list 此时若已存在，让子树观察接手；否则才走自动后退
-                if (document.querySelector('.prt-item-list')) return;
-                if (this._docObserver) {
-                    this._docObserver.disconnect();
-                    this._docObserver = null;
+            if (this._dropPollActive || this._dropCheckDone) return;
+            this._dropPollActive = true;
+            let attempts = 0;
+            const maxAttempts = 25; // 5 秒
+
+            const tick = () => {
+                this._dropPollTimer = null;
+                if (this._dropCheckDone) {
+                    this._dropPollActive = false;
+                    return;
                 }
-                this._dropCheckDone = true;
-                this.triggerAutoBack();
-            }, 2000);
-
-            const tryAct = () => {
-                if (this._dropCheckDone) return;
-                const dropList = document.querySelector('.prt-item-list');
-                if (!dropList) return;
-                if (this._docObserver) {
-                    this._docObserver.disconnect();
-                    this._docObserver = null;
-                }
-                this._watchDropListAndCheck(dropList);
-            };
-
-            // 首次同步检查当前 DOM
-            tryAct();
-            if (this._dropCheckDone || this._dropObserver) return;
-
-            // 还没出现 → 听 DOM 变化
-            this._docObserver = new MutationObserver(tryAct);
-            this._docObserver.observe(document.body || document.documentElement, {
-                childList: true, subtree: true
-            });
-        }
-
-        // 监听 .prt-item-list 子树，等 200ms 没新增/变更才算稳定，然后做一次性检查
-        _watchDropListAndCheck(dropList) {
-            if (this._dropObserver) return; // 已经在观察
-            const settle = () => {
-                if (this._dropSettleTimer) clearTimeout(this._dropSettleTimer);
-                this._dropSettleTimer = setTimeout(() => {
-                    if (this._dropObserver) {
-                        this._dropObserver.disconnect();
-                        this._dropObserver = null;
-                    }
-                    this._dropSettleTimer = null;
+                const list = document.querySelector('.prt-item-list');
+                if (list) {
+                    this._dropPollActive = false;
                     this.checkDrops();
-                }, 200);
+                    return;
+                }
+                attempts++;
+                if (attempts >= maxAttempts) {
+                    this._dropPollActive = false;
+                    // 纯经验场次（#cnt-quest 在但 .prt-item-list 始终没出现）→ 触发自动后退
+                    if (document.querySelector('#cnt-quest') && !this._dropCheckDone) {
+                        this._dropCheckDone = true;
+                        this.triggerAutoBack();
+                    }
+                    return;
+                }
+                this._dropPollTimer = setTimeout(tick, 200);
             };
-            this._dropObserver = new MutationObserver(settle);
-            this._dropObserver.observe(dropList, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
-            settle(); // 首次也启动 200ms 计时（应对 observe 后再也没变更的情况）
+
+            // 首次同步检查（已在结算页时省一拍）
+            tick();
         }
 
         checkDrops() {
