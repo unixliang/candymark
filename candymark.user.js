@@ -4145,7 +4145,6 @@
                 clearTimeout(this._noListFallbackTimer);
                 this._noListFallbackTimer = null;
             }
-            this._noListFallbackArmed = false;
             this._dropCheckDone = false;
         }
 
@@ -4434,37 +4433,32 @@
 
         startDropDetection() {
             // 策略：完全用 MutationObserver 驱动，不再轮询。
-            // - 在 document 级别观察 .prt-item-list / #cnt-quest 出现。
+            // - 在 document 级别观察 .prt-item-list 出现。
             // - .prt-item-list 出现 → 切到子树观察，等 200ms 没新变更视为稳定 → 一次性检查。
-            // - 只有 #cnt-quest（没 .prt-item-list）→ 表明这场没有掉落列表，100ms 后兜底 triggerAutoBack。
+            // - 一次性 2s 兜底：如果到时还没出现 .prt-item-list，触发自动后退（纯经验场次）。
+            //   这个延迟要给 GBF 足够时间把掉落容器渲染出来，太短（之前 100ms）会把检测锁死。
             this._dropCheckDone = false;
-            this._noListFallbackArmed = false;
+            this._noListFallbackTimer = setTimeout(() => {
+                if (this._dropCheckDone) return;
+                // .prt-item-list 此时若已存在，让子树观察接手；否则才走自动后退
+                if (document.querySelector('.prt-item-list')) return;
+                if (this._docObserver) {
+                    this._docObserver.disconnect();
+                    this._docObserver = null;
+                }
+                this._dropCheckDone = true;
+                this.triggerAutoBack();
+            }, 2000);
 
             const tryAct = () => {
                 if (this._dropCheckDone) return;
                 const dropList = document.querySelector('.prt-item-list');
-                if (dropList) {
-                    if (this._docObserver) {
-                        this._docObserver.disconnect();
-                        this._docObserver = null;
-                    }
-                    this._watchDropListAndCheck(dropList);
-                    return;
+                if (!dropList) return;
+                if (this._docObserver) {
+                    this._docObserver.disconnect();
+                    this._docObserver = null;
                 }
-                if (!this._noListFallbackArmed && document.querySelector('#cnt-quest')) {
-                    this._noListFallbackArmed = true;
-                    this._noListFallbackTimer = setTimeout(() => {
-                        if (this._dropCheckDone) return;
-                        // 100ms 内 .prt-item-list 才出现 → 让子树观察接手
-                        if (document.querySelector('.prt-item-list')) return;
-                        if (this._docObserver) {
-                            this._docObserver.disconnect();
-                            this._docObserver = null;
-                        }
-                        this._dropCheckDone = true;
-                        this.triggerAutoBack();
-                    }, 100);
-                }
+                this._watchDropListAndCheck(dropList);
             };
 
             // 首次同步检查当前 DOM
