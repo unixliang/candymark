@@ -4522,16 +4522,20 @@
         
         showDropHitModal(iconUrls) {
             const urls = (Array.isArray(iconUrls) ? iconUrls : [iconUrls]).filter(Boolean);
+            const formatDropTime = (d) => {
+                const pad = (n) => String(n).padStart(2, '0');
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+            };
             const modal = document.getElementById('sb-drop-hit-modal');
             if (!modal) {
                 // 兜底：UI 还没建好就退化成 alert
-                alert(`🎉 物品掉落了！🎉\n时间：${new Date().toLocaleTimeString()}`);
+                alert(`🎉 物品掉落了！🎉\n时间：${formatDropTime(new Date())}`);
                 this.triggerAutoBack();
                 return;
             }
             const wrap = document.getElementById('sb-drop-hit-icons');
             wrap.innerHTML = urls.map(u => `<img src="${u}" alt="掉落物">`).join('');
-            document.getElementById('sb-drop-hit-time').textContent = new Date().toLocaleTimeString();
+            document.getElementById('sb-drop-hit-time').textContent = formatDropTime(new Date());
             const okBtn = document.getElementById('sb-drop-hit-ok');
             okBtn.onclick = () => {
                 modal.classList.remove('show');
