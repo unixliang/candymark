@@ -4120,15 +4120,28 @@
         
         checkAndStartDetection() {
             // 先停止之前的检测
-            if (this.dropCheckInterval) {
-                clearInterval(this.dropCheckInterval);
-                this.dropCheckInterval = null;
-            }
-            
+            this._teardownDropDetection();
+
             // 检查是否匹配掉落页面
             if (window.location.href.match(this.resultMultiRegex)) {
                 this.startDropDetection();
             }
+        }
+
+        _teardownDropDetection() {
+            if (this.dropCheckInterval) {
+                clearInterval(this.dropCheckInterval);
+                this.dropCheckInterval = null;
+            }
+            if (this._dropObserver) {
+                this._dropObserver.disconnect();
+                this._dropObserver = null;
+            }
+            if (this._dropSettleTimer) {
+                clearTimeout(this._dropSettleTimer);
+                this._dropSettleTimer = null;
+            }
+            this._dropCheckDone = false;
         }
 
         /**
@@ -4415,18 +4428,29 @@
         }
 
         startDropDetection() {
-            // 每500ms检查一次掉落
-            this._lastDropCheckSize = undefined; // 重置渲染稳定性跟踪
+            // 策略：
+            // - 用 setInterval 周期性试图找到 .prt-item-list（容器没出来之前没法观察）。
+            // - 一旦找到，挂 MutationObserver 到容器上，"200ms 内没有 child 变化"即视为渲染稳定，
+            //   立刻做一次性检测——不再需要等多个 tick。
+            // - 兜底：结算页加载完但根本没掉落列表（纯经验场次）100ms 后 triggerAutoBack。
+            this._dropCheckDone = false;
             this.dropCheckInterval = setInterval(() => {
-                this.checkDrops();
+                if (this._dropCheckDone) {
+                    clearInterval(this.dropCheckInterval);
+                    this.dropCheckInterval = null;
+                    return;
+                }
 
-                // 兜底：结算页已加载但根本没有 .prt-item-list（纯经验/无掉落场次），
-                // 也要触发返回。注意：有 .prt-item-list 的场次完全交给 checkDrops 处理，
-                // 否则会绕开 checkDrops 的稳定性闸门，把图片渐进渲染的订阅匹配吞掉。
+                const dropList = document.querySelector('.prt-item-list');
+                if (dropList) {
+                    this._watchDropListAndCheck(dropList);
+                    return;
+                }
+
+                // 兜底：#cnt-quest 在但 .prt-item-list 不在 = 这场没有掉落列表
                 if (this.autoBackAfterDropCheck.lastProcessed.url !== window.location.href) {
                     const resultLoaded = document.querySelector('#cnt-quest');
-                    const hasDropList = document.querySelector('.prt-item-list');
-                    if (resultLoaded && !hasDropList) {
+                    if (resultLoaded) {
                         setTimeout(() => {
                             this.triggerAutoBack();
                         }, 100);
@@ -4434,31 +4458,50 @@
                 }
             }, 500);
         }
-        
+
+        // 监听 .prt-item-list 子树，等 200ms 没新增/变更才算稳定，然后做一次性检查
+        _watchDropListAndCheck(dropList) {
+            if (this._dropObserver) return; // 已经在观察
+            const settle = () => {
+                if (this._dropSettleTimer) clearTimeout(this._dropSettleTimer);
+                this._dropSettleTimer = setTimeout(() => {
+                    if (this._dropObserver) {
+                        this._dropObserver.disconnect();
+                        this._dropObserver = null;
+                    }
+                    this._dropSettleTimer = null;
+                    this.checkDrops();
+                }, 200);
+            };
+            this._dropObserver = new MutationObserver(settle);
+            this._dropObserver.observe(dropList, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+            settle(); // 首次也启动 200ms 计时（应对 observe 后再也没变更的情况）
+        }
+
         checkDrops() {
+            if (this._dropCheckDone) return;
             const config = loadConfig();
             const currentUrl = window.location.href;
 
-            // URL过滤：重复的URL不处理
-            if (this.autoBackAfterDropCheck.lastProcessed.url === currentUrl) {
-                return;
-            }
+            if (this.autoBackAfterDropCheck.lastProcessed.url === currentUrl) return;
 
             const dropList = document.querySelector('.prt-item-list');
-            if (!dropList) {
-                // 结算 DOM 还没渲染或不在结算页：跳过本轮
-                return;
-            }
+            if (!dropList) return;
 
-            // 参考 Tarou：把 .prt-item-list 里所有图片 src 归一化成 key 集合
-            // 这样跨 CDN 主机 / 跨大小变体（m/b/s + img_mid/img_low）都能匹配
+            // 此时 DOM 已稳定，一次性收集所有掉落
             const droppedKeys = new Set();
             dropList.querySelectorAll('img').forEach(img => {
                 const key = this.imgSrcToKey(img.getAttribute('src') || img.src);
                 if (key) droppedKeys.add(key);
             });
 
-            // 用户订阅匹配：命中即弹，无需等渲染稳定（订阅图标在场说明该图片已渲染）
+            this._dropCheckDone = true;
+            if (this.dropCheckInterval) {
+                clearInterval(this.dropCheckInterval);
+                this.dropCheckInterval = null;
+            }
+
+            // 用户订阅匹配
             const subs = config.dropSubscriptions || [];
             const hitIcons = [];
             for (const sub of subs) {
@@ -4469,26 +4512,14 @@
                 }
             }
             if (hitIcons.length > 0) {
-                clearInterval(this.dropCheckInterval);
-                // 标记本页已处理，防止 startDropDetection 里的 100ms 兜底再次 triggerAutoBack 把用户拽走
                 this.autoBackAfterDropCheck.lastProcessed.url = currentUrl;
                 this.showDropHitModal(hitIcons);
                 return;
             }
 
-            // 自动后退 / 自动跳转 fallback：等渲染稳定后再放行
-            // 否则在结算页图片渐进渲染时，第一个 tick 看到 2 张图就 back 走了，
-            // 之后才加载的订阅图标永远没机会被匹中。
-            if (this._lastDropCheckSize !== droppedKeys.size) {
-                this._lastDropCheckSize = droppedKeys.size;
-                return;
-            }
-
-            // 渲染稳定：只要 .prt-item-list 里有任何掉落物品就触发自动后退/跳转
+            // 没命中订阅但有掉落 → 走自动后退/跳转
             if (droppedKeys.size > 0 || dropList.querySelector('.lis-treasure')) {
-                clearInterval(this.dropCheckInterval);
                 this.triggerAutoBack();
-                return;
             }
         }
 
