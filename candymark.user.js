@@ -4442,21 +4442,28 @@
                 return;
             }
 
-            // 限定在真正的掉落容器内查询，避免与下一战预览/角色面板等带 data-key 的区域撞 id
             const dropList = document.querySelector('.prt-item-list');
             if (!dropList) {
                 // 结算 DOM 还没渲染或不在结算页：跳过本轮
                 return;
             }
 
-            // 检查用户订阅的掉落物品
+            // 参考 Tarou：把 .prt-item-list 里所有图片 src 归一化成 key 集合
+            // 这样跨 CDN 主机 / 跨大小变体（m/b/s + img_mid/img_low）都能匹配
+            const droppedKeys = new Set();
+            dropList.querySelectorAll('img').forEach(img => {
+                const key = this.imgSrcToKey(img.getAttribute('src') || img.src);
+                if (key) droppedKeys.add(key);
+            });
+
+            // 用户订阅匹配：把订阅的 iconUrl 也归一化后查集合
             const subs = config.dropSubscriptions || [];
             const hitIcons = [];
             for (const sub of subs) {
-                if (!sub || !sub.itemId) continue;
-                const el = dropList.querySelector(`[data-key$='_${sub.itemId}']`);
-                if (el) {
-                    hitIcons.push(sub.iconUrl || el.querySelector('img')?.src || '');
+                if (!sub || !sub.iconUrl) continue;
+                const subKey = this.imgSrcToKey(sub.iconUrl);
+                if (subKey && droppedKeys.has(subKey)) {
+                    hitIcons.push(sub.iconUrl);
                 }
             }
             if (hitIcons.length > 0) {
@@ -4465,13 +4472,25 @@
                 return;
             }
 
-            // 检查是否有任何掉落物品（即使没有通知设置也触发返回）
-            const dropElements = dropList.querySelectorAll('[data-key*="10_"], [data-key*="17_"], [data-key*="12_"]');
-            if (dropElements.length > 0) {
+            // 只要 .prt-item-list 里有任何掉落物品就触发自动后退（保持原行为）
+            if (droppedKeys.size > 0 || dropList.querySelector('.lis-treasure')) {
                 clearInterval(this.dropCheckInterval);
                 this.triggerAutoBack();
                 return;
             }
+        }
+
+        // 把 GBF 图片 URL 归一化成一个稳定 key（参考 Tarou imgSrcToKey）
+        // 例如 https://X.akamaized.net/assets/img_mid/sp/assets/item/article/m/215.jpg
+        //      → /item/article/s/215.jpg
+        imgSrcToKey(src) {
+            if (!src || typeof src !== 'string') return '';
+            const arr = src.split(/\/assets(?:_en)?\/img(?:_low|_mid)?\/sp\/assets/);
+            if (arr.length !== 2) return '';
+            return arr[1]
+                .replace(/\/(?:m|b)\//, '/s/')
+                .replace(/\.png(?:\?.*)?$/, '.jpg')
+                .replace(/\?.*$/, '');
         }
         
         showDropHitModal(iconUrls) {
