@@ -4497,7 +4497,6 @@
                 }
             }
             if (hitIcons.length > 0) {
-                this.autoBackAfterDropCheck.lastProcessed.url = currentUrl;
                 this.showDropHitModal(hitIcons);
                 return;
             }
