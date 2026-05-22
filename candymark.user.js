@@ -18,16 +18,22 @@
     window.CandyMarkLoaded = true;
     
 
+    // 配置缓存：loadConfig 在战斗响应里被高频调用，每次都做 ~22 次 storage.getValue + 多次 JSON.parse
+    // 会卡主线程；任何 sb_* 写入都会让缓存失效，下次 loadConfig 重新读。
+    let _configCache = null;
+    const invalidateConfigCache = () => { _configCache = null; };
+
     // localStorage 存储工具函数
     const storage = {
         setValue: (key, value) => {
             try {
+                if (typeof key === 'string' && key.startsWith('sb_')) invalidateConfigCache();
                 return localStorage.setItem(key, value);
             } catch (error) {
                 return false;
             }
         },
-        
+
         getValue: (key, defaultValue = null) => {
             try {
                 const value = localStorage.getItem(key);
@@ -36,9 +42,10 @@
                 return defaultValue;
             }
         },
-        
+
         removeValue: (key) => {
             try {
+                if (typeof key === 'string' && key.startsWith('sb_')) invalidateConfigCache();
                 return localStorage.removeItem(key);
             } catch (error) {
                 return false;
@@ -54,8 +61,9 @@
         }
     };
     
-    // 配置选项 - 支持动态加载
+    // 配置选项 - 支持动态加载（带缓存，写入 sb_* 时自动失效）
     const loadConfig = () => {
+        if (_configCache) return _configCache;
         let blacklist;
         try {
             blacklist = JSON.parse(storage.getValue('sb_blacklist', '["greasyfork.org", "github.com"]'));
@@ -90,7 +98,7 @@
             }
         };
 
-        return {
+        _configCache = {
             enabled: storage.getValue('sb_enabled', 'true') === 'true',
             showTrigger: storage.getValue('sb_show_trigger', 'true') === 'true',
             triggerPosition: storage.getValue('sb_trigger_position', 'top-left'),
@@ -122,6 +130,7 @@
             autoJumpSummonIds: parseAbilityFilter('sb_auto_jump_summon_ids'),
             dropSubscriptions: dropSubscriptions
         };
+        return _configCache;
     };
     
     const CONFIG = loadConfig();
@@ -3753,10 +3762,13 @@
             document.addEventListener('touchmove', this.boundDragHandlers.touchMove, { passive: false });
             document.addEventListener('touchend', this.boundDragHandlers.touchEnd);
             
-            // 延迟添加退出事件
-            setTimeout(() => {
+            // 延迟添加退出事件；记下 timer 与已挂载标记，exitDragMode 时按需取消 / 移除
+            dragState.exitListenersAttached = false;
+            dragState.exitBindTimer = setTimeout(() => {
+                dragState.exitBindTimer = null;
                 document.addEventListener('click', this.boundDragHandlers.outsideClick);
                 document.addEventListener('keydown', this.boundDragHandlers.keyDown);
+                dragState.exitListenersAttached = true;
             }, 300);
         }
         
@@ -3768,7 +3780,7 @@
             // 移除拖拽模式状态类
             const container = document.getElementById('sb-container');
             container.classList.remove('sb-container--drag-mode');
-            
+
             // 清理UI元素
             if (originalPos) {
                 originalPos.remove();
@@ -3776,28 +3788,33 @@
                 dragState.originalPos = null;
             }
             hint.classList.remove('show');
-            
+
             document.body.style.userSelect = '';
             document.body.style.cursor = '';
-            
+
             // 恢复标签点击功能
             element.removeEventListener('click', this.boundDragHandlers.disableClick, true);
             element.style.pointerEvents = '';
-            
+
             // 移除所有事件监听器
-            this.unbindDragEvents(element);
-            
+            this.unbindDragEvents(element, dragState);
+
             // 强制重绘
             element.offsetHeight;
         }
-        
-        unbindDragEvents(element) {
+
+        unbindDragEvents(element, dragState) {
             element.removeEventListener('mousedown', this.boundDragHandlers.mouseDown);
             element.removeEventListener('touchstart', this.boundDragHandlers.touchStart);
             document.removeEventListener('mousemove', this.boundDragHandlers.mouseMove);
             document.removeEventListener('mouseup', this.boundDragHandlers.mouseUp);
             document.removeEventListener('touchmove', this.boundDragHandlers.touchMove);
             document.removeEventListener('touchend', this.boundDragHandlers.touchEnd);
+            // 若挂起的 300ms 定时器还没 fire，必须取消，否则之后会挂上无人卸载的 listener
+            if (dragState && dragState.exitBindTimer) {
+                clearTimeout(dragState.exitBindTimer);
+                dragState.exitBindTimer = null;
+            }
             document.removeEventListener('click', this.boundDragHandlers.outsideClick);
             document.removeEventListener('keydown', this.boundDragHandlers.keyDown);
         }
