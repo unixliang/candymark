@@ -111,11 +111,13 @@
             bookmarksVisible: storage.getValue('sb_bookmarks_visible', 'true') === 'true',
             autoBackTurnEnabled: storage.getValue('sb_auto_back_turn_enabled', 'false') === 'true',
             autoBackTurnCount: parseInt(storage.getValue('sb_auto_back_turn_count', '3')),
+            autoBackBattleEndEnabled: storage.getValue('sb_auto_back_battle_end_enabled', 'false') === 'true',
             autoBackDropEnabled: storage.getValue('sb_auto_back_drop_enabled', 'false') === 'true',
             autoBackSummonEnabled: storage.getValue('sb_auto_back_summon_enabled', 'false') === 'true',
             autoBackAbilityEnabled: storage.getValue('sb_auto_back_ability_enabled', 'false') === 'true',
             autoJumpTurnEnabled: storage.getValue('sb_auto_jump_turn_enabled', 'false') === 'true',
             autoJumpTurnCount: parseInt(storage.getValue('sb_auto_jump_turn_count', '3')),
+            autoJumpBattleEndEnabled: storage.getValue('sb_auto_jump_battle_end_enabled', 'false') === 'true',
             autoJumpDropEnabled: storage.getValue('sb_auto_jump_drop_enabled', 'false') === 'true',
             autoJumpSummonEnabled: storage.getValue('sb_auto_jump_summon_enabled', 'false') === 'true',
             autoJumpAbilityEnabled: storage.getValue('sb_auto_jump_ability_enabled', 'false') === 'true',
@@ -1274,6 +1276,10 @@
                         <div style="margin-left: 20px;">回合内攻击后</div>
                     </label>
                     <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-back-battle-end">
+                        🏆 战斗结束后
+                    </label>
+                    <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-auto-back-drop">
                         🎯 结算后
                     </label>
@@ -1310,6 +1316,10 @@
                             <button class="sb-number-adjuster-btn" id="sb-auto-jump-turn-increase">+</button>
                         </div>
                         <div style="margin-left: 20px;">该回合攻击后</div>
+                    </label>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-jump-battle-end">
+                        🏆 战斗结束后
                     </label>
                     <label class="sb-checkbox-item">
                         <input type="checkbox" id="sb-auto-jump-drop">
@@ -1475,6 +1485,7 @@
                     dropSubscriptions: CONFIG.dropSubscriptions,
                     autoJumpTurnEnabled: CONFIG.autoJumpTurnEnabled,
                     autoJumpTurnCount: CONFIG.autoJumpTurnCount,
+                    autoJumpBattleEndEnabled: CONFIG.autoJumpBattleEndEnabled,
                     autoJumpDropEnabled: CONFIG.autoJumpDropEnabled,
                     autoJumpSummonEnabled: CONFIG.autoJumpSummonEnabled,
                     autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
@@ -1676,10 +1687,12 @@
                         bookmarksVisible: CONFIG.bookmarksVisible,
                         autoBackTurnEnabled: CONFIG.autoBackTurnEnabled,
                         autoBackTurnCount: CONFIG.autoBackTurnCount,
+                        autoBackBattleEndEnabled: CONFIG.autoBackBattleEndEnabled,
                         autoBackDropEnabled: CONFIG.autoBackDropEnabled,
                         dropSubscriptions: CONFIG.dropSubscriptions,
                         autoJumpTurnEnabled: CONFIG.autoJumpTurnEnabled,
                         autoJumpTurnCount: CONFIG.autoJumpTurnCount,
+                        autoJumpBattleEndEnabled: CONFIG.autoJumpBattleEndEnabled,
                         autoJumpDropEnabled: CONFIG.autoJumpDropEnabled,
                         autoJumpSummonEnabled: CONFIG.autoJumpSummonEnabled,
                         autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
@@ -2903,14 +2916,18 @@
             
             // 设置当前选项状态
             const turnCheckbox = document.getElementById('sb-auto-back-turn');
+            const battleEndCheckbox = document.getElementById('sb-auto-back-battle-end');
             const dropCheckbox = document.getElementById('sb-auto-back-drop');
             const summonCheckbox = document.getElementById('sb-auto-back-summon');
             const abilityCheckbox = document.getElementById('sb-auto-back-ability');
             const turnCount = document.getElementById('sb-auto-back-turn-count');
-            
+
             if (turnCheckbox) {
                 turnCheckbox.checked = CONFIG.autoBackTurnEnabled;
                 turnCount.value = CONFIG.autoBackTurnCount;
+            }
+            if (battleEndCheckbox) {
+                battleEndCheckbox.checked = CONFIG.autoBackBattleEndEnabled;
             }
             if (dropCheckbox) {
                 dropCheckbox.checked = CONFIG.autoBackDropEnabled;
@@ -2941,13 +2958,15 @@
         
         confirmAutoBackChange() {
             const turnCheckbox = document.getElementById('sb-auto-back-turn');
+            const battleEndCheckbox = document.getElementById('sb-auto-back-battle-end');
             const dropCheckbox = document.getElementById('sb-auto-back-drop');
             const summonCheckbox = document.getElementById('sb-auto-back-summon');
             const abilityCheckbox = document.getElementById('sb-auto-back-ability');
             const turnCountInput = document.getElementById('sb-auto-back-turn-count');
-            
+
             // 更新配置
             CONFIG.autoBackTurnEnabled = turnCheckbox ? turnCheckbox.checked : false;
+            CONFIG.autoBackBattleEndEnabled = battleEndCheckbox ? battleEndCheckbox.checked : false;
             CONFIG.autoBackDropEnabled = dropCheckbox ? dropCheckbox.checked : false;
             CONFIG.autoBackSummonEnabled = summonCheckbox ? summonCheckbox.checked : false;
             CONFIG.autoBackAbilityEnabled = abilityCheckbox ? abilityCheckbox.checked : false;
@@ -2964,6 +2983,7 @@
             // 保存到存储
             storage.setValue('sb_auto_back_turn_enabled', CONFIG.autoBackTurnEnabled.toString());
             storage.setValue('sb_auto_back_turn_count', CONFIG.autoBackTurnCount.toString());
+            storage.setValue('sb_auto_back_battle_end_enabled', CONFIG.autoBackBattleEndEnabled.toString());
             storage.setValue('sb_auto_back_drop_enabled', CONFIG.autoBackDropEnabled.toString());
             storage.setValue('sb_auto_back_summon_enabled', CONFIG.autoBackSummonEnabled.toString());
             storage.setValue('sb_auto_back_ability_enabled', CONFIG.autoBackAbilityEnabled.toString());
@@ -3090,6 +3110,7 @@
         resetAutoBackForm() {
             document.getElementById('sb-auto-back-turn').checked = false;
             document.getElementById('sb-auto-back-turn-count').value = 1;
+            document.getElementById('sb-auto-back-battle-end').checked = false;
             document.getElementById('sb-auto-back-drop').checked = false;
             document.getElementById('sb-auto-back-summon').checked = false;
             document.getElementById('sb-auto-back-ability').checked = false;
@@ -3100,6 +3121,7 @@
         resetAutoJumpForm() {
             document.getElementById('sb-auto-jump-turn').checked = false;
             document.getElementById('sb-auto-jump-turn-count').value = 1;
+            document.getElementById('sb-auto-jump-battle-end').checked = false;
             document.getElementById('sb-auto-jump-drop').checked = false;
             document.getElementById('sb-auto-jump-summon').checked = false;
             document.getElementById('sb-auto-jump-ability').checked = false;
@@ -3127,9 +3149,10 @@
             const grid = document.getElementById('sb-auto-jump-target-grid');
             const hint = document.getElementById('sb-auto-jump-hint');
 
-            // 同步 4 个时机开关
+            // 同步 5 个时机开关
             document.getElementById('sb-auto-jump-turn').checked = !!CONFIG.autoJumpTurnEnabled;
             document.getElementById('sb-auto-jump-turn-count').value = CONFIG.autoJumpTurnCount || 3;
+            document.getElementById('sb-auto-jump-battle-end').checked = !!CONFIG.autoJumpBattleEndEnabled;
             document.getElementById('sb-auto-jump-drop').checked = !!CONFIG.autoJumpDropEnabled;
             document.getElementById('sb-auto-jump-summon').checked = !!CONFIG.autoJumpSummonEnabled;
             document.getElementById('sb-auto-jump-ability').checked = !!CONFIG.autoJumpAbilityEnabled;
@@ -3203,6 +3226,7 @@
 
         confirmAutoJumpChange() {
             CONFIG.autoJumpTurnEnabled = document.getElementById('sb-auto-jump-turn').checked;
+            CONFIG.autoJumpBattleEndEnabled = document.getElementById('sb-auto-jump-battle-end').checked;
             CONFIG.autoJumpDropEnabled = document.getElementById('sb-auto-jump-drop').checked;
             CONFIG.autoJumpSummonEnabled = document.getElementById('sb-auto-jump-summon').checked;
             CONFIG.autoJumpAbilityEnabled = document.getElementById('sb-auto-jump-ability').checked;
@@ -3217,6 +3241,7 @@
 
             storage.setValue('sb_auto_jump_turn_enabled', CONFIG.autoJumpTurnEnabled.toString());
             storage.setValue('sb_auto_jump_turn_count', CONFIG.autoJumpTurnCount.toString());
+            storage.setValue('sb_auto_jump_battle_end_enabled', CONFIG.autoJumpBattleEndEnabled.toString());
             storage.setValue('sb_auto_jump_drop_enabled', CONFIG.autoJumpDropEnabled.toString());
             storage.setValue('sb_auto_jump_summon_enabled', CONFIG.autoJumpSummonEnabled.toString());
             storage.setValue('sb_auto_jump_ability_enabled', CONFIG.autoJumpAbilityEnabled.toString());
@@ -4276,13 +4301,35 @@
                     currentTurn = data.status.turn;
                 }
 
+                // 战斗结束（Tarou: scenario.some(item => item.cmd === 'win' && item.is_last_raid)）
+                // 任何 attack/ability/summon 响应里都可能含击杀 scenario；命中则比 turn/summon/ability/drop
+                // 任意一条更早触发，并阻止后面的 turn/summon/ability 分支重复 back / jump。
+                let battleEndHandled = false;
+                const scenario = Array.isArray(data.scenario) ? data.scenario
+                    : (data.status && Array.isArray(data.status.scenario)) ? data.status.scenario
+                    : null;
+                if (scenario && scenario.some(item => item && item.cmd === 'win' && item.is_last_raid)) {
+                    const config = loadConfig();
+                    let jumped = this.tryAutoJump('battle-end', config);
+                    if (jumped) {
+                        battleEndHandled = true;
+                    } else if (config.autoBackBattleEndEnabled) {
+                        setTimeout(() => {
+                            if (window.history.length > 1) {
+                                history.back();
+                            }
+                        }, 50);
+                        battleEndHandled = true;
+                    }
+                }
+
                 // 攻击后自动跳转 / 自动后退
                 // 用 battleData.currentTurn（这次响应到来"之前"的回合数 = 攻击发起时的那一回合）
                 // 这样即便击杀导致响应里没有 newTurn，也能用上一次记录的回合触发。
                 // 注意：两者条件不同。
                 //   自动后退：前 N 回合（turnAtAttack <= autoBackTurnCount，即第 1..N 回合都触发）
                 //   自动跳转：第 N 回合（turnAtAttack === autoJumpTurnCount，只在 N 那一次触发）
-                if (url.includes('attack_result')) {
+                if (!battleEndHandled && url.includes('attack_result')) {
                     const config = loadConfig();
                     const turnAtAttack = this.battleData.currentTurn;
                     if (turnAtAttack > 0) {
@@ -4305,7 +4352,7 @@
                 }
 
                 // 新增：召唤结果后的后退/跳转，可被召唤过滤器收窄
-                if (url.includes('summon_result')) {
+                if (!battleEndHandled && url.includes('summon_result')) {
                     const config = loadConfig();
                     const usedId = req.summon_id != null ? String(req.summon_id) : null;
                     let jumped = false;
@@ -4323,7 +4370,7 @@
                 }
 
                 // 新增：能力结果后的后退/跳转，可被技能过滤器收窄
-                if (url.includes('ability_result')) {
+                if (!battleEndHandled && url.includes('ability_result')) {
                     const config = loadConfig();
                     const usedId = req.ability_id != null ? String(req.ability_id) : null;
                     let jumped = false;
@@ -4666,6 +4713,7 @@
             const config = cachedConfig || loadConfig();
             const enabledMap = {
                 turn: config.autoJumpTurnEnabled,
+                'battle-end': config.autoJumpBattleEndEnabled,
                 drop: config.autoJumpDropEnabled,
                 summon: config.autoJumpSummonEnabled,
                 ability: config.autoJumpAbilityEnabled
@@ -4683,8 +4731,8 @@
             if (!target || !target.url) return false;
             if (target.url === 'back' || target.url === 'click-through-back') return false;
 
-            // 延迟与自动后退保持一致：turn 170ms，drop 100ms，summon/ability 50ms
-            const delayMap = { turn: 170, drop: 100, summon: 50, ability: 50 };
+            // 延迟与自动后退保持一致：turn 170ms，battle-end 50ms，drop 100ms，summon/ability 50ms
+            const delayMap = { turn: 170, 'battle-end': 50, drop: 100, summon: 50, ability: 50 };
             setTimeout(() => {
                 location.href = target.url;
             }, delayMap[timing] || 100);
