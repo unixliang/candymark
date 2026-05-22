@@ -4105,8 +4105,6 @@
                 summonList: [],      // {id, imageId, icon}[]，按 summon_id 1-based 顺序排列
                 supporterSummon: null // {id, imageId, icon} —— 友方借召
             };
-            this.lastAbilityIdUsed = null; // 最近一次 ability 请求里的 ability_id
-            this.lastSummonIdUsed = null;  // 最近一次 summon 请求里的 summon_id
             this.autoBackAfterDropCheck = {
                 enabled: true, // 新功能开关
                 lastProcessed: {
@@ -4161,15 +4159,13 @@
         monitorGameData() {
             const self = this;
 
-            // 防双装：fetch 已被本脚本包装过则跳过，避免套娃导致同一响应被处理 N 次
-            // 把不同形态的 request body 解析成普通对象，能拿到 ability_id / summon_id 即可
+            // settings.data 在 jQuery 里可能是 JSON 字符串、URL-encoded form 字符串，或对象
+            // 统一解析成普通对象，只为了拿 ability_id / summon_id
             const extractRequestFields = (raw) => {
                 if (!raw) return null;
                 try {
                     if (typeof raw === 'string') {
-                        // 试 JSON
                         try { return JSON.parse(raw); } catch (e) {}
-                        // 退到 URL-encoded（form）
                         if (raw.includes('=')) {
                             const params = new URLSearchParams(raw);
                             const obj = {};
@@ -4188,99 +4184,65 @@
                         raw.forEach((v, k) => { obj[k] = v; });
                         return obj;
                     }
+                    if (typeof raw === 'object') return raw;
                 } catch (e) {}
                 return null;
             };
 
-            // 快速识别 GBF 域名的请求，其他全部直接放行，省下绝大部分页面里发生的 hook 开销
-            const isGbfUrl = (url) => typeof url === 'string'
-                && (url.includes('granbluefantasy') || url.includes('mbga'));
+            // 把 ajaxSuccess 监听注入到页面上下文（Tarou inject.ts 同款做法）
+            // userscript 自身的 window 在某些 Tampermonkey 配置 / iframe 场景下和页面隔离，
+            // 直接 jq(document).ajaxSuccess 可能挂不到游戏真正用的那个 jQuery；
+            // 用 <script> 注入能保证拿到页面 jQuery，再 CustomEvent 回传给 userscript。
+            const EVENT_NAME = '__candymark_ajax_success';
 
-            if (!window.fetch.__candymark_wrapped) {
-                const originalFetch = window.fetch;
-                window.fetch = function(...args) {
-                    const url = args[0];
-                    // 非 GBF 请求直通，零开销
-                    if (!isGbfUrl(url)) {
-                        return originalFetch.apply(this, args);
-                    }
-                    const opts = args[1];
-                    if (opts && opts.body) {
-                        const body = extractRequestFields(opts.body);
-                        if (body) {
-                            if (url.includes('ability_result') && body.ability_id != null) {
-                                self.lastAbilityIdUsed = String(body.ability_id);
-                            }
-                            if (url.includes('summon_result') && body.summon_id != null) {
-                                self.lastSummonIdUsed = String(body.summon_id);
-                            }
-                        }
-                    }
-                    let promise = originalFetch.apply(this, args);
+            // userscript 侧收到事件后还原响应数据并继续处理
+            document.addEventListener(EVENT_NAME, (e) => {
+                let payload;
+                try {
+                    payload = JSON.parse(e.detail);
+                } catch (err) {
+                    return;
+                }
+                if (!payload || !payload.url) return;
+                const body = extractRequestFields(payload.requestData) || {};
+                self.handleGameResponse(payload.responseData, payload.url, body);
+            });
 
-                    if (url.includes('/raid/') || url.includes('/multiraid/')) {
-                        promise = promise.then(response => {
-                            const clonedResponse = response.clone();
-                            clonedResponse.json().then(data => {
-                                self.handleGameResponse(data, url);
-                            }).catch(() => {
-                                // 非JSON响应，忽略
-                            });
-                            return response;
+            if (window.__candymarkAjaxHooked) return;
+            window.__candymarkAjaxHooked = true;
+
+            // 注入到页面上下文：等 jQuery 出现 → 订阅 ajaxSuccess → 把数据 dispatch 给 userscript
+            const script = document.createElement('script');
+            script.textContent = `(function(){
+                var attempts = 0;
+                var maxAttempts = 100;
+                var timer = setInterval(function(){
+                    var jq = window.jQuery || window.$;
+                    if (typeof jq === 'function') {
+                        clearInterval(timer);
+                        jq(document).ajaxSuccess(function(event, xhr, settings, data){
+                            try {
+                                document.dispatchEvent(new CustomEvent('${EVENT_NAME}', {
+                                    detail: JSON.stringify({
+                                        url: settings && settings.url,
+                                        requestData: settings && settings.data,
+                                        responseData: data
+                                    })
+                                }));
+                            } catch(e) {}
                         });
+                    } else if (++attempts > maxAttempts) {
+                        clearInterval(timer);
                     }
-
-                    return promise;
-                };
-                window.fetch.__candymark_wrapped = true;
-            }
-
-            // 同时监控XHR请求，覆盖更多场景；同样防双装
-            if (!XMLHttpRequest.prototype.send.__candymark_wrapped) {
-                const originalXHRSend = XMLHttpRequest.prototype.send;
-                const originalXHROpen = XMLHttpRequest.prototype.open;
-
-                XMLHttpRequest.prototype.open = function(method, url) {
-                    // 只记录 GBF 域名的 URL，其它请求 __candymark_url 为 undefined，send hook 直接跳过
-                    if (isGbfUrl(url)) {
-                        this.__candymark_url = url;
-                    }
-                    return originalXHROpen.apply(this, arguments);
-                };
-
-                XMLHttpRequest.prototype.send = function(...args) {
-                    // 非 GBF 请求（__candymark_url 没设）一路放行，不挂任何监听
-                    if (this.__candymark_url) {
-                        const body = extractRequestFields(args[0]);
-                        if (body) {
-                            if (this.__candymark_url.includes('ability_result') && body.ability_id != null) {
-                                self.lastAbilityIdUsed = String(body.ability_id);
-                            }
-                            if (this.__candymark_url.includes('summon_result') && body.summon_id != null) {
-                                self.lastSummonIdUsed = String(body.summon_id);
-                            }
-                        }
-                        this.addEventListener('readystatechange', () => {
-                            if (this.readyState === 4) {
-                                const url = this.__candymark_url;
-                                if (url.includes('/raid/') || url.includes('/multiraid/')) {
-                                    try {
-                                        const data = JSON.parse(this.responseText);
-                                        self.handleGameResponse(data, url);
-                                    } catch (e) {
-                                        // 解析失败，忽略
-                                    }
-                                }
-                            }
-                        });
-                    }
-                    return originalXHRSend.apply(this, args);
-                };
-                XMLHttpRequest.prototype.send.__candymark_wrapped = true;
-            }
+                }, 100);
+            })();`;
+            (document.head || document.documentElement).appendChild(script);
+            script.remove();
         }
 
-        handleGameResponse(data, url) {
+        handleGameResponse(data, url, requestBody) {
+            // requestBody 由 ajaxSuccess 的 settings.data 解析而来，已和本次响应绑定（无并发覆盖问题）
+            const req = requestBody || {};
             // 分析响应数据，提取TURN信息，类似Chrome-Extension的处理方式
             if (data && typeof data === 'object') {
                 let currentTurn = null;
@@ -4345,7 +4307,7 @@
                 // 新增：召唤结果后的后退/跳转，可被召唤过滤器收窄
                 if (url.includes('summon_result')) {
                     const config = loadConfig();
-                    const usedId = this.lastSummonIdUsed;
+                    const usedId = req.summon_id != null ? String(req.summon_id) : null;
                     let jumped = false;
                     if (this.matchesSummonFilter(config.autoJumpSummonIds, usedId)) {
                         jumped = this.tryAutoJump('summon', config);
@@ -4358,13 +4320,12 @@
                             }
                         }, 50);
                     }
-                    this.lastSummonIdUsed = null;
                 }
 
                 // 新增：能力结果后的后退/跳转，可被技能过滤器收窄
                 if (url.includes('ability_result')) {
                     const config = loadConfig();
-                    const usedId = this.lastAbilityIdUsed;
+                    const usedId = req.ability_id != null ? String(req.ability_id) : null;
                     let jumped = false;
                     if (this.matchesAbilityFilter(config.autoJumpAbilityIds, usedId)) {
                         jumped = this.tryAutoJump('ability', config);
@@ -4377,7 +4338,6 @@
                             }
                         }, 50);
                     }
-                    this.lastAbilityIdUsed = null;
                 }
             }
         }
