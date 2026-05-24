@@ -4117,8 +4117,6 @@
     // 游戏检测中心
     class GameDetector {
         constructor() {
-            this.dropCheckInterval = null;
-            this.resultMultiRegex = /https?:\/\/((game\.granbluefantasy)|(gbf\.game\.mbga))\.jp\/.*#(result_multi|result)\/(?!detail)([0-9]*|empty\/[0-9]*)/;
             this.previousTurn = null;
             this.turnChangeCallback = null;
             this.battleData = {
@@ -4148,9 +4146,6 @@
         
         init() {
             this.setupUrlMonitoring();
-
-            // 页面加载时检查一次（处理直接刷新到掉落页面的情况）
-            this.checkAndStartDetection();
         }
 
         // 从 URL 里抽出 raidId。优先从 hash 取（结算页 URL），避免和 query 里的
@@ -4164,32 +4159,9 @@
         }
         
         setupUrlMonitoring() {
-            // 监听hashchange事件
-            window.addEventListener('hashchange', () => {
-                this.checkAndStartDetection();
-            });
-            
-            // 监听游戏数据更新，模拟Chrome-Extension-Tarou的做法
+            // 现在所有掉落检测都走 ajax 响应（/result(?:multi)?/content/index 直接给 reward_list），
+            // 不再需要 hashchange 触发 DOM 轮询
             this.monitorGameData();
-        }
-        
-        checkAndStartDetection() {
-            // 先停止之前的检测
-            this._teardownDropDetection();
-
-            // 检查是否匹配掉落页面
-            if (window.location.href.match(this.resultMultiRegex)) {
-                this.startDropDetection();
-            }
-        }
-
-        _teardownDropDetection() {
-            if (this._dropPollTimer) {
-                clearTimeout(this._dropPollTimer);
-                this._dropPollTimer = null;
-            }
-            this._dropPollActive = false;
-            this._dropCheckDone = false;
         }
 
         /**
@@ -4302,10 +4274,10 @@
                     currentTurn = data.status.turn;
                 }
 
-                // 结算 API 响应回来 → 由 GBF 即将同步渲染掉落 → 启动轮询（Tarou 同款触发点）
-                // 与 hashchange 路径互为冗余：哪条先到都行，_dropPollActive 防止重复
+                // 结算 API 响应 → 直接读 result_data.rewards.reward_list 解析掉落
+                // 不再轮询 DOM；按 raidId 去重在 triggerAutoBack 内部完成
                 if (/\/result(?:multi)?\/content\/index/.test(url)) {
-                    this.startDropDetection();
+                    this.checkDropsFromResponse(data);
                 }
 
 
@@ -4469,66 +4441,31 @@
             };
         }
 
-        // Tarou 风格的纯 setTimeout 轮询：
-        // - 200ms 一次查 .prt-item-list 出现，最多 5s
-        // - 容器一出来立刻 checkDrops（不再等 idle / mutation 稳定）
-        // - 5s 都没出现 → 当作纯经验场次，走自动后退
-        // 同时由 hashchange（已有）和 handleGameResponse 的结算 API 响应（新增）触发。
-        startDropDetection() {
-            if (this._dropPollActive || this._dropCheckDone) return;
-            this._dropPollActive = true;
-            let attempts = 0;
-            const maxAttempts = 25; // 5 秒
+        // 从 /result(?:multi)?/content/index 响应里直接解析掉落，替代之前的 DOM 轮询
+        // schema 参考 Tarou useDataCenter.ts:961 handleResultContent
+        //   result_data.rewards.reward_list = { <bucket>: { <slot>: { type, thumbnail_img, id, count } } }
+        // 拼出和 DOM <img src> 形态一致的 URL，再过 imgSrcToKey 得到和订阅图标统一的 key
+        checkDropsFromResponse(data) {
+            const result_data = data && data.option && data.option.result_data;
+            const rewardList = result_data && result_data.rewards && result_data.rewards.reward_list;
 
-            const tick = () => {
-                this._dropPollTimer = null;
-                if (this._dropCheckDone) {
-                    this._dropPollActive = false;
-                    return;
-                }
-                const list = document.querySelector('.prt-item-list');
-                if (list) {
-                    this._dropPollActive = false;
-                    this.checkDrops();
-                    return;
-                }
-                attempts++;
-                if (attempts >= maxAttempts) {
-                    this._dropPollActive = false;
-                    // 纯经验场次（#cnt-quest 在但 .prt-item-list 始终没出现）→ 触发自动后退
-                    if (document.querySelector('#cnt-quest') && !this._dropCheckDone) {
-                        this._dropCheckDone = true;
-                        this.triggerAutoBack();
-                    }
-                    return;
-                }
-                this._dropPollTimer = setTimeout(tick, 200);
-            };
-
-            // 首次同步检查（已在结算页时省一拍）
-            tick();
-        }
-
-        checkDrops() {
-            if (this._dropCheckDone) return;
-            const config = loadConfig();
-            const currentUrl = window.location.href;
-
-            if (this.autoBackAfterDropCheck.lastProcessed.url === currentUrl) return;
-
-            const dropList = document.querySelector('.prt-item-list');
-            if (!dropList) return;
-
-            // 此时 DOM 已稳定，一次性收集所有掉落
             const droppedKeys = new Set();
-            dropList.querySelectorAll('img').forEach(img => {
-                const key = this.imgSrcToKey(img.getAttribute('src') || img.src);
-                if (key) droppedKeys.add(key);
-            });
-
-            this._dropCheckDone = true;
+            if (rewardList && typeof rewardList === 'object') {
+                Object.values(rewardList).forEach(bucket => {
+                    if (!bucket || typeof bucket !== 'object') return;
+                    Object.values(bucket).forEach(value => {
+                        if (!value || !value.type) return;
+                        const imgName = value.thumbnail_img || value.id;
+                        if (!imgName) return;
+                        const url = `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/${value.type}/m/${imgName}.jpg`;
+                        const key = this.imgSrcToKey(url);
+                        if (key) droppedKeys.add(key);
+                    });
+                });
+            }
 
             // 用户订阅匹配
+            const config = loadConfig();
             const subs = config.dropSubscriptions || [];
             const hitIcons = [];
             for (const sub of subs) {
@@ -4543,10 +4480,8 @@
                 return;
             }
 
-            // 没命中订阅但有掉落 → 走自动后退/跳转
-            if (droppedKeys.size > 0 || dropList.querySelector('.lis-treasure')) {
-                this.triggerAutoBack();
-            }
+            // 没命中订阅 → 走自动后退/跳转（含"纯经验场次"，reward_list 为空也走这里）
+            this.triggerAutoBack();
         }
 
         // 把 GBF 图片 URL 归一化成一个稳定 key（参考 Tarou imgSrcToKey）
