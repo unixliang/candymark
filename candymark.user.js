@@ -4129,7 +4129,12 @@
                 abilityList: [],     // {id, iconId, icon}[]
                 summonList: [],      // {id, imageId, icon}[]，按 summon_id 1-based 顺序排列
                 supporterSummon: null, // {id, imageId, icon} —— 友方借召
-                battleEndFired: false  // 本场战斗"战斗结束后"已触发过 → 闸门，下场 start.json 才清
+                // 两个闸门各自 per-battle 只触发一次，互相独立：
+                //   battleEndFired: 战斗结束后 back（跳过胜利动画，让 GBF 带进结算页）
+                //   dropBackFired:  结算后 back（从结算页回到战斗前的页面）
+                //   都由下一场 start.json 清掉
+                battleEndFired: false,
+                dropBackFired: false
             };
             this.autoBackAfterDropCheck = {
                 enabled: true, // 新功能开关
@@ -4274,15 +4279,22 @@
                 let currentTurn = null;
                 
                 // 检查是否是战斗开始数据
-                if (url.includes('/start.json') && data.boss && data.turn !== undefined) {
-                    currentTurn = data.turn;
-                    this.battleData.startTime = Date.now();
-                    // 新一场战斗 → 清掉上一场的 battle-end 闸门，让"战斗结束后"可以再次触发
+                if (url.includes('/start.json')) {
+                    // 新一场战斗 → 清两个 per-battle 闸门 + 上一场的 drop URL 去重缓存
+                    // 注意：不在 data.boss && data.turn 条件下，避免某些副本类型（如援护战）
+                    // 的 start.json 结构略不同时漏 reset，导致下一场不触发
                     this.battleData.battleEndFired = false;
-                    //console.log('🔮 [CandyMark] 战斗开始！初始TURN =', currentTurn);
-                    // 缓存当前战斗的技能 / 召唤列表，供"技能后" / "召唤后"过滤器使用
-                    this.cacheAbilityList(data);
-                    this.cacheSummonList(data);
+                    this.battleData.dropBackFired = false;
+                    this.autoBackAfterDropCheck.lastProcessed.url = '';
+
+                    if (data.boss && data.turn !== undefined) {
+                        currentTurn = data.turn;
+                        this.battleData.startTime = Date.now();
+                        //console.log('🔮 [CandyMark] 战斗开始！初始TURN =', currentTurn);
+                        // 缓存当前战斗的技能 / 召唤列表，供"技能后" / "召唤后"过滤器使用
+                        this.cacheAbilityList(data);
+                        this.cacheSummonList(data);
+                    }
                 }
                 
                 // 检查是否是战斗结果数据
@@ -4579,16 +4591,16 @@
         }
 
         triggerAutoBack() {
-            // 本场战斗已被"战斗结束后"触发过 → 跳过"结算后"，避免和 GBF 自己的
-            // result_multi → result_multi/empty 来回导航形成循环（我们 back，GBF 又
-            // 自动往前推，到结算页又再触发我们 back，反复横跳）
-            if (this.battleData && this.battleData.battleEndFired) {
+            // 本场战斗的"结算后"只触发一次（per-battle 闸门，下一场 start.json 才清）
+            // 这样即使 GBF 在 result_multi / result_multi/empty 之间反复横跳、URL 不停变，
+            // 也不会被反复触发形成循环。和"战斗结束后"完全独立。
+            if (this.battleData && this.battleData.dropBackFired) {
                 return;
             }
 
             const currentUrl = window.location.href;
 
-            // 如果是相同的URL就不处理
+            // 同 URL 短窗口去重（保留为副保险）
             if (this.autoBackAfterDropCheck.lastProcessed.url === currentUrl) {
                 return;
             }
@@ -4598,6 +4610,7 @@
             // 自动跳转优先于自动后退
             if (this.tryAutoJump('drop', config)) {
                 this.autoBackAfterDropCheck.lastProcessed.url = currentUrl;
+                if (this.battleData) this.battleData.dropBackFired = true;
                 return;
             }
 
@@ -4606,6 +4619,7 @@
             }
 
             this.autoBackAfterDropCheck.lastProcessed.url = currentUrl;
+            if (this.battleData) this.battleData.dropBackFired = true;
 
             if (this.autoBackAfterDropCheck.timeoutId) {
                 clearTimeout(this.autoBackAfterDropCheck.timeoutId);
