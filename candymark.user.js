@@ -4579,6 +4579,13 @@
         }
 
         triggerAutoBack() {
+            // 本场战斗已被"战斗结束后"触发过 → 跳过"结算后"，避免和 GBF 自己的
+            // result_multi → result_multi/empty 来回导航形成循环（我们 back，GBF 又
+            // 自动往前推，到结算页又再触发我们 back，反复横跳）
+            if (this.battleData && this.battleData.battleEndFired) {
+                return;
+            }
+
             const currentUrl = window.location.href;
 
             // 如果是相同的URL就不处理
