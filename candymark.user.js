@@ -4128,7 +4128,8 @@
                 lastUpdateTime: null,
                 abilityList: [],     // {id, iconId, icon}[]
                 summonList: [],      // {id, imageId, icon}[]，按 summon_id 1-based 顺序排列
-                supporterSummon: null // {id, imageId, icon} —— 友方借召
+                supporterSummon: null, // {id, imageId, icon} —— 友方借召
+                battleEndFired: false  // 本场战斗"战斗结束后"已触发过 → 闸门，下场 start.json 才清
             };
             this.autoBackAfterDropCheck = {
                 enabled: true, // 新功能开关
@@ -4276,6 +4277,8 @@
                 if (url.includes('/start.json') && data.boss && data.turn !== undefined) {
                     currentTurn = data.turn;
                     this.battleData.startTime = Date.now();
+                    // 新一场战斗 → 清掉上一场的 battle-end 闸门，让"战斗结束后"可以再次触发
+                    this.battleData.battleEndFired = false;
                     //console.log('🔮 [CandyMark] 战斗开始！初始TURN =', currentTurn);
                     // 缓存当前战斗的技能 / 召唤列表，供"技能后" / "召唤后"过滤器使用
                     this.cacheAbilityList(data);
@@ -4302,17 +4305,23 @@
                 }
 
                 // 战斗结束（Tarou: scenario.some(item => item.cmd === 'win' && item.is_last_raid)）
-                // 任何 attack/ability/summon 响应里都可能含击杀 scenario；命中则比 turn/summon/ability/drop
-                // 任意一条更早触发，并阻止后面的 turn/summon/ability 分支重复 back / jump。
+                // 收紧条件：
+                //   1. 只看 attack/ability/summon 三个动作响应里的 data.scenario（去掉 data.status.scenario
+                //      兜底，避免后端 state 同步消息里残留的击杀 scenario 触发重复 back）
+                //   2. 每场战斗只触发一次，命中后置 battleData.battleEndFired，下一次 start.json 才清
+                //   命中后会短路同一响应里的 turn/summon/ability 分支，避免双触发
                 let battleEndHandled = false;
-                const scenario = Array.isArray(data.scenario) ? data.scenario
-                    : (data.status && Array.isArray(data.status.scenario)) ? data.status.scenario
-                    : null;
-                if (scenario && scenario.some(item => item && item.cmd === 'win' && item.is_last_raid)) {
+                const isAttackLikeUrl = url.includes('attack_result')
+                    || url.includes('ability_result')
+                    || url.includes('summon_result');
+                if (isAttackLikeUrl && !this.battleData.battleEndFired
+                        && Array.isArray(data.scenario)
+                        && data.scenario.some(item => item && item.cmd === 'win' && item.is_last_raid)) {
                     const config = loadConfig();
                     let jumped = this.tryAutoJump('battle-end', config);
                     if (jumped) {
                         battleEndHandled = true;
+                        this.battleData.battleEndFired = true;
                     } else if (config.autoBackBattleEndEnabled) {
                         setTimeout(() => {
                             if (window.history.length > 1) {
@@ -4320,6 +4329,7 @@
                             }
                         }, 50);
                         battleEndHandled = true;
+                        this.battleData.battleEndFired = true;
                     }
                 }
 
