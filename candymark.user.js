@@ -4128,14 +4128,13 @@
                 lastUpdateTime: null,
                 abilityList: [],     // {id, iconId, icon}[]
                 summonList: [],      // {id, imageId, icon}[]，按 summon_id 1-based 顺序排列
-                supporterSummon: null, // {id, imageId, icon} —— 友方借召
-                // 两个闸门各自 per-battle 只触发一次，互相独立：
-                //   battleEndFired: 战斗结束后 back（跳过胜利动画，让 GBF 带进结算页）
-                //   dropBackFired:  结算后 back（从结算页回到战斗前的页面）
-                //   都由下一场 start.json 清掉
-                battleEndFired: false,
-                dropBackFired: false
+                supporterSummon: null // {id, imageId, icon} —— 友方借召
             };
+            // "结算后" 触发去重 —— 按 raidId 记录已经触发过的战斗
+            // 同一场在 result_multi/N ↔ result_multi/empty/N 之间反复切 hash 时不会重复触发；
+            // 连续收菜（多场不同 raidId）时每场会各自触发一次；不依赖 start.json
+            // 用 Set 而不是 last-1，避免 A→B→A 这种回访场景被漏掉去重
+            this.firedDropBackRaidIds = new Set();
             this.autoBackAfterDropCheck = {
                 enabled: true, // 新功能开关
                 lastProcessed: {
@@ -4149,9 +4148,19 @@
         
         init() {
             this.setupUrlMonitoring();
-            
+
             // 页面加载时检查一次（处理直接刷新到掉落页面的情况）
             this.checkAndStartDetection();
+        }
+
+        // 从 URL 里抽出 raidId。优先从 hash 取（结算页 URL），避免和 query 里的
+        // opensocial_viewer_id 等长 ID 撞车
+        extractRaidIdFromUrl(url) {
+            if (!url || typeof url !== 'string') return null;
+            const hashIdx = url.indexOf('#');
+            const target = hashIdx >= 0 ? url.substring(hashIdx) : url;
+            const m = target.match(/\d{8,}/);
+            return m ? m[0] : null;
         }
         
         setupUrlMonitoring() {
@@ -4279,22 +4288,13 @@
                 let currentTurn = null;
                 
                 // 检查是否是战斗开始数据
-                if (url.includes('/start.json')) {
-                    // 新一场战斗 → 清两个 per-battle 闸门 + 上一场的 drop URL 去重缓存
-                    // 注意：不在 data.boss && data.turn 条件下，避免某些副本类型（如援护战）
-                    // 的 start.json 结构略不同时漏 reset，导致下一场不触发
-                    this.battleData.battleEndFired = false;
-                    this.battleData.dropBackFired = false;
-                    this.autoBackAfterDropCheck.lastProcessed.url = '';
-
-                    if (data.boss && data.turn !== undefined) {
-                        currentTurn = data.turn;
-                        this.battleData.startTime = Date.now();
-                        //console.log('🔮 [CandyMark] 战斗开始！初始TURN =', currentTurn);
-                        // 缓存当前战斗的技能 / 召唤列表，供"技能后" / "召唤后"过滤器使用
-                        this.cacheAbilityList(data);
-                        this.cacheSummonList(data);
-                    }
+                if (url.includes('/start.json') && data.boss && data.turn !== undefined) {
+                    currentTurn = data.turn;
+                    this.battleData.startTime = Date.now();
+                    //console.log('🔮 [CandyMark] 战斗开始！初始TURN =', currentTurn);
+                    // 缓存当前战斗的技能 / 召唤列表，供"技能后" / "召唤后"过滤器使用
+                    this.cacheAbilityList(data);
+                    this.cacheSummonList(data);
                 }
                 
                 // 检查是否是战斗结果数据
@@ -4317,23 +4317,20 @@
                 }
 
                 // 战斗结束（Tarou: scenario.some(item => item.cmd === 'win' && item.is_last_raid)）
-                // 收紧条件：
-                //   1. 只看 attack/ability/summon 三个动作响应里的 data.scenario（去掉 data.status.scenario
-                //      兜底，避免后端 state 同步消息里残留的击杀 scenario 触发重复 back）
-                //   2. 每场战斗只触发一次，命中后置 battleData.battleEndFired，下一次 start.json 才清
-                //   命中后会短路同一响应里的 turn/summon/ability 分支，避免双触发
+                // 只看 attack/ability/summon 三个动作响应里的 data.scenario。
+                // 不需要闸门：GBF 一次击杀只对应一次回包，串行处理，不会重复触发。
+                // 命中后会短路同一响应里的 turn/summon/ability 分支，避免双触发。
                 let battleEndHandled = false;
                 const isAttackLikeUrl = url.includes('attack_result')
                     || url.includes('ability_result')
                     || url.includes('summon_result');
-                if (isAttackLikeUrl && !this.battleData.battleEndFired
+                if (isAttackLikeUrl
                         && Array.isArray(data.scenario)
                         && data.scenario.some(item => item && item.cmd === 'win' && item.is_last_raid)) {
                     const config = loadConfig();
                     let jumped = this.tryAutoJump('battle-end', config);
                     if (jumped) {
                         battleEndHandled = true;
-                        this.battleData.battleEndFired = true;
                     } else if (config.autoBackBattleEndEnabled) {
                         setTimeout(() => {
                             if (window.history.length > 1) {
@@ -4341,7 +4338,6 @@
                             }
                         }, 50);
                         battleEndHandled = true;
-                        this.battleData.battleEndFired = true;
                     }
                 }
 
@@ -4591,16 +4587,16 @@
         }
 
         triggerAutoBack() {
-            // 本场战斗的"结算后"只触发一次（per-battle 闸门，下一场 start.json 才清）
-            // 这样即使 GBF 在 result_multi / result_multi/empty 之间反复横跳、URL 不停变，
-            // 也不会被反复触发形成循环。和"战斗结束后"完全独立。
-            if (this.battleData && this.battleData.dropBackFired) {
+            const currentUrl = window.location.href;
+
+            // 按 raidId 去重：同一场战斗在 result_multi/N ↔ result_multi/empty/N 之间反复切
+            // 时不会重复触发；连续收菜（多场不同 raidId）每场会各自触发一次
+            const raidId = this.extractRaidIdFromUrl(currentUrl);
+            if (raidId && this.firedDropBackRaidIds.has(raidId)) {
                 return;
             }
 
-            const currentUrl = window.location.href;
-
-            // 同 URL 短窗口去重（保留为副保险）
+            // 同 URL 短窗口去重（兜底，应对 extractRaidId 失败的极端情况）
             if (this.autoBackAfterDropCheck.lastProcessed.url === currentUrl) {
                 return;
             }
@@ -4610,7 +4606,7 @@
             // 自动跳转优先于自动后退
             if (this.tryAutoJump('drop', config)) {
                 this.autoBackAfterDropCheck.lastProcessed.url = currentUrl;
-                if (this.battleData) this.battleData.dropBackFired = true;
+                if (raidId) this.firedDropBackRaidIds.add(raidId);
                 return;
             }
 
@@ -4619,7 +4615,7 @@
             }
 
             this.autoBackAfterDropCheck.lastProcessed.url = currentUrl;
-            if (this.battleData) this.battleData.dropBackFired = true;
+            if (raidId) this.firedDropBackRaidIds.add(raidId);
 
             if (this.autoBackAfterDropCheck.timeoutId) {
                 clearTimeout(this.autoBackAfterDropCheck.timeoutId);
