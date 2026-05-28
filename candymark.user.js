@@ -2095,6 +2095,11 @@
 
             // 菜单事件
             document.getElementById('sb-menu').addEventListener('click', (e) => {
+                // 菜单刚弹出的极短窗口内忽略点击，过滤掉长按松手时浏览器补发的合成click（幽灵点击）
+                if (this.menuOpenedAt && Date.now() - this.menuOpenedAt < 400) {
+                    e.stopPropagation();
+                    return;
+                }
                 const action = e.target.dataset.action;
                 if (action) {
                     this.handleMenuAction(action);
@@ -2246,8 +2251,7 @@
                 startX: 0,
                 startY: 0,
                 active: false,
-                handledByTouch: false, // 防止touchend和click重复触发
-                menuOpened: false // 长按已弹菜单，touchend 需阻止合成click
+                handledByTouch: false // 防止touchend和click重复触发
             };
 
             // 触摸开始 - 用于长按检测
@@ -2262,7 +2266,6 @@
                     this.clickThroughTouchState.startY = touch.clientY;
                     this.clickThroughTouchState.active = true;
                     this.clickThroughTouchState.handledByTouch = false;
-                    this.clickThroughTouchState.menuOpened = false;
 
                     // 600ms长按触发菜单
                     this.clickThroughTouchState.timer = setTimeout(() => {
@@ -2277,8 +2280,6 @@
                                 touches: [{ clientX: touch.clientX, clientY: touch.clientY }]
                             };
                             this.showMenu(fakeEvent, parseInt(id));
-                            // 标记本次长按已弹出菜单，touchend 时阻止浏览器补发合成click
-                            this.clickThroughTouchState.menuOpened = true;
                         }
                         this.clickThroughTouchState.active = false;
                     }, 600);
@@ -2307,13 +2308,6 @@
                     this.clickThroughTouchState.timer = null;
                 }
 
-                // 长按已弹出菜单：阻止浏览器在原位置补发合成click，避免松手误点菜单项
-                if (this.clickThroughTouchState.menuOpened) {
-                    this.clickThroughTouchState.menuOpened = false;
-                    e.preventDefault();
-                    return;
-                }
-
                 // 如果是长按触发了菜单，不处理短点击
                 if (!this.clickThroughTouchState.active) return;
                 this.clickThroughTouchState.active = false;
@@ -2340,7 +2334,7 @@
                         history.back();
                     }, delay);
                 }
-            }, { capture: true, passive: false });
+            }, true);
 
             // 桌面端：右键菜单检测
             document.addEventListener('contextmenu', (e) => {
@@ -3392,6 +3386,9 @@
 
             this.currentBookmarkId = bookmarkId;
             this.isContextMenuOpen = true;
+            // 记录菜单弹出时刻：长按弹菜单后浏览器会在原位置补发合成click，
+            // 短窗口内忽略菜单项点击，避免松手误点菜单首项
+            this.menuOpenedAt = Date.now();
 
             // 添加菜单打开状态类（恢复穿透书签的pointer-events）
             const container = document.getElementById('sb-container');
