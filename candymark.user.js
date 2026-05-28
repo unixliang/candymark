@@ -2329,12 +2329,17 @@
                         this.clickThroughTouchState.handledByTouch = false;
                     }, 300);
 
+                    // 前一次后退还在延迟等待中，忽略本次点击，避免连点一路后退
+                    if (this.backPending) return;
+                    this.backPending = true;
+
                     // 触发点击动画
                     this.triggerClickAnimation(hitBookmark.element);
 
                     // 延迟后退
                     const delay = hitBookmark.bookmark.clickThroughDelay || 300;
                     setTimeout(() => {
+                        this.backPending = false;
                         history.back();
                     }, delay);
                 }
@@ -2362,12 +2367,17 @@
 
                 const hitBookmark = this.findClickThroughBookmarkAtPoint(e.clientX, e.clientY);
                 if (hitBookmark) {
+                    // 前一次后退还在延迟等待中，忽略本次点击，避免连点一路后退
+                    if (this.backPending) return;
+                    this.backPending = true;
+
                     // 触发点击动画
                     this.triggerClickAnimation(hitBookmark.element);
 
                     // 延迟后退
                     const delay = hitBookmark.bookmark.clickThroughDelay || 300;
                     setTimeout(() => {
+                        this.backPending = false;
                         history.back();
                     }, delay);
                 }
