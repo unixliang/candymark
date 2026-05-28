@@ -2095,8 +2095,9 @@
 
             // 菜单事件
             document.getElementById('sb-menu').addEventListener('click', (e) => {
-                // 菜单刚弹出的极短窗口内忽略点击，过滤掉长按松手时浏览器补发的合成click（幽灵点击）
-                if (this.menuOpenedAt && Date.now() - this.menuOpenedAt < 400) {
+                // 吞掉长按弹出菜单后浏览器在原位置补发的那一次合成click（幽灵点击），避免误点首项
+                if (this.suppressNextMenuClick) {
+                    this.suppressNextMenuClick = false;
                     e.stopPropagation();
                     return;
                 }
@@ -2280,6 +2281,9 @@
                                 touches: [{ clientX: touch.clientX, clientY: touch.clientY }]
                             };
                             this.showMenu(fakeEvent, parseInt(id));
+                            // 长按弹菜单后手指抬起，浏览器会在原位置补发一次合成click，
+                            // 标记吞掉这一次，避免落到菜单首项造成误点
+                            this.suppressNextMenuClick = true;
                         }
                         this.clickThroughTouchState.active = false;
                     }, 600);
@@ -3386,9 +3390,6 @@
 
             this.currentBookmarkId = bookmarkId;
             this.isContextMenuOpen = true;
-            // 记录菜单弹出时刻：长按弹菜单后浏览器会在原位置补发合成click，
-            // 短窗口内忽略菜单项点击，避免松手误点菜单首项
-            this.menuOpenedAt = Date.now();
 
             // 添加菜单打开状态类（恢复穿透书签的pointer-events）
             const container = document.getElementById('sb-container');
