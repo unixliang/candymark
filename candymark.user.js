@@ -186,7 +186,28 @@
             opacity: 0;
             pointer-events: none;
         }
-        
+
+        #sb-chokuzen-countdown {
+            position: fixed;
+            top: 0;
+            left: calc(0.5cm + 6px);
+            height: 0.5cm;
+            padding: 0 6px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.55);
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+            line-height: 1;
+            z-index: 999998;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        #sb-chokuzen-countdown.active { display: flex; }
+
         .sb-bookmark {
             position: absolute;
             width: var(--sb-bookmark-size);
@@ -1111,6 +1132,7 @@
     container.id = 'sb-container';
     container.innerHTML = `
         <div id="sb-trigger" title="点击添加标签 (${CONFIG.shortcutKey.replace('Key', 'Ctrl+')})"></div>
+        <div id="sb-chokuzen-countdown"></div>
         <div id="sb-menu">
             <div class="sb-menu-item" data-action="drag">🖱️ 拖拽移动</div>
             <div class="sb-menu-item" data-action="set-url">📍 设置当前页面</div>
@@ -4141,11 +4163,69 @@
                 },
                 timeoutId: null // 清理用
             };
+            // 直前倒计时（参照 Tarou：turn_waiting 是服务端给的未来 ms 时间戳）
+            this.chokuzenTimer = null;
             this.init();
         }
-        
+
         init() {
             this.setupUrlMonitoring();
+            this.restoreChokuzen();
+        }
+
+        // ====== 直前倒计时 ======
+        // Tarou 的做法：把 start.json 里的 data.turn_waiting 直接喂给 ElCountdown 的 value
+        // （ElCountdown 把 value 当作未来的 epoch 毫秒时间戳，每帧渲染 value - Date.now()）
+        // 因为是绝对时间戳，离开战斗页 / 跨 SPA hash 切换 / 用户脚本重注入都不会重置——
+        // 只要持久化一次，恢复后继续走即可。
+        setChokuzenTarget(target) {
+            if (typeof target !== 'number' || !isFinite(target) || target <= Date.now()) return;
+            storage.setValue('cm_chokuzen_target', String(target));
+            this.startChokuzenTick(target);
+        }
+
+        restoreChokuzen() {
+            const raw = storage.getValue('cm_chokuzen_target', null);
+            if (raw == null) return;
+            const target = Number(raw);
+            if (!isFinite(target) || target <= Date.now()) {
+                storage.removeValue('cm_chokuzen_target');
+                return;
+            }
+            this.startChokuzenTick(target);
+        }
+
+        startChokuzenTick(target) {
+            const el = document.getElementById('sb-chokuzen-countdown');
+            if (!el) return;
+            if (this.chokuzenTimer) {
+                clearInterval(this.chokuzenTimer);
+                this.chokuzenTimer = null;
+            }
+            const render = () => {
+                const remainSec = (target - Date.now()) / 1000;
+                if (remainSec <= 0) {
+                    this.stopChokuzen();
+                    return;
+                }
+                el.textContent = remainSec.toFixed(1);
+                el.classList.add('active');
+            };
+            render();
+            this.chokuzenTimer = setInterval(render, 100);
+        }
+
+        stopChokuzen() {
+            if (this.chokuzenTimer) {
+                clearInterval(this.chokuzenTimer);
+                this.chokuzenTimer = null;
+            }
+            const el = document.getElementById('sb-chokuzen-countdown');
+            if (el) {
+                el.classList.remove('active');
+                el.textContent = '';
+            }
+            storage.removeValue('cm_chokuzen_target');
         }
 
         // 从 URL 里抽出 raidId。优先从 hash 取（结算页 URL），避免和 query 里的
@@ -4267,6 +4347,10 @@
                     // 缓存当前战斗的技能 / 召唤列表，供"技能后" / "召唤后"过滤器使用
                     this.cacheAbilityList(data);
                     this.cacheSummonList(data);
+                    // 直前倒计时（参照 Tarou）：data.turn_waiting 是未来 ms 时间戳
+                    if (data.turn_waiting != null) {
+                        this.setChokuzenTarget(Number(data.turn_waiting));
+                    }
                 }
                 
                 // 检查是否是战斗结果数据
