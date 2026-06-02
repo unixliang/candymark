@@ -4458,7 +4458,7 @@
                             if (window.history.length > 1) {
                                 history.back();
                             }
-                        }, 50);
+                        }, 170);
                     }
                 }
 
@@ -4476,7 +4476,7 @@
                             if (window.history.length > 1) {
                                 history.back();
                             }
-                        }, 50);
+                        }, 170);
                     }
                 }
             }
