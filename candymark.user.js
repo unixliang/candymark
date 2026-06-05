@@ -115,6 +115,12 @@
             autoBackDropEnabled: storage.getValue('sb_auto_back_drop_enabled', 'false') === 'true',
             autoBackSummonEnabled: storage.getValue('sb_auto_back_summon_enabled', 'false') === 'true',
             autoBackAbilityEnabled: storage.getValue('sb_auto_back_ability_enabled', 'false') === 'true',
+            autoRefreshTurnEnabled: storage.getValue('sb_auto_refresh_turn_enabled', 'false') === 'true',
+            autoRefreshTurnCount: parseInt(storage.getValue('sb_auto_refresh_turn_count', '3')),
+            autoRefreshBattleEndEnabled: storage.getValue('sb_auto_refresh_battle_end_enabled', 'false') === 'true',
+            autoRefreshDropEnabled: storage.getValue('sb_auto_refresh_drop_enabled', 'false') === 'true',
+            autoRefreshSummonEnabled: storage.getValue('sb_auto_refresh_summon_enabled', 'false') === 'true',
+            autoRefreshAbilityEnabled: storage.getValue('sb_auto_refresh_ability_enabled', 'false') === 'true',
             autoJumpTurnEnabled: storage.getValue('sb_auto_jump_turn_enabled', 'false') === 'true',
             autoJumpTurnCount: parseInt(storage.getValue('sb_auto_jump_turn_count', '3')),
             autoJumpBattleEndEnabled: storage.getValue('sb_auto_jump_battle_end_enabled', 'false') === 'true',
@@ -130,6 +136,8 @@
             autoJumpAbilityIds: parseAbilityFilter('sb_auto_jump_ability_ids'),
             autoBackSummonIds: parseAbilityFilter('sb_auto_back_summon_ids'),
             autoJumpSummonIds: parseAbilityFilter('sb_auto_jump_summon_ids'),
+            autoRefreshAbilityIds: parseAbilityFilter('sb_auto_refresh_ability_ids'),
+            autoRefreshSummonIds: parseAbilityFilter('sb_auto_refresh_summon_ids'),
             dropSubscriptions: dropSubscriptions
         };
         return _configCache;
@@ -1137,11 +1145,13 @@
             <div class="sb-menu-item" data-action="drag">🖱️ 拖拽移动</div>
             <div class="sb-menu-item" data-action="set-url">📍 设置当前页面</div>
             <div class="sb-menu-item" data-action="set-back">⬅️ 设置后退</div>
+            <div class="sb-menu-item" data-action="set-reload">🔄 设置刷新</div>
             <div class="sb-menu-item" data-action="set-click-through-back">👆 设置穿透点击后退</div>
             <div class="sb-menu-item" data-action="set-click-through-delay" id="sb-interval-menu">⏱️ 穿透后退延迟【300ms】</div>
             <div class="sb-menu-item" data-action="edit">✏️ 修改名称</div>
             <div class="sb-menu-item" data-action="delete">🗑️ 删除标签</div>
             <div class="sb-menu-item" data-action="auto-back-global">🚪 自动后退【全局】</div>
+            <div class="sb-menu-item" data-action="auto-refresh-global">🔄 自动刷新【全局】</div>
             <div class="sb-menu-item" data-action="auto-jump-global">🛫 自动跳转【全局】</div>
             <div class="sb-menu-item" data-action="drop-subscribe-global">🔔 掉落通知【全局】</div>
             <div class="sb-menu-item" data-action="cancel">❌ 取消</div>
@@ -1151,6 +1161,7 @@
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
             <div class="sb-menu-item" data-action="auto-back">🚪 自动后退</div>
+            <div class="sb-menu-item" data-action="auto-refresh">🔄 自动刷新</div>
             <div class="sb-menu-item" data-action="auto-jump">🛫 自动跳转</div>
             <div class="sb-menu-item" data-action="subscribe-from-drop-list">🔔 掉落通知</div>
             <div class="sb-menu-item" data-action="config-management">⚙️ 配置管理</div>
@@ -1322,6 +1333,48 @@
                     <button class="sb-btn-primary" id="sb-auto-back-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-auto-back-reset">重置</button>
                     <button class="sb-btn-secondary" id="sb-auto-back-cancel">取消</button>
+                </div>
+            </div>
+        </div>
+        <div id="sb-auto-refresh-modal" class="sb-modal">
+            <div class="sb-modal-content">
+                <h3>自动刷新设置</h3>
+                <div class="sb-drop-notify-options">
+                    <label class="sb-checkbox-item sb-auto-back-item">
+                        <input type="checkbox" id="sb-auto-refresh-turn">
+                        <div class="sb-auto-back-icon">⚔️</div>
+                        <div class="sb-number-adjuster" style="margin-bottom: 4px; margin-top: 8px; margin-left: 20px;">
+                            <button class="sb-number-adjuster-btn" id="sb-auto-refresh-turn-decrease">-</button>
+                            <input type="number" id="sb-auto-refresh-turn-count" class="sb-number-adjuster-input" min="1" max="99" value="3">
+                            <button class="sb-number-adjuster-btn" id="sb-auto-refresh-turn-increase">+</button>
+                        </div>
+                        <div style="margin-left: 20px;">回合内攻击后</div>
+                    </label>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-refresh-battle-end">
+                        🏆 战斗结束后
+                    </label>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-refresh-drop">
+                        🎯 结算后
+                    </label>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-refresh-summon">
+                        🔮 召唤后
+                    </label>
+                    <div class="sb-ability-filter-hint" id="sb-auto-refresh-summon-hint"></div>
+                    <div class="sb-ability-filter-grid" id="sb-auto-refresh-summon-grid"></div>
+                    <label class="sb-checkbox-item">
+                        <input type="checkbox" id="sb-auto-refresh-ability">
+                        ⚡ 技能后
+                    </label>
+                    <div class="sb-ability-filter-hint" id="sb-auto-refresh-ability-hint"></div>
+                    <div class="sb-ability-filter-grid" id="sb-auto-refresh-ability-grid"></div>
+                </div>
+                <div class="sb-modal-buttons">
+                    <button class="sb-btn-primary" id="sb-auto-refresh-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-auto-refresh-reset">重置</button>
+                    <button class="sb-btn-secondary" id="sb-auto-refresh-cancel">取消</button>
                 </div>
             </div>
         </div>
@@ -1505,6 +1558,22 @@
                     blacklist: CONFIG.blacklist,
                     bookmarksVisible: CONFIG.bookmarksVisible,
                     dropSubscriptions: CONFIG.dropSubscriptions,
+                    autoBackTurnEnabled: CONFIG.autoBackTurnEnabled,
+                    autoBackTurnCount: CONFIG.autoBackTurnCount,
+                    autoBackBattleEndEnabled: CONFIG.autoBackBattleEndEnabled,
+                    autoBackDropEnabled: CONFIG.autoBackDropEnabled,
+                    autoBackSummonEnabled: CONFIG.autoBackSummonEnabled,
+                    autoBackAbilityEnabled: CONFIG.autoBackAbilityEnabled,
+                    autoBackAbilityIds: CONFIG.autoBackAbilityIds,
+                    autoBackSummonIds: CONFIG.autoBackSummonIds,
+                    autoRefreshTurnEnabled: CONFIG.autoRefreshTurnEnabled,
+                    autoRefreshTurnCount: CONFIG.autoRefreshTurnCount,
+                    autoRefreshBattleEndEnabled: CONFIG.autoRefreshBattleEndEnabled,
+                    autoRefreshDropEnabled: CONFIG.autoRefreshDropEnabled,
+                    autoRefreshSummonEnabled: CONFIG.autoRefreshSummonEnabled,
+                    autoRefreshAbilityEnabled: CONFIG.autoRefreshAbilityEnabled,
+                    autoRefreshAbilityIds: CONFIG.autoRefreshAbilityIds,
+                    autoRefreshSummonIds: CONFIG.autoRefreshSummonIds,
                     autoJumpTurnEnabled: CONFIG.autoJumpTurnEnabled,
                     autoJumpTurnCount: CONFIG.autoJumpTurnCount,
                     autoJumpBattleEndEnabled: CONFIG.autoJumpBattleEndEnabled,
@@ -1512,9 +1581,7 @@
                     autoJumpSummonEnabled: CONFIG.autoJumpSummonEnabled,
                     autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
                     autoJumpTargetId: CONFIG.autoJumpTargetId,
-                    autoBackAbilityIds: CONFIG.autoBackAbilityIds,
                     autoJumpAbilityIds: CONFIG.autoJumpAbilityIds,
-                    autoBackSummonIds: CONFIG.autoBackSummonIds,
                     autoJumpSummonIds: CONFIG.autoJumpSummonIds
                 }
             };
@@ -1631,10 +1698,23 @@
                                             storage.setValue('sb_auto_jump_' + t.toLowerCase() + '_enabled', settings[k].toString());
                                         }
                                     });
-                                    if (typeof settings.autoJumpTurnCount === 'number' && settings.autoJumpTurnCount >= 1 && settings.autoJumpTurnCount <= 99) {
-                                        CONFIG.autoJumpTurnCount = settings.autoJumpTurnCount;
-                                        storage.setValue('sb_auto_jump_turn_count', String(settings.autoJumpTurnCount));
-                                    }
+                                    const restoreAutoSetting = (camelPrefix, snakePrefix) => {
+                                        ['TurnEnabled', 'BattleEndEnabled', 'DropEnabled', 'SummonEnabled', 'AbilityEnabled'].forEach(suffix => {
+                                            const k = camelPrefix + suffix;
+                                            if (typeof settings[k] === 'boolean') {
+                                                CONFIG[k] = settings[k];
+                                                storage.setValue(snakePrefix + suffix.replace(/[A-Z]/g, c => '_' + c.toLowerCase()), settings[k].toString());
+                                            }
+                                        });
+                                        const countKey = camelPrefix + 'TurnCount';
+                                        if (typeof settings[countKey] === 'number' && settings[countKey] >= 1 && settings[countKey] <= 99) {
+                                            CONFIG[countKey] = settings[countKey];
+                                            storage.setValue(snakePrefix + '_turn_count', String(settings[countKey]));
+                                        }
+                                    };
+                                    restoreAutoSetting('autoBack', 'sb_auto_back');
+                                    restoreAutoSetting('autoRefresh', 'sb_auto_refresh');
+                                    restoreAutoSetting('autoJump', 'sb_auto_jump');
                                     if (settings.autoJumpTargetId === null || typeof settings.autoJumpTargetId === 'number') {
                                         CONFIG.autoJumpTargetId = settings.autoJumpTargetId;
                                         storage.setValue('sb_auto_jump_target_id', settings.autoJumpTargetId == null ? '' : String(settings.autoJumpTargetId));
@@ -1670,6 +1750,16 @@
                                         const items = normalizeAbilityFilter(settings.autoJumpSummonIds);
                                         CONFIG.autoJumpSummonIds = items;
                                         storage.setValue('sb_auto_jump_summon_ids', JSON.stringify(items));
+                                    }
+                                    if (Array.isArray(settings.autoRefreshAbilityIds)) {
+                                        const items = normalizeAbilityFilter(settings.autoRefreshAbilityIds);
+                                        CONFIG.autoRefreshAbilityIds = items;
+                                        storage.setValue('sb_auto_refresh_ability_ids', JSON.stringify(items));
+                                    }
+                                    if (Array.isArray(settings.autoRefreshSummonIds)) {
+                                        const items = normalizeAbilityFilter(settings.autoRefreshSummonIds);
+                                        CONFIG.autoRefreshSummonIds = items;
+                                        storage.setValue('sb_auto_refresh_summon_ids', JSON.stringify(items));
                                     }
                                 }
 
@@ -1707,11 +1797,23 @@
                         shortcutKey: CONFIG.shortcutKey,
                         blacklist: CONFIG.blacklist,
                         bookmarksVisible: CONFIG.bookmarksVisible,
+                        dropSubscriptions: CONFIG.dropSubscriptions,
                         autoBackTurnEnabled: CONFIG.autoBackTurnEnabled,
                         autoBackTurnCount: CONFIG.autoBackTurnCount,
                         autoBackBattleEndEnabled: CONFIG.autoBackBattleEndEnabled,
                         autoBackDropEnabled: CONFIG.autoBackDropEnabled,
-                        dropSubscriptions: CONFIG.dropSubscriptions,
+                        autoBackSummonEnabled: CONFIG.autoBackSummonEnabled,
+                        autoBackAbilityEnabled: CONFIG.autoBackAbilityEnabled,
+                        autoBackAbilityIds: CONFIG.autoBackAbilityIds,
+                        autoBackSummonIds: CONFIG.autoBackSummonIds,
+                        autoRefreshTurnEnabled: CONFIG.autoRefreshTurnEnabled,
+                        autoRefreshTurnCount: CONFIG.autoRefreshTurnCount,
+                        autoRefreshBattleEndEnabled: CONFIG.autoRefreshBattleEndEnabled,
+                        autoRefreshDropEnabled: CONFIG.autoRefreshDropEnabled,
+                        autoRefreshSummonEnabled: CONFIG.autoRefreshSummonEnabled,
+                        autoRefreshAbilityEnabled: CONFIG.autoRefreshAbilityEnabled,
+                        autoRefreshAbilityIds: CONFIG.autoRefreshAbilityIds,
+                        autoRefreshSummonIds: CONFIG.autoRefreshSummonIds,
                         autoJumpTurnEnabled: CONFIG.autoJumpTurnEnabled,
                         autoJumpTurnCount: CONFIG.autoJumpTurnCount,
                         autoJumpBattleEndEnabled: CONFIG.autoJumpBattleEndEnabled,
@@ -1719,9 +1821,7 @@
                         autoJumpSummonEnabled: CONFIG.autoJumpSummonEnabled,
                         autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
                         autoJumpTargetId: CONFIG.autoJumpTargetId,
-                        autoBackAbilityIds: CONFIG.autoBackAbilityIds,
                         autoJumpAbilityIds: CONFIG.autoJumpAbilityIds,
-                        autoBackSummonIds: CONFIG.autoBackSummonIds,
                         autoJumpSummonIds: CONFIG.autoJumpSummonIds
                     }
                 };
@@ -1831,10 +1931,23 @@
                                 storage.setValue('sb_auto_jump_' + t.toLowerCase() + '_enabled', settings[k].toString());
                             }
                         });
-                        if (typeof settings.autoJumpTurnCount === 'number' && settings.autoJumpTurnCount >= 1 && settings.autoJumpTurnCount <= 99) {
-                            CONFIG.autoJumpTurnCount = settings.autoJumpTurnCount;
-                            storage.setValue('sb_auto_jump_turn_count', String(settings.autoJumpTurnCount));
-                        }
+                        const restoreAutoSetting = (camelPrefix, snakePrefix) => {
+                            ['TurnEnabled', 'BattleEndEnabled', 'DropEnabled', 'SummonEnabled', 'AbilityEnabled'].forEach(suffix => {
+                                const k = camelPrefix + suffix;
+                                if (typeof settings[k] === 'boolean') {
+                                    CONFIG[k] = settings[k];
+                                    storage.setValue(snakePrefix + suffix.replace(/[A-Z]/g, c => '_' + c.toLowerCase()), settings[k].toString());
+                                }
+                            });
+                            const countKey = camelPrefix + 'TurnCount';
+                            if (typeof settings[countKey] === 'number' && settings[countKey] >= 1 && settings[countKey] <= 99) {
+                                CONFIG[countKey] = settings[countKey];
+                                storage.setValue(snakePrefix + '_turn_count', String(settings[countKey]));
+                            }
+                        };
+                        restoreAutoSetting('autoBack', 'sb_auto_back');
+                        restoreAutoSetting('autoRefresh', 'sb_auto_refresh');
+                        restoreAutoSetting('autoJump', 'sb_auto_jump');
                         if (settings.autoJumpTargetId === null || typeof settings.autoJumpTargetId === 'number') {
                             CONFIG.autoJumpTargetId = settings.autoJumpTargetId;
                             storage.setValue('sb_auto_jump_target_id', settings.autoJumpTargetId == null ? '' : String(settings.autoJumpTargetId));
@@ -1870,6 +1983,16 @@
                             const items = normalizeAbilityFilter(settings.autoJumpSummonIds);
                             CONFIG.autoJumpSummonIds = items;
                             storage.setValue('sb_auto_jump_summon_ids', JSON.stringify(items));
+                        }
+                        if (Array.isArray(settings.autoRefreshAbilityIds)) {
+                            const items = normalizeAbilityFilter(settings.autoRefreshAbilityIds);
+                            CONFIG.autoRefreshAbilityIds = items;
+                            storage.setValue('sb_auto_refresh_ability_ids', JSON.stringify(items));
+                        }
+                        if (Array.isArray(settings.autoRefreshSummonIds)) {
+                            const items = normalizeAbilityFilter(settings.autoRefreshSummonIds);
+                            CONFIG.autoRefreshSummonIds = items;
+                            storage.setValue('sb_auto_refresh_summon_ids', JSON.stringify(items));
                         }
                     }
 
@@ -2095,6 +2218,53 @@
                 const input = document.getElementById('sb-auto-back-turn-count');
                 let value = parseInt(input.value, 10);
                 if (isNaN(value)) value = 2; // 默认值
+                value = Math.min(99, value + 1);
+                input.value = value;
+            });
+
+            // 自动刷新设置
+            document.getElementById('sb-auto-refresh-confirm').addEventListener('click', () => {
+                this.confirmAutoRefreshChange();
+            });
+
+            document.getElementById('sb-auto-refresh-cancel').addEventListener('click', () => {
+                this.hideAutoRefreshModal();
+            });
+
+            document.getElementById('sb-auto-refresh-reset').addEventListener('click', () => {
+                this.resetAutoRefreshForm();
+            });
+
+            // 自动刷新回合数输入框范围限制(1-99)
+            document.getElementById('sb-auto-refresh-turn-count').addEventListener('input', (e) => {
+                let value = parseInt(e.target.value, 10);
+                if (isNaN(value)) {
+                    return;
+                }
+                if (value < 1) value = 1;
+                if (value > 99) value = 99;
+                e.target.value = value;
+            });
+
+            document.getElementById('sb-auto-refresh-turn-count').addEventListener('blur', (e) => {
+                let value = parseInt(e.target.value, 10);
+                if (isNaN(value) || value < 1) value = 1;
+                if (value > 99) value = 99;
+                e.target.value = value;
+            });
+
+            document.getElementById('sb-auto-refresh-turn-decrease').addEventListener('click', () => {
+                const input = document.getElementById('sb-auto-refresh-turn-count');
+                let value = parseInt(input.value, 10);
+                if (isNaN(value)) value = 4;
+                value = Math.max(1, value - 1);
+                input.value = value;
+            });
+
+            document.getElementById('sb-auto-refresh-turn-increase').addEventListener('click', () => {
+                const input = document.getElementById('sb-auto-refresh-turn-count');
+                let value = parseInt(input.value, 10);
+                if (isNaN(value)) value = 2;
                 value = Math.min(99, value + 1);
                 input.value = value;
             });
@@ -2559,6 +2729,9 @@
                     break;
                 case 'auto-back':
                     this.showAutoBackModal();
+                    break;
+                case 'auto-refresh':
+                    this.showAutoRefreshModal();
                     break;
                 case 'auto-jump':
                     this.showAutoJumpModal();
@@ -3159,6 +3332,112 @@
             this.clearAbilityFilterUI('sb-auto-back-summon-grid');
         }
 
+        showAutoRefreshModal() {
+            this.hideAddMenu();
+            const modal = document.getElementById('sb-auto-refresh-modal');
+            modal.classList.add('show');
+
+            // 设置当前选项状态
+            const turnCheckbox = document.getElementById('sb-auto-refresh-turn');
+            const battleEndCheckbox = document.getElementById('sb-auto-refresh-battle-end');
+            const dropCheckbox = document.getElementById('sb-auto-refresh-drop');
+            const summonCheckbox = document.getElementById('sb-auto-refresh-summon');
+            const abilityCheckbox = document.getElementById('sb-auto-refresh-ability');
+            const turnCount = document.getElementById('sb-auto-refresh-turn-count');
+
+            if (turnCheckbox) {
+                turnCheckbox.checked = CONFIG.autoRefreshTurnEnabled;
+                turnCount.value = CONFIG.autoRefreshTurnCount;
+            }
+            if (battleEndCheckbox) {
+                battleEndCheckbox.checked = CONFIG.autoRefreshBattleEndEnabled;
+            }
+            if (dropCheckbox) {
+                dropCheckbox.checked = CONFIG.autoRefreshDropEnabled;
+            }
+            if (summonCheckbox) {
+                summonCheckbox.checked = CONFIG.autoRefreshSummonEnabled;
+            }
+            if (abilityCheckbox) {
+                abilityCheckbox.checked = CONFIG.autoRefreshAbilityEnabled;
+            }
+
+            this.renderAbilityFilterGrid(
+                'sb-auto-refresh-ability-grid',
+                'sb-auto-refresh-ability-hint',
+                CONFIG.autoRefreshAbilityIds || []
+            );
+            this.renderSummonFilterGrid(
+                'sb-auto-refresh-summon-grid',
+                'sb-auto-refresh-summon-hint',
+                CONFIG.autoRefreshSummonIds || []
+            );
+        }
+
+        hideAutoRefreshModal() {
+            const modal = document.getElementById('sb-auto-refresh-modal');
+            modal.classList.remove('show');
+        }
+
+        confirmAutoRefreshChange() {
+            const turnCheckbox = document.getElementById('sb-auto-refresh-turn');
+            const battleEndCheckbox = document.getElementById('sb-auto-refresh-battle-end');
+            const dropCheckbox = document.getElementById('sb-auto-refresh-drop');
+            const summonCheckbox = document.getElementById('sb-auto-refresh-summon');
+            const abilityCheckbox = document.getElementById('sb-auto-refresh-ability');
+            const turnCountInput = document.getElementById('sb-auto-refresh-turn-count');
+
+            // 更新配置
+            CONFIG.autoRefreshTurnEnabled = turnCheckbox ? turnCheckbox.checked : false;
+            CONFIG.autoRefreshBattleEndEnabled = battleEndCheckbox ? battleEndCheckbox.checked : false;
+            CONFIG.autoRefreshDropEnabled = dropCheckbox ? dropCheckbox.checked : false;
+            CONFIG.autoRefreshSummonEnabled = summonCheckbox ? summonCheckbox.checked : false;
+            CONFIG.autoRefreshAbilityEnabled = abilityCheckbox ? abilityCheckbox.checked : false;
+
+            // 验证并清理输入值，确保在有效范围(1-99)内
+            let turnCount = parseInt(turnCountInput.value, 10);
+            if (isNaN(turnCount) || turnCount < 1) {
+                turnCount = 1;
+            } else if (turnCount > 99) {
+                turnCount = 99;
+            }
+            CONFIG.autoRefreshTurnCount = turnCount;
+
+            // 保存到存储
+            storage.setValue('sb_auto_refresh_turn_enabled', CONFIG.autoRefreshTurnEnabled.toString());
+            storage.setValue('sb_auto_refresh_turn_count', CONFIG.autoRefreshTurnCount.toString());
+            storage.setValue('sb_auto_refresh_battle_end_enabled', CONFIG.autoRefreshBattleEndEnabled.toString());
+            storage.setValue('sb_auto_refresh_drop_enabled', CONFIG.autoRefreshDropEnabled.toString());
+            storage.setValue('sb_auto_refresh_summon_enabled', CONFIG.autoRefreshSummonEnabled.toString());
+            storage.setValue('sb_auto_refresh_ability_enabled', CONFIG.autoRefreshAbilityEnabled.toString());
+
+            // 仅在 grid 实际渲染了技能时更新过滤器；不在战斗中（grid 为空）则保留旧值
+            const newAbilityIds = this.collectAbilityFilter('sb-auto-refresh-ability-grid');
+            if (newAbilityIds !== null) {
+                CONFIG.autoRefreshAbilityIds = newAbilityIds;
+                storage.setValue('sb_auto_refresh_ability_ids', JSON.stringify(newAbilityIds));
+            }
+            const newSummonIds = this.collectSummonFilter('sb-auto-refresh-summon-grid');
+            if (newSummonIds !== null) {
+                CONFIG.autoRefreshSummonIds = newSummonIds;
+                storage.setValue('sb_auto_refresh_summon_ids', JSON.stringify(newSummonIds));
+            }
+
+            this.hideAutoRefreshModal();
+        }
+
+        // 只重置 UI 状态，需要用户再点"确认"才落盘
+        resetAutoRefreshForm() {
+            document.getElementById('sb-auto-refresh-turn').checked = false;
+            document.getElementById('sb-auto-refresh-turn-count').value = 1;
+            document.getElementById('sb-auto-refresh-battle-end').checked = false;
+            document.getElementById('sb-auto-refresh-drop').checked = false;
+            document.getElementById('sb-auto-refresh-summon').checked = false;
+            document.getElementById('sb-auto-refresh-ability').checked = false;
+            this.clearAbilityFilterUI('sb-auto-refresh-ability-grid');
+            this.clearAbilityFilterUI('sb-auto-refresh-summon-grid');
+        }
+
         resetAutoJumpForm() {
             document.getElementById('sb-auto-jump-turn').checked = false;
             document.getElementById('sb-auto-jump-turn-count').value = 1;
@@ -3210,9 +3489,9 @@
             );
 
 
-            // 过滤可选标签：必须有真实 URL，排除 back / click-through-back
+            // 过滤可选标签：必须有真实 URL，排除 back / click-through-back / reload
             const candidates = (this.bookmarks || []).filter(b =>
-                b && b.url && b.url !== 'back' && b.url !== 'click-through-back'
+                b && b.url && b.url !== 'back' && b.url !== 'click-through-back' && b.url !== 'reload'
             );
 
             if (candidates.length === 0) {
@@ -3506,6 +3785,11 @@
                     this.setBackUrl();
                     this.currentBookmarkId = null;
                     break;
+                case 'set-reload':
+                    this.currentBookmarkId = bookmarkId;
+                    this.setReloadUrl();
+                    this.currentBookmarkId = null;
+                    break;
                 case 'set-click-through-back':
                     this.currentBookmarkId = bookmarkId;
                     this.setClickThroughBack();
@@ -3526,6 +3810,9 @@
                     break;
                 case 'auto-back-global':
                     this.showAutoBackModal();
+                    break;
+                case 'auto-refresh-global':
+                    this.showAutoRefreshModal();
                     break;
                 case 'auto-jump-global':
                     this.showAutoJumpModal();
@@ -3643,6 +3930,16 @@
             if (bookmark) {
                 bookmark.url = 'back';
                 bookmark.domain = 'back';
+                this.saveBookmarks();
+                this.renderBookmarks();
+            }
+        }
+
+        setReloadUrl() {
+            const bookmark = this.bookmarks.find(b => b.id === this.currentBookmarkId);
+            if (bookmark) {
+                bookmark.url = 'reload';
+                bookmark.domain = 'reload';
                 this.saveBookmarks();
                 this.renderBookmarks();
             }
@@ -4406,6 +4703,11 @@
                     let jumped = this.tryAutoJump('battle-end', config);
                     if (jumped) {
                         battleEndHandled = true;
+                    } else if (config.autoRefreshBattleEndEnabled) {
+                        setTimeout(() => {
+                            location.reload();
+                        }, 100);
+                        battleEndHandled = true;
                     } else if (config.autoBackBattleEndEnabled) {
                         setTimeout(() => {
                             if (window.history.length > 1) {
@@ -4430,7 +4732,11 @@
                         if (turnAtAttack === config.autoJumpTurnCount) {
                             jumped = this.tryAutoJump('turn', config);
                         }
-                        if (!jumped && config.autoBackTurnEnabled && turnAtAttack <= config.autoBackTurnCount) {
+                        if (!jumped && config.autoRefreshTurnEnabled && turnAtAttack <= config.autoRefreshTurnCount) {
+                            setTimeout(() => {
+                                location.reload();
+                            }, 100);
+                        } else if (!jumped && config.autoBackTurnEnabled && turnAtAttack <= config.autoBackTurnCount) {
                             setTimeout(() => {
                                 if (window.history.length > 1) {
                                     history.back();
@@ -4452,7 +4758,12 @@
                     if (this.matchesSummonFilter(config.autoJumpSummonIds, usedId)) {
                         jumped = this.tryAutoJump('summon', config);
                     }
-                    if (!jumped && config.autoBackSummonEnabled
+                    if (!jumped && config.autoRefreshSummonEnabled
+                            && this.matchesSummonFilter(config.autoRefreshSummonIds, usedId)) {
+                        setTimeout(() => {
+                            location.reload();
+                        }, 100);
+                    } else if (!jumped && config.autoBackSummonEnabled
                             && this.matchesSummonFilter(config.autoBackSummonIds, usedId)) {
                         setTimeout(() => {
                             if (window.history.length > 1) {
@@ -4470,7 +4781,12 @@
                     if (this.matchesAbilityFilter(config.autoJumpAbilityIds, usedId)) {
                         jumped = this.tryAutoJump('ability', config);
                     }
-                    if (!jumped && config.autoBackAbilityEnabled
+                    if (!jumped && config.autoRefreshAbilityEnabled
+                            && this.matchesAbilityFilter(config.autoRefreshAbilityIds, usedId)) {
+                        setTimeout(() => {
+                            location.reload();
+                        }, 100);
+                    } else if (!jumped && config.autoBackAbilityEnabled
                             && this.matchesAbilityFilter(config.autoBackAbilityIds, usedId)) {
                         setTimeout(() => {
                             if (window.history.length > 1) {
@@ -4648,7 +4964,7 @@
                 return;
             }
 
-            if (!config.autoBackDropEnabled) {
+            if (!config.autoBackDropEnabled && !config.autoRefreshDropEnabled) {
                 return;
             }
 
@@ -4661,7 +4977,9 @@
             }
 
             setTimeout(() => {
-                if (window.history.length > 1) {
+                if (config.autoRefreshDropEnabled) {
+                    location.reload();
+                } else if (window.history.length > 1) {
                     history.back();
                 }
             }, 100);
@@ -4794,7 +5112,7 @@
                 return false;
             }
             if (!target || !target.url) return false;
-            if (target.url === 'back' || target.url === 'click-through-back') return false;
+            if (target.url === 'back' || target.url === 'click-through-back' || target.url === 'reload') return false;
 
             // 延迟与自动后退保持一致：所有时机统一 100ms
             const delayMap = { turn: 100, 'battle-end': 100, drop: 100, summon: 100, ability: 100 };
