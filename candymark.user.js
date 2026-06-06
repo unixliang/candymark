@@ -78,26 +78,6 @@
             dropSubscriptions = [];
         }
 
-        // 技能过滤器：每条 {id, icon}。兼容旧版（纯 id 字符串数组）。
-        const parseAbilityFilter = (key) => {
-            try {
-                const arr = JSON.parse(storage.getValue(key, '[]'));
-                if (!Array.isArray(arr)) return [];
-                return arr.map(item => {
-                    if (item == null) return null;
-                    if (typeof item === 'string' || typeof item === 'number') {
-                        return { id: String(item), icon: '' };
-                    }
-                    if (item.id != null) {
-                        return { id: String(item.id), icon: String(item.icon || '') };
-                    }
-                    return null;
-                }).filter(Boolean);
-            } catch (e) {
-                return [];
-            }
-        };
-
         _configCache = {
             enabled: storage.getValue('sb_enabled', 'true') === 'true',
             showTrigger: storage.getValue('sb_show_trigger', 'true') === 'true',
@@ -109,35 +89,29 @@
             bookmarkSize: parseInt(storage.getValue('sb_bookmark_size', '3')),
             bookmarkOpacity: parseInt(storage.getValue('sb_bookmark_opacity', '10')),
             bookmarksVisible: storage.getValue('sb_bookmarks_visible', 'true') === 'true',
-            autoBackTurnEnabled: storage.getValue('sb_auto_back_turn_enabled', 'false') === 'true',
-            autoBackTurnCount: parseInt(storage.getValue('sb_auto_back_turn_count', '3')),
-            autoBackBattleEndEnabled: storage.getValue('sb_auto_back_battle_end_enabled', 'false') === 'true',
-            autoBackDropEnabled: storage.getValue('sb_auto_back_drop_enabled', 'false') === 'true',
-            autoBackSummonEnabled: storage.getValue('sb_auto_back_summon_enabled', 'false') === 'true',
-            autoBackAbilityEnabled: storage.getValue('sb_auto_back_ability_enabled', 'false') === 'true',
-            autoRefreshTurnEnabled: storage.getValue('sb_auto_refresh_turn_enabled', 'false') === 'true',
-            autoRefreshTurnCount: parseInt(storage.getValue('sb_auto_refresh_turn_count', '3')),
-            autoRefreshBattleEndEnabled: storage.getValue('sb_auto_refresh_battle_end_enabled', 'false') === 'true',
-            autoRefreshDropEnabled: storage.getValue('sb_auto_refresh_drop_enabled', 'false') === 'true',
-            autoRefreshSummonEnabled: storage.getValue('sb_auto_refresh_summon_enabled', 'false') === 'true',
-            autoRefreshAbilityEnabled: storage.getValue('sb_auto_refresh_ability_enabled', 'false') === 'true',
-            autoJumpTurnEnabled: storage.getValue('sb_auto_jump_turn_enabled', 'false') === 'true',
-            autoJumpTurnCount: parseInt(storage.getValue('sb_auto_jump_turn_count', '3')),
-            autoJumpBattleEndEnabled: storage.getValue('sb_auto_jump_battle_end_enabled', 'false') === 'true',
-            autoJumpDropEnabled: storage.getValue('sb_auto_jump_drop_enabled', 'false') === 'true',
-            autoJumpSummonEnabled: storage.getValue('sb_auto_jump_summon_enabled', 'false') === 'true',
-            autoJumpAbilityEnabled: storage.getValue('sb_auto_jump_ability_enabled', 'false') === 'true',
+            // 非战斗自动设置（全局）：battle-end / drop，动作 none|back|refresh|jump
+            autoBattleEndAction: storage.getValue('sb_auto_battle_end_action', 'none'),
+            autoDropAction: storage.getValue('sb_auto_drop_action', 'none'),
+            // 跳转目标（全局单一，所有"跳转"动作共用同一个目标）
             autoJumpTargetId: (() => {
                 const raw = storage.getValue('sb_auto_jump_target_id', '');
                 const n = parseInt(raw, 10);
                 return Number.isNaN(n) ? null : n;
             })(),
-            autoBackAbilityIds: parseAbilityFilter('sb_auto_back_ability_ids'),
-            autoJumpAbilityIds: parseAbilityFilter('sb_auto_jump_ability_ids'),
-            autoBackSummonIds: parseAbilityFilter('sb_auto_back_summon_ids'),
-            autoJumpSummonIds: parseAbilityFilter('sb_auto_jump_summon_ids'),
-            autoRefreshAbilityIds: parseAbilityFilter('sb_auto_refresh_ability_ids'),
-            autoRefreshSummonIds: parseAbilityFilter('sb_auto_refresh_summon_ids'),
+            // 战斗内自动设置（按副本 quest_id 存）：
+            // { [questId]: { questImg, turnLte:{action,count}, turnEq:{action,count},
+            //                summon:{action,ids:[{id,icon}]}, ability:{action,ids:[{id,icon}]},
+            //                summonChoices:[{imageId,icon}], abilityChoices:[{iconId,icon}] } }
+            questSettings: (() => {
+                try {
+                    const obj = JSON.parse(storage.getValue('sb_quest_settings', '{}'));
+                    return (obj && typeof obj === 'object') ? obj : {};
+                } catch (e) {
+                    return {};
+                }
+            })(),
+            // 内存+持久化记录最近进入的副本，供"自动设置（战斗）"默认选中
+            lastQuestId: storage.getValue('sb_last_quest_id', ''),
             dropSubscriptions: dropSubscriptions
         };
         return _configCache;
@@ -898,8 +872,8 @@
             overflow: hidden;
             text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
         }
-        /* 自动跳转的目标网格按真实标签大小排列，不用 4 列等分 */
-        #sb-auto-jump-target-grid {
+        /* 跳转目标网格按真实标签大小排列，不用 4 列等分 */
+        #sb-nb-jump-grid, #sb-bt-jump-grid {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
@@ -907,8 +881,91 @@
             grid-template-columns: none;
             padding: 4px;
         }
-        #sb-auto-jump-target-grid .sb-drop-sub-item {
+        #sb-nb-jump-grid .sb-drop-sub-item, #sb-bt-jump-grid .sb-drop-sub-item {
             flex: 0 0 auto;
+        }
+        /* 自动设置（新版）：场景行 + 动作单选 */
+        .sb-auto-scene {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .sb-auto-scene-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .sb-auto-action-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .sb-auto-action-row label {
+            flex: 1 1 0;
+            min-width: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 6px 4px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            background: #f7f7f7;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.15s;
+        }
+        .sb-auto-action-row label:has(input:checked) {
+            border-color: #667eea;
+            background: #eef0ff;
+            color: #4f56c8;
+            font-weight: 600;
+        }
+        .sb-auto-action-row input[type="radio"] {
+            margin: 0;
+        }
+        .sb-number-adjuster--inline {
+            display: inline-flex;
+            vertical-align: middle;
+            gap: 2px;
+        }
+        /* 副本选择器：大厅图网格，按真实比例横向排列 */
+        #sb-bt-quest-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-start;
+            grid-template-columns: none;
+            padding: 4px;
+            max-height: 30vh;
+            overflow-y: auto;
+        }
+        #sb-bt-quest-grid .sb-drop-sub-item {
+            flex: 0 0 auto;
+            width: 100px;
+        }
+        #sb-bt-quest-grid img {
+            width: 100%;
+            border-radius: 6px;
+        }
+        .sb-quest-tag {
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            background: rgba(102, 126, 234, 0.92);
+            color: #fff;
+            font-size: 11px;
+            padding: 1px 5px;
+            border-radius: 4px;
+        }
+        .sb-bt-quest-hint {
+            font-size: 12px;
+            color: #888;
+            margin: 4px 0;
         }
         .sb-drop-subscribe-grid {
             display: grid;
@@ -990,34 +1047,6 @@
             justify-content: center;
             gap: 5px;
             margin: 0 10px;
-        }
-        
-        /* 自动后退设置项分行样式 */
-        .sb-auto-back-item {
-            flex-direction: column;
-            align-items: flex-start;
-            padding-left: 50px; /* 为勾选框和图标留出空间 */
-            position: relative;
-            min-height: 60px;
-        }
-        
-        .sb-auto-back-item input[type="checkbox"] {
-            position: absolute;
-            left: 8px;
-            top: 50%;
-            transform: translateY(-50%);
-            margin: 0;
-            z-index: 2; /* 确保勾选框在上层 */
-        }
-        
-        /* 图标垂直居中容器 */
-        .sb-auto-back-icon {
-            position: absolute;
-            left: 36px; /* 增加与勾选框的距离 */
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 16px;
-            z-index: 1; /* 确保图标在下层 */
         }
         
         /* 图标和控制元素容器 */
@@ -1150,9 +1179,7 @@
             <div class="sb-menu-item" data-action="set-click-through-delay" id="sb-interval-menu">⏱️ 穿透后退延迟【300ms】</div>
             <div class="sb-menu-item" data-action="edit">✏️ 修改名称</div>
             <div class="sb-menu-item" data-action="delete">🗑️ 删除标签</div>
-            <div class="sb-menu-item" data-action="auto-back-global">🚪 自动后退【全局】</div>
-            <div class="sb-menu-item" data-action="auto-refresh-global">🔄 自动刷新【全局】</div>
-            <div class="sb-menu-item" data-action="auto-jump-global">🛫 自动跳转【全局】</div>
+            <div class="sb-menu-item" data-action="show-global-menu">⚙️ 全局配置</div>
             <div class="sb-menu-item" data-action="drop-subscribe-global">🔔 掉落通知【全局】</div>
             <div class="sb-menu-item" data-action="cancel">❌ 取消</div>
         </div>
@@ -1160,9 +1187,8 @@
             <div class="sb-menu-item" data-action="add-bookmark">➕ 增加标签</div>
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
-            <div class="sb-menu-item" data-action="auto-back">🚪 自动后退</div>
-            <div class="sb-menu-item" data-action="auto-refresh">🔄 自动刷新</div>
-            <div class="sb-menu-item" data-action="auto-jump">🛫 自动跳转</div>
+            <div class="sb-menu-item" data-action="auto-nonbattle">🌐 自动设置（非战斗）</div>
+            <div class="sb-menu-item" data-action="auto-battle">⚔️ 自动设置（战斗）</div>
             <div class="sb-menu-item" data-action="subscribe-from-drop-list">🔔 掉落通知</div>
             <div class="sb-menu-item" data-action="config-management">⚙️ 配置管理</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
@@ -1294,132 +1320,110 @@
         <div id="sb-drag-hint" class="sb-drag-hint">
             按住标签拖拽到任意位置，松开鼠标完成移动
         </div>
-        <div id="sb-auto-back-modal" class="sb-modal">
+        <div id="sb-auto-nonbattle-modal" class="sb-modal">
             <div class="sb-modal-content">
-                <h3>自动后退设置</h3>
+                <h3>自动设置（非战斗）</h3>
                 <div class="sb-drop-notify-options">
-                    <label class="sb-checkbox-item sb-auto-back-item">
-                        <input type="checkbox" id="sb-auto-back-turn">
-                        <div class="sb-auto-back-icon">⚔️</div>
-                        <div class="sb-number-adjuster" style="margin-bottom: 4px; margin-top: 8px; margin-left: 20px;">
-                            <button class="sb-number-adjuster-btn" id="sb-auto-back-turn-decrease">-</button>
-                            <input type="number" id="sb-auto-back-turn-count" class="sb-number-adjuster-input" min="1" max="99" value="3">
-                            <button class="sb-number-adjuster-btn" id="sb-auto-back-turn-increase">+</button>
+                    <div class="sb-auto-scene">
+                        <div class="sb-auto-scene-title">🏆 战斗结束后</div>
+                        <div class="sb-auto-action-row" data-scene="battleEnd">
+                            <label><input type="radio" name="sb-nb-battleEnd" value="none">不启用</label>
+                            <label><input type="radio" name="sb-nb-battleEnd" value="back">后退</label>
+                            <label><input type="radio" name="sb-nb-battleEnd" value="refresh">刷新</label>
+                            <label><input type="radio" name="sb-nb-battleEnd" value="jump">跳转</label>
                         </div>
-                        <div style="margin-left: 20px;">回合内攻击后</div>
-                    </label>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-auto-back-battle-end">
-                        🏆 战斗结束后
-                    </label>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-auto-back-drop">
-                        🎯 结算后
-                    </label>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-auto-back-summon">
-                        🔮 召唤后
-                    </label>
-                    <div class="sb-ability-filter-hint" id="sb-auto-back-summon-hint"></div>
-                    <div class="sb-ability-filter-grid" id="sb-auto-back-summon-grid"></div>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-auto-back-ability">
-                        ⚡ 技能后
-                    </label>
-                    <div class="sb-ability-filter-hint" id="sb-auto-back-ability-hint"></div>
-                    <div class="sb-ability-filter-grid" id="sb-auto-back-ability-grid"></div>
+                    </div>
+                    <div class="sb-auto-scene">
+                        <div class="sb-auto-scene-title">🎯 结算后</div>
+                        <div class="sb-auto-action-row" data-scene="drop">
+                            <label><input type="radio" name="sb-nb-drop" value="none">不启用</label>
+                            <label><input type="radio" name="sb-nb-drop" value="back">后退</label>
+                            <label><input type="radio" name="sb-nb-drop" value="refresh">刷新</label>
+                            <label><input type="radio" name="sb-nb-drop" value="jump">跳转</label>
+                        </div>
+                    </div>
                 </div>
+                <div class="sb-auto-jump-target-label">跳转目标（全局，单选；任一时机选"跳转"都用它）</div>
+                <div class="sb-drop-subscribe-hint" id="sb-nb-jump-hint"></div>
+                <div class="sb-drop-subscribe-grid" id="sb-nb-jump-grid"></div>
                 <div class="sb-modal-buttons">
-                    <button class="sb-btn-primary" id="sb-auto-back-confirm">确认</button>
-                    <button class="sb-btn-secondary" id="sb-auto-back-reset">重置</button>
-                    <button class="sb-btn-secondary" id="sb-auto-back-cancel">取消</button>
+                    <button class="sb-btn-primary" id="sb-nb-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-nb-reset">重置</button>
+                    <button class="sb-btn-secondary" id="sb-nb-cancel">取消</button>
                 </div>
             </div>
         </div>
-        <div id="sb-auto-refresh-modal" class="sb-modal">
+        <div id="sb-auto-battle-modal" class="sb-modal">
             <div class="sb-modal-content">
-                <h3>自动刷新设置</h3>
+                <h3>自动设置（战斗）</h3>
+                <div class="sb-bt-quest-hint" id="sb-bt-quest-hint"></div>
+                <div class="sb-drop-subscribe-grid" id="sb-bt-quest-grid"></div>
+
                 <div class="sb-drop-notify-options">
-                    <label class="sb-checkbox-item sb-auto-back-item">
-                        <input type="checkbox" id="sb-auto-refresh-turn">
-                        <div class="sb-auto-back-icon">⚔️</div>
-                        <div class="sb-number-adjuster" style="margin-bottom: 4px; margin-top: 8px; margin-left: 20px;">
-                            <button class="sb-number-adjuster-btn" id="sb-auto-refresh-turn-decrease">-</button>
-                            <input type="number" id="sb-auto-refresh-turn-count" class="sb-number-adjuster-input" min="1" max="99" value="3">
-                            <button class="sb-number-adjuster-btn" id="sb-auto-refresh-turn-increase">+</button>
+                    <div class="sb-auto-scene">
+                        <div class="sb-auto-scene-title">
+                            ⚔️ 回合内攻击后（≤
+                            <span class="sb-number-adjuster sb-number-adjuster--inline">
+                                <button class="sb-number-adjuster-btn" id="sb-bt-turnLte-decrease">-</button>
+                                <input type="number" id="sb-bt-turnLte-count" class="sb-number-adjuster-input" min="1" max="99" value="3">
+                                <button class="sb-number-adjuster-btn" id="sb-bt-turnLte-increase">+</button>
+                            </span>
+                            回合）
                         </div>
-                        <div style="margin-left: 20px;">回合内攻击后</div>
-                    </label>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-auto-refresh-battle-end">
-                        🏆 战斗结束后
-                    </label>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-auto-refresh-drop">
-                        🎯 结算后
-                    </label>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-auto-refresh-summon">
-                        🔮 召唤后
-                    </label>
-                    <div class="sb-ability-filter-hint" id="sb-auto-refresh-summon-hint"></div>
-                    <div class="sb-ability-filter-grid" id="sb-auto-refresh-summon-grid"></div>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-auto-refresh-ability">
-                        ⚡ 技能后
-                    </label>
-                    <div class="sb-ability-filter-hint" id="sb-auto-refresh-ability-hint"></div>
-                    <div class="sb-ability-filter-grid" id="sb-auto-refresh-ability-grid"></div>
-                </div>
-                <div class="sb-modal-buttons">
-                    <button class="sb-btn-primary" id="sb-auto-refresh-confirm">确认</button>
-                    <button class="sb-btn-secondary" id="sb-auto-refresh-reset">重置</button>
-                    <button class="sb-btn-secondary" id="sb-auto-refresh-cancel">取消</button>
-                </div>
-            </div>
-        </div>
-        <div id="sb-auto-jump-modal" class="sb-modal">
-            <div class="sb-modal-content">
-                <h3>自动跳转设置</h3>
-                <div class="sb-drop-notify-options">
-                    <label class="sb-checkbox-item sb-auto-back-item">
-                        <input type="checkbox" id="sb-auto-jump-turn">
-                        <div class="sb-auto-back-icon">⚔️</div>
-                        <div class="sb-number-adjuster" style="margin-bottom: 4px; margin-top: 8px; margin-left: 20px;">
-                            <button class="sb-number-adjuster-btn" id="sb-auto-jump-turn-decrease">-</button>
-                            <input type="number" id="sb-auto-jump-turn-count" class="sb-number-adjuster-input" min="1" max="99" value="3">
-                            <button class="sb-number-adjuster-btn" id="sb-auto-jump-turn-increase">+</button>
+                        <div class="sb-auto-action-row" data-scene="turnLte">
+                            <label><input type="radio" name="sb-bt-turnLte" value="none">不启用</label>
+                            <label><input type="radio" name="sb-bt-turnLte" value="back">后退</label>
+                            <label><input type="radio" name="sb-bt-turnLte" value="refresh">刷新</label>
+                            <label><input type="radio" name="sb-bt-turnLte" value="jump">跳转</label>
                         </div>
-                        <div style="margin-left: 20px;">该回合攻击后</div>
-                    </label>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-auto-jump-battle-end">
-                        🏆 战斗结束后
-                    </label>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-auto-jump-drop">
-                        🎯 结算后
-                    </label>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-auto-jump-summon">
-                        🔮 召唤后
-                    </label>
-                    <div class="sb-ability-filter-hint" id="sb-auto-jump-summon-hint"></div>
-                    <div class="sb-ability-filter-grid" id="sb-auto-jump-summon-grid"></div>
-                    <label class="sb-checkbox-item">
-                        <input type="checkbox" id="sb-auto-jump-ability">
-                        ⚡ 技能后
-                    </label>
-                    <div class="sb-ability-filter-hint" id="sb-auto-jump-ability-hint"></div>
-                    <div class="sb-ability-filter-grid" id="sb-auto-jump-ability-grid"></div>
+                    </div>
+                    <div class="sb-auto-scene">
+                        <div class="sb-auto-scene-title">
+                            🎯 该回合攻击后（=
+                            <span class="sb-number-adjuster sb-number-adjuster--inline">
+                                <button class="sb-number-adjuster-btn" id="sb-bt-turnEq-decrease">-</button>
+                                <input type="number" id="sb-bt-turnEq-count" class="sb-number-adjuster-input" min="1" max="99" value="1">
+                                <button class="sb-number-adjuster-btn" id="sb-bt-turnEq-increase">+</button>
+                            </span>
+                            回合）
+                        </div>
+                        <div class="sb-auto-action-row" data-scene="turnEq">
+                            <label><input type="radio" name="sb-bt-turnEq" value="none">不启用</label>
+                            <label><input type="radio" name="sb-bt-turnEq" value="back">后退</label>
+                            <label><input type="radio" name="sb-bt-turnEq" value="refresh">刷新</label>
+                            <label><input type="radio" name="sb-bt-turnEq" value="jump">跳转</label>
+                        </div>
+                    </div>
+                    <div class="sb-auto-scene">
+                        <div class="sb-auto-scene-title">🔮 召唤后</div>
+                        <div class="sb-auto-action-row" data-scene="summon">
+                            <label><input type="radio" name="sb-bt-summon" value="none">不启用</label>
+                            <label><input type="radio" name="sb-bt-summon" value="back">后退</label>
+                            <label><input type="radio" name="sb-bt-summon" value="refresh">刷新</label>
+                            <label><input type="radio" name="sb-bt-summon" value="jump">跳转</label>
+                        </div>
+                        <div class="sb-ability-filter-hint" id="sb-bt-summon-hint"></div>
+                        <div class="sb-ability-filter-grid" id="sb-bt-summon-grid"></div>
+                    </div>
+                    <div class="sb-auto-scene">
+                        <div class="sb-auto-scene-title">⚡ 技能后</div>
+                        <div class="sb-auto-action-row" data-scene="ability">
+                            <label><input type="radio" name="sb-bt-ability" value="none">不启用</label>
+                            <label><input type="radio" name="sb-bt-ability" value="back">后退</label>
+                            <label><input type="radio" name="sb-bt-ability" value="refresh">刷新</label>
+                            <label><input type="radio" name="sb-bt-ability" value="jump">跳转</label>
+                        </div>
+                        <div class="sb-ability-filter-hint" id="sb-bt-ability-hint"></div>
+                        <div class="sb-ability-filter-grid" id="sb-bt-ability-grid"></div>
+                    </div>
                 </div>
-                <div class="sb-auto-jump-target-label">跳转目标（单选）</div>
-                <div class="sb-drop-subscribe-hint" id="sb-auto-jump-hint"></div>
-                <div class="sb-drop-subscribe-grid" id="sb-auto-jump-target-grid"></div>
+                <div class="sb-auto-jump-target-label">跳转目标（全局，单选；任一时机选"跳转"都用它）</div>
+                <div class="sb-drop-subscribe-hint" id="sb-bt-jump-hint"></div>
+                <div class="sb-drop-subscribe-grid" id="sb-bt-jump-grid"></div>
                 <div class="sb-modal-buttons">
-                    <button class="sb-btn-primary" id="sb-auto-jump-confirm">确认</button>
-                    <button class="sb-btn-secondary" id="sb-auto-jump-reset">重置</button>
-                    <button class="sb-btn-secondary" id="sb-auto-jump-cancel">取消</button>
+                    <button class="sb-btn-primary" id="sb-bt-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-bt-delete">删除</button>
+                    <button class="sb-btn-secondary" id="sb-bt-cancel">取消</button>
                 </div>
             </div>
         </div>
@@ -1558,31 +1562,11 @@
                     blacklist: CONFIG.blacklist,
                     bookmarksVisible: CONFIG.bookmarksVisible,
                     dropSubscriptions: CONFIG.dropSubscriptions,
-                    autoBackTurnEnabled: CONFIG.autoBackTurnEnabled,
-                    autoBackTurnCount: CONFIG.autoBackTurnCount,
-                    autoBackBattleEndEnabled: CONFIG.autoBackBattleEndEnabled,
-                    autoBackDropEnabled: CONFIG.autoBackDropEnabled,
-                    autoBackSummonEnabled: CONFIG.autoBackSummonEnabled,
-                    autoBackAbilityEnabled: CONFIG.autoBackAbilityEnabled,
-                    autoBackAbilityIds: CONFIG.autoBackAbilityIds,
-                    autoBackSummonIds: CONFIG.autoBackSummonIds,
-                    autoRefreshTurnEnabled: CONFIG.autoRefreshTurnEnabled,
-                    autoRefreshTurnCount: CONFIG.autoRefreshTurnCount,
-                    autoRefreshBattleEndEnabled: CONFIG.autoRefreshBattleEndEnabled,
-                    autoRefreshDropEnabled: CONFIG.autoRefreshDropEnabled,
-                    autoRefreshSummonEnabled: CONFIG.autoRefreshSummonEnabled,
-                    autoRefreshAbilityEnabled: CONFIG.autoRefreshAbilityEnabled,
-                    autoRefreshAbilityIds: CONFIG.autoRefreshAbilityIds,
-                    autoRefreshSummonIds: CONFIG.autoRefreshSummonIds,
-                    autoJumpTurnEnabled: CONFIG.autoJumpTurnEnabled,
-                    autoJumpTurnCount: CONFIG.autoJumpTurnCount,
-                    autoJumpBattleEndEnabled: CONFIG.autoJumpBattleEndEnabled,
-                    autoJumpDropEnabled: CONFIG.autoJumpDropEnabled,
-                    autoJumpSummonEnabled: CONFIG.autoJumpSummonEnabled,
-                    autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
+                    autoBattleEndAction: CONFIG.autoBattleEndAction,
+                    autoDropAction: CONFIG.autoDropAction,
                     autoJumpTargetId: CONFIG.autoJumpTargetId,
-                    autoJumpAbilityIds: CONFIG.autoJumpAbilityIds,
-                    autoJumpSummonIds: CONFIG.autoJumpSummonIds
+                    questSettings: CONFIG.questSettings,
+                    lastQuestId: CONFIG.lastQuestId
                 }
             };
 
@@ -1691,75 +1675,25 @@
                                         storage.setValue('sb_drop_subscriptions', JSON.stringify(subs));
                                         CONFIG.dropSubscriptions = subs;
                                     }
-                                    ['Turn', 'Drop', 'Summon', 'Ability'].forEach(t => {
-                                        const k = 'autoJump' + t + 'Enabled';
-                                        if (typeof settings[k] === 'boolean') {
-                                            CONFIG[k] = settings[k];
-                                            storage.setValue('sb_auto_jump_' + t.toLowerCase() + '_enabled', settings[k].toString());
-                                        }
-                                    });
-                                    const restoreAutoSetting = (camelPrefix, snakePrefix) => {
-                                        ['TurnEnabled', 'BattleEndEnabled', 'DropEnabled', 'SummonEnabled', 'AbilityEnabled'].forEach(suffix => {
-                                            const k = camelPrefix + suffix;
-                                            if (typeof settings[k] === 'boolean') {
-                                                CONFIG[k] = settings[k];
-                                                storage.setValue(snakePrefix + suffix.replace(/[A-Z]/g, c => '_' + c.toLowerCase()), settings[k].toString());
-                                            }
-                                        });
-                                        const countKey = camelPrefix + 'TurnCount';
-                                        if (typeof settings[countKey] === 'number' && settings[countKey] >= 1 && settings[countKey] <= 99) {
-                                            CONFIG[countKey] = settings[countKey];
-                                            storage.setValue(snakePrefix + '_turn_count', String(settings[countKey]));
-                                        }
-                                    };
-                                    restoreAutoSetting('autoBack', 'sb_auto_back');
-                                    restoreAutoSetting('autoRefresh', 'sb_auto_refresh');
-                                    restoreAutoSetting('autoJump', 'sb_auto_jump');
+                                    if (typeof settings.autoBattleEndAction === 'string') {
+                                        CONFIG.autoBattleEndAction = settings.autoBattleEndAction;
+                                        storage.setValue('sb_auto_battle_end_action', settings.autoBattleEndAction);
+                                    }
+                                    if (typeof settings.autoDropAction === 'string') {
+                                        CONFIG.autoDropAction = settings.autoDropAction;
+                                        storage.setValue('sb_auto_drop_action', settings.autoDropAction);
+                                    }
                                     if (settings.autoJumpTargetId === null || typeof settings.autoJumpTargetId === 'number') {
                                         CONFIG.autoJumpTargetId = settings.autoJumpTargetId;
                                         storage.setValue('sb_auto_jump_target_id', settings.autoJumpTargetId == null ? '' : String(settings.autoJumpTargetId));
                                     }
-                                    const normalizeAbilityFilter = (raw) => raw
-                                        .map(item => {
-                                            if (item == null) return null;
-                                            if (typeof item === 'string' || typeof item === 'number') {
-                                                return { id: String(item), icon: '' };
-                                            }
-                                            if (item.id != null) {
-                                                return { id: String(item.id), icon: String(item.icon || '') };
-                                            }
-                                            return null;
-                                        })
-                                        .filter(Boolean);
-                                    if (Array.isArray(settings.autoBackAbilityIds)) {
-                                        const items = normalizeAbilityFilter(settings.autoBackAbilityIds);
-                                        CONFIG.autoBackAbilityIds = items;
-                                        storage.setValue('sb_auto_back_ability_ids', JSON.stringify(items));
+                                    if (settings.questSettings && typeof settings.questSettings === 'object') {
+                                        CONFIG.questSettings = settings.questSettings;
+                                        storage.setValue('sb_quest_settings', JSON.stringify(settings.questSettings));
                                     }
-                                    if (Array.isArray(settings.autoJumpAbilityIds)) {
-                                        const items = normalizeAbilityFilter(settings.autoJumpAbilityIds);
-                                        CONFIG.autoJumpAbilityIds = items;
-                                        storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(items));
-                                    }
-                                    if (Array.isArray(settings.autoBackSummonIds)) {
-                                        const items = normalizeAbilityFilter(settings.autoBackSummonIds);
-                                        CONFIG.autoBackSummonIds = items;
-                                        storage.setValue('sb_auto_back_summon_ids', JSON.stringify(items));
-                                    }
-                                    if (Array.isArray(settings.autoJumpSummonIds)) {
-                                        const items = normalizeAbilityFilter(settings.autoJumpSummonIds);
-                                        CONFIG.autoJumpSummonIds = items;
-                                        storage.setValue('sb_auto_jump_summon_ids', JSON.stringify(items));
-                                    }
-                                    if (Array.isArray(settings.autoRefreshAbilityIds)) {
-                                        const items = normalizeAbilityFilter(settings.autoRefreshAbilityIds);
-                                        CONFIG.autoRefreshAbilityIds = items;
-                                        storage.setValue('sb_auto_refresh_ability_ids', JSON.stringify(items));
-                                    }
-                                    if (Array.isArray(settings.autoRefreshSummonIds)) {
-                                        const items = normalizeAbilityFilter(settings.autoRefreshSummonIds);
-                                        CONFIG.autoRefreshSummonIds = items;
-                                        storage.setValue('sb_auto_refresh_summon_ids', JSON.stringify(items));
+                                    if (typeof settings.lastQuestId === 'string') {
+                                        CONFIG.lastQuestId = settings.lastQuestId;
+                                        storage.setValue('sb_last_quest_id', settings.lastQuestId);
                                     }
                                 }
 
@@ -1798,31 +1732,11 @@
                         blacklist: CONFIG.blacklist,
                         bookmarksVisible: CONFIG.bookmarksVisible,
                         dropSubscriptions: CONFIG.dropSubscriptions,
-                        autoBackTurnEnabled: CONFIG.autoBackTurnEnabled,
-                        autoBackTurnCount: CONFIG.autoBackTurnCount,
-                        autoBackBattleEndEnabled: CONFIG.autoBackBattleEndEnabled,
-                        autoBackDropEnabled: CONFIG.autoBackDropEnabled,
-                        autoBackSummonEnabled: CONFIG.autoBackSummonEnabled,
-                        autoBackAbilityEnabled: CONFIG.autoBackAbilityEnabled,
-                        autoBackAbilityIds: CONFIG.autoBackAbilityIds,
-                        autoBackSummonIds: CONFIG.autoBackSummonIds,
-                        autoRefreshTurnEnabled: CONFIG.autoRefreshTurnEnabled,
-                        autoRefreshTurnCount: CONFIG.autoRefreshTurnCount,
-                        autoRefreshBattleEndEnabled: CONFIG.autoRefreshBattleEndEnabled,
-                        autoRefreshDropEnabled: CONFIG.autoRefreshDropEnabled,
-                        autoRefreshSummonEnabled: CONFIG.autoRefreshSummonEnabled,
-                        autoRefreshAbilityEnabled: CONFIG.autoRefreshAbilityEnabled,
-                        autoRefreshAbilityIds: CONFIG.autoRefreshAbilityIds,
-                        autoRefreshSummonIds: CONFIG.autoRefreshSummonIds,
-                        autoJumpTurnEnabled: CONFIG.autoJumpTurnEnabled,
-                        autoJumpTurnCount: CONFIG.autoJumpTurnCount,
-                        autoJumpBattleEndEnabled: CONFIG.autoJumpBattleEndEnabled,
-                        autoJumpDropEnabled: CONFIG.autoJumpDropEnabled,
-                        autoJumpSummonEnabled: CONFIG.autoJumpSummonEnabled,
-                        autoJumpAbilityEnabled: CONFIG.autoJumpAbilityEnabled,
+                        autoBattleEndAction: CONFIG.autoBattleEndAction,
+                        autoDropAction: CONFIG.autoDropAction,
                         autoJumpTargetId: CONFIG.autoJumpTargetId,
-                        autoJumpAbilityIds: CONFIG.autoJumpAbilityIds,
-                        autoJumpSummonIds: CONFIG.autoJumpSummonIds
+                        questSettings: CONFIG.questSettings,
+                        lastQuestId: CONFIG.lastQuestId
                     }
                 };
                 
@@ -1924,75 +1838,25 @@
                             CONFIG.dropSubscriptions = subs;
                             storage.setValue('sb_drop_subscriptions', JSON.stringify(subs));
                         }
-                        ['Turn', 'Drop', 'Summon', 'Ability'].forEach(t => {
-                            const k = 'autoJump' + t + 'Enabled';
-                            if (typeof settings[k] === 'boolean') {
-                                CONFIG[k] = settings[k];
-                                storage.setValue('sb_auto_jump_' + t.toLowerCase() + '_enabled', settings[k].toString());
-                            }
-                        });
-                        const restoreAutoSetting = (camelPrefix, snakePrefix) => {
-                            ['TurnEnabled', 'BattleEndEnabled', 'DropEnabled', 'SummonEnabled', 'AbilityEnabled'].forEach(suffix => {
-                                const k = camelPrefix + suffix;
-                                if (typeof settings[k] === 'boolean') {
-                                    CONFIG[k] = settings[k];
-                                    storage.setValue(snakePrefix + suffix.replace(/[A-Z]/g, c => '_' + c.toLowerCase()), settings[k].toString());
-                                }
-                            });
-                            const countKey = camelPrefix + 'TurnCount';
-                            if (typeof settings[countKey] === 'number' && settings[countKey] >= 1 && settings[countKey] <= 99) {
-                                CONFIG[countKey] = settings[countKey];
-                                storage.setValue(snakePrefix + '_turn_count', String(settings[countKey]));
-                            }
-                        };
-                        restoreAutoSetting('autoBack', 'sb_auto_back');
-                        restoreAutoSetting('autoRefresh', 'sb_auto_refresh');
-                        restoreAutoSetting('autoJump', 'sb_auto_jump');
+                        if (typeof settings.autoBattleEndAction === 'string') {
+                            CONFIG.autoBattleEndAction = settings.autoBattleEndAction;
+                            storage.setValue('sb_auto_battle_end_action', settings.autoBattleEndAction);
+                        }
+                        if (typeof settings.autoDropAction === 'string') {
+                            CONFIG.autoDropAction = settings.autoDropAction;
+                            storage.setValue('sb_auto_drop_action', settings.autoDropAction);
+                        }
                         if (settings.autoJumpTargetId === null || typeof settings.autoJumpTargetId === 'number') {
                             CONFIG.autoJumpTargetId = settings.autoJumpTargetId;
                             storage.setValue('sb_auto_jump_target_id', settings.autoJumpTargetId == null ? '' : String(settings.autoJumpTargetId));
                         }
-                        const normalizeAbilityFilter = (raw) => raw
-                            .map(item => {
-                                if (item == null) return null;
-                                if (typeof item === 'string' || typeof item === 'number') {
-                                    return { id: String(item), icon: '' };
-                                }
-                                if (item.id != null) {
-                                    return { id: String(item.id), icon: String(item.icon || '') };
-                                }
-                                return null;
-                            })
-                            .filter(Boolean);
-                        if (Array.isArray(settings.autoBackAbilityIds)) {
-                            const items = normalizeAbilityFilter(settings.autoBackAbilityIds);
-                            CONFIG.autoBackAbilityIds = items;
-                            storage.setValue('sb_auto_back_ability_ids', JSON.stringify(items));
+                        if (settings.questSettings && typeof settings.questSettings === 'object') {
+                            CONFIG.questSettings = settings.questSettings;
+                            storage.setValue('sb_quest_settings', JSON.stringify(settings.questSettings));
                         }
-                        if (Array.isArray(settings.autoJumpAbilityIds)) {
-                            const items = normalizeAbilityFilter(settings.autoJumpAbilityIds);
-                            CONFIG.autoJumpAbilityIds = items;
-                            storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(items));
-                        }
-                        if (Array.isArray(settings.autoBackSummonIds)) {
-                            const items = normalizeAbilityFilter(settings.autoBackSummonIds);
-                            CONFIG.autoBackSummonIds = items;
-                            storage.setValue('sb_auto_back_summon_ids', JSON.stringify(items));
-                        }
-                        if (Array.isArray(settings.autoJumpSummonIds)) {
-                            const items = normalizeAbilityFilter(settings.autoJumpSummonIds);
-                            CONFIG.autoJumpSummonIds = items;
-                            storage.setValue('sb_auto_jump_summon_ids', JSON.stringify(items));
-                        }
-                        if (Array.isArray(settings.autoRefreshAbilityIds)) {
-                            const items = normalizeAbilityFilter(settings.autoRefreshAbilityIds);
-                            CONFIG.autoRefreshAbilityIds = items;
-                            storage.setValue('sb_auto_refresh_ability_ids', JSON.stringify(items));
-                        }
-                        if (Array.isArray(settings.autoRefreshSummonIds)) {
-                            const items = normalizeAbilityFilter(settings.autoRefreshSummonIds);
-                            CONFIG.autoRefreshSummonIds = items;
-                            storage.setValue('sb_auto_refresh_summon_ids', JSON.stringify(items));
+                        if (typeof settings.lastQuestId === 'string') {
+                            CONFIG.lastQuestId = settings.lastQuestId;
+                            storage.setValue('sb_last_quest_id', settings.lastQuestId);
                         }
                     }
 
@@ -2157,132 +2021,44 @@
                 this.hideDropSubscribeModal();
             });
 
-            // 自动后退设置
-            document.getElementById('sb-auto-back-confirm').addEventListener('click', () => {
-                this.confirmAutoBackChange();
-            });
+            // 自动设置（非战斗）
+            document.getElementById('sb-nb-confirm').addEventListener('click', () => { this.confirmAutoNonbattle(); });
+            document.getElementById('sb-nb-cancel').addEventListener('click', () => { this.hideAutoNonbattleModal(); });
+            document.getElementById('sb-nb-reset').addEventListener('click', () => { this.resetAutoNonbattleForm(); });
 
-            document.getElementById('sb-auto-back-cancel').addEventListener('click', () => {
-                this.hideAutoBackModal();
-            });
+            // 自动设置（战斗）
+            document.getElementById('sb-bt-confirm').addEventListener('click', () => { this.confirmAutoBattle(); });
+            document.getElementById('sb-bt-cancel').addEventListener('click', () => { this.hideAutoBattleModal(); });
+            document.getElementById('sb-bt-delete').addEventListener('click', () => { this.deleteAutoBattleQuest(); });
 
-            document.getElementById('sb-auto-back-reset').addEventListener('click', () => {
-                this.resetAutoBackForm();
-            });
-
-            // 自动跳转设置
-            document.getElementById('sb-auto-jump-confirm').addEventListener('click', () => {
-                this.confirmAutoJumpChange();
-            });
-
-            document.getElementById('sb-auto-jump-cancel').addEventListener('click', () => {
-                this.hideAutoJumpModal();
-            });
-
-            document.getElementById('sb-auto-jump-reset').addEventListener('click', () => {
-                this.resetAutoJumpForm();
-            });
-            
-            // 监听输入框变化限制，实时验证输入值范围(1-99)
-            document.getElementById('sb-auto-back-turn-count').addEventListener('input', (e) => {
-                let value = parseInt(e.target.value, 10);
-                // 处理NaN情况，当输入非数字字符时不立即纠正，让用户完成输入
-                if (isNaN(value)) {
-                    return;
-                }
-                // 限制范围在1-99之间
-                if (value < 1) value = 1;
-                if (value > 99) value = 99;
-                e.target.value = value;
-            });
-            
-            // 失去焦点时确保值有效，处理空值或无效值情况
-            document.getElementById('sb-auto-back-turn-count').addEventListener('blur', (e) => {
-                let value = parseInt(e.target.value, 10);
-                // 处理NaN或空值情况，设置默认值为1
-                if (isNaN(value) || value < 1) value = 1;
-                if (value > 99) value = 99;
-                e.target.value = value;
-            });
-            
-            // 为数值调节器增加事件监听
-            document.getElementById('sb-auto-back-turn-decrease').addEventListener('click', () => {
-                const input = document.getElementById('sb-auto-back-turn-count');
-                let value = parseInt(input.value, 10);
-                if (isNaN(value)) value = 4; // 默认值
-                value = Math.max(1, value - 1);
-                input.value = value;
-            });
-            
-            document.getElementById('sb-auto-back-turn-increase').addEventListener('click', () => {
-                const input = document.getElementById('sb-auto-back-turn-count');
-                let value = parseInt(input.value, 10);
-                if (isNaN(value)) value = 2; // 默认值
-                value = Math.min(99, value + 1);
-                input.value = value;
-            });
-
-            // 自动刷新设置
-            document.getElementById('sb-auto-refresh-confirm').addEventListener('click', () => {
-                this.confirmAutoRefreshChange();
-            });
-
-            document.getElementById('sb-auto-refresh-cancel').addEventListener('click', () => {
-                this.hideAutoRefreshModal();
-            });
-
-            document.getElementById('sb-auto-refresh-reset').addEventListener('click', () => {
-                this.resetAutoRefreshForm();
-            });
-
-            // 自动刷新回合数输入框范围限制(1-99)
-            document.getElementById('sb-auto-refresh-turn-count').addEventListener('input', (e) => {
-                let value = parseInt(e.target.value, 10);
-                if (isNaN(value)) {
-                    return;
-                }
-                if (value < 1) value = 1;
-                if (value > 99) value = 99;
-                e.target.value = value;
-            });
-
-            document.getElementById('sb-auto-refresh-turn-count').addEventListener('blur', (e) => {
-                let value = parseInt(e.target.value, 10);
-                if (isNaN(value) || value < 1) value = 1;
-                if (value > 99) value = 99;
-                e.target.value = value;
-            });
-
-            document.getElementById('sb-auto-refresh-turn-decrease').addEventListener('click', () => {
-                const input = document.getElementById('sb-auto-refresh-turn-count');
-                let value = parseInt(input.value, 10);
-                if (isNaN(value)) value = 4;
-                value = Math.max(1, value - 1);
-                input.value = value;
-            });
-
-            document.getElementById('sb-auto-refresh-turn-increase').addEventListener('click', () => {
-                const input = document.getElementById('sb-auto-refresh-turn-count');
-                let value = parseInt(input.value, 10);
-                if (isNaN(value)) value = 2;
-                value = Math.min(99, value + 1);
-                input.value = value;
-            });
-
-            // 自动跳转的回合数调节器
-            document.getElementById('sb-auto-jump-turn-decrease').addEventListener('click', () => {
-                const input = document.getElementById('sb-auto-jump-turn-count');
-                let value = parseInt(input.value, 10);
-                if (isNaN(value)) value = 4;
-                value = Math.max(1, value - 1);
-                input.value = value;
-            });
-            document.getElementById('sb-auto-jump-turn-increase').addEventListener('click', () => {
-                const input = document.getElementById('sb-auto-jump-turn-count');
-                let value = parseInt(input.value, 10);
-                if (isNaN(value)) value = 2;
-                value = Math.min(99, value + 1);
-                input.value = value;
+            // 战斗内两个回合数调节器（≤N 与 =N），范围 1-99
+            ['turnLte', 'turnEq'].forEach(scene => {
+                const countId = `sb-bt-${scene}-count`;
+                document.getElementById(countId).addEventListener('input', (e) => {
+                    let v = parseInt(e.target.value, 10);
+                    if (isNaN(v)) return;
+                    if (v < 1) v = 1;
+                    if (v > 99) v = 99;
+                    e.target.value = v;
+                });
+                document.getElementById(countId).addEventListener('blur', (e) => {
+                    let v = parseInt(e.target.value, 10);
+                    if (isNaN(v) || v < 1) v = 1;
+                    if (v > 99) v = 99;
+                    e.target.value = v;
+                });
+                document.getElementById(`sb-bt-${scene}-decrease`).addEventListener('click', () => {
+                    const input = document.getElementById(countId);
+                    let v = parseInt(input.value, 10);
+                    if (isNaN(v)) v = 4;
+                    input.value = Math.max(1, v - 1);
+                });
+                document.getElementById(`sb-bt-${scene}-increase`).addEventListener('click', () => {
+                    const input = document.getElementById(countId);
+                    let v = parseInt(input.value, 10);
+                    if (isNaN(v)) v = 2;
+                    input.value = Math.min(99, v + 1);
+                });
             });
 
             // 菜单事件
@@ -2632,9 +2408,9 @@
             const menu = document.getElementById('sb-add-menu');
             menu.classList.add('show');
             
-            const x = e.clientX || 0;
-            const y = e.clientY || 0;
-            
+            const x = (e && e.clientX) || 0;
+            const y = (e && e.clientY) || 0;
+
             // 获取菜单的实际尺寸
             const menuRect = menu.getBoundingClientRect();
             const menuWidth = menuRect.width || 150;
@@ -2727,14 +2503,11 @@
                 case 'adjust-opacity':
                     this.showOpacityModal();
                     break;
-                case 'auto-back':
-                    this.showAutoBackModal();
+                case 'auto-nonbattle':
+                    this.showAutoNonbattleModal();
                     break;
-                case 'auto-refresh':
-                    this.showAutoRefreshModal();
-                    break;
-                case 'auto-jump':
-                    this.showAutoJumpModal();
+                case 'auto-battle':
+                    this.showAutoBattleModal();
                     break;
                 case 'subscribe-from-drop-list':
                     this.showDropSubscribeModal();
@@ -3122,100 +2895,251 @@
             this.hideOpacityModal();
         }
         
-        // 自动后退设置相关方法
-        showAutoBackModal() {
+        // ===== 自动设置（新版）：公共辅助 =====
+        defaultQuestSetting() {
+            return {
+                questImg: '',
+                turnLte: { action: 'none', count: 3 },
+                turnEq: { action: 'none', count: 1 },
+                summon: { action: 'none', ids: [] },
+                ability: { action: 'none', ids: [] },
+                summonChoices: [],
+                abilityChoices: []
+            };
+        }
+
+        getRadioAction(name) {
+            const el = document.querySelector(`input[name="${name}"]:checked`);
+            return el ? el.value : 'none';
+        }
+
+        setRadioAction(name, action) {
+            const a = action || 'none';
+            const el = document.querySelector(`input[name="${name}"][value="${a}"]`)
+                || document.querySelector(`input[name="${name}"][value="none"]`);
+            if (el) el.checked = true;
+        }
+
+        // 跳转目标网格（全局单一目标，多个模态框共用 CONFIG.autoJumpTargetId）
+        renderJumpTargetGrid(gridId, hintId) {
+            const grid = document.getElementById(gridId);
+            const hint = document.getElementById(hintId);
+            if (!grid || !hint) return;
+            const candidates = (this.bookmarks || []).filter(b =>
+                b && b.url && b.url !== 'back' && b.url !== 'click-through-back' && b.url !== 'reload'
+            );
+            if (candidates.length === 0) {
+                hint.textContent = '请先添加 URL 标签后再来设置跳转目标。';
+                grid.innerHTML = '';
+                return;
+            }
+            hint.textContent = '勾选一个标签作为跳转目标；不勾选则"跳转"动作不生效。';
+            const escAttr = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const radioName = gridId + '-radio';
+            grid.innerHTML = candidates.map(b => {
+                const isTarget = b.id === CONFIG.autoJumpTargetId;
+                const checked = isTarget ? 'checked' : '';
+                const cls = isTarget ? 'checked' : '';
+                const colorIndex = (b.colorIndex !== undefined ? b.colorIndex : 0) % this.colorPresets.length;
+                const name = escAttr(b.name);
+                const tip = escAttr(`${b.name || ''}\n${b.url || ''}`);
+                return `<label class="sb-drop-sub-item ${cls}" data-bookmark-id="${b.id}">
+                    <input type="radio" name="${radioName}" value="${b.id}" ${checked}>
+                    <div class="sb-bookmark-pick-icon sb-bookmark--color-${colorIndex}" title="${tip}">${name}</div>
+                </label>`;
+            }).join('');
+            grid.querySelectorAll('input[type="radio"]').forEach(rb => {
+                rb.addEventListener('change', () => {
+                    grid.querySelectorAll('.sb-drop-sub-item').forEach(el => el.classList.remove('checked'));
+                    if (rb.checked) rb.closest('.sb-drop-sub-item').classList.add('checked');
+                });
+            });
+            grid.querySelectorAll('.sb-drop-sub-item').forEach(label => {
+                label.addEventListener('click', (e) => {
+                    const rb = label.querySelector('input[type="radio"]');
+                    if (!rb) return;
+                    if (rb.checked && e.target !== rb) {
+                        setTimeout(() => { rb.checked = false; label.classList.remove('checked'); }, 0);
+                    }
+                });
+            });
+        }
+
+        collectJumpTarget(gridId) {
+            const chosen = document.querySelector(`#${gridId} input[type="radio"]:checked`);
+            return chosen ? parseInt(chosen.value, 10) : null;
+        }
+
+        saveJumpTargetFromGrid(gridId) {
+            const target = this.collectJumpTarget(gridId);
+            CONFIG.autoJumpTargetId = target;
+            storage.setValue('sb_auto_jump_target_id', target == null ? '' : String(target));
+        }
+
+        // ===== 自动设置（非战斗）=====
+        showAutoNonbattleModal() {
             this.hideAddMenu();
-            const modal = document.getElementById('sb-auto-back-modal');
-            modal.classList.add('show');
-            
-            // 设置当前选项状态
-            const turnCheckbox = document.getElementById('sb-auto-back-turn');
-            const battleEndCheckbox = document.getElementById('sb-auto-back-battle-end');
-            const dropCheckbox = document.getElementById('sb-auto-back-drop');
-            const summonCheckbox = document.getElementById('sb-auto-back-summon');
-            const abilityCheckbox = document.getElementById('sb-auto-back-ability');
-            const turnCount = document.getElementById('sb-auto-back-turn-count');
-
-            if (turnCheckbox) {
-                turnCheckbox.checked = CONFIG.autoBackTurnEnabled;
-                turnCount.value = CONFIG.autoBackTurnCount;
-            }
-            if (battleEndCheckbox) {
-                battleEndCheckbox.checked = CONFIG.autoBackBattleEndEnabled;
-            }
-            if (dropCheckbox) {
-                dropCheckbox.checked = CONFIG.autoBackDropEnabled;
-            }
-            if (summonCheckbox) {
-                summonCheckbox.checked = CONFIG.autoBackSummonEnabled;
-            }
-            if (abilityCheckbox) {
-                abilityCheckbox.checked = CONFIG.autoBackAbilityEnabled;
-            }
-
-            this.renderAbilityFilterGrid(
-                'sb-auto-back-ability-grid',
-                'sb-auto-back-ability-hint',
-                CONFIG.autoBackAbilityIds || []
-            );
-            this.renderSummonFilterGrid(
-                'sb-auto-back-summon-grid',
-                'sb-auto-back-summon-hint',
-                CONFIG.autoBackSummonIds || []
-            );
+            this.setRadioAction('sb-nb-battleEnd', CONFIG.autoBattleEndAction);
+            this.setRadioAction('sb-nb-drop', CONFIG.autoDropAction);
+            this.renderJumpTargetGrid('sb-nb-jump-grid', 'sb-nb-jump-hint');
+            document.getElementById('sb-auto-nonbattle-modal').classList.add('show');
         }
 
-        hideAutoBackModal() {
-            const modal = document.getElementById('sb-auto-back-modal');
-            modal.classList.remove('show');
+        hideAutoNonbattleModal() {
+            document.getElementById('sb-auto-nonbattle-modal').classList.remove('show');
         }
-        
-        confirmAutoBackChange() {
-            const turnCheckbox = document.getElementById('sb-auto-back-turn');
-            const battleEndCheckbox = document.getElementById('sb-auto-back-battle-end');
-            const dropCheckbox = document.getElementById('sb-auto-back-drop');
-            const summonCheckbox = document.getElementById('sb-auto-back-summon');
-            const abilityCheckbox = document.getElementById('sb-auto-back-ability');
-            const turnCountInput = document.getElementById('sb-auto-back-turn-count');
 
-            // 更新配置
-            CONFIG.autoBackTurnEnabled = turnCheckbox ? turnCheckbox.checked : false;
-            CONFIG.autoBackBattleEndEnabled = battleEndCheckbox ? battleEndCheckbox.checked : false;
-            CONFIG.autoBackDropEnabled = dropCheckbox ? dropCheckbox.checked : false;
-            CONFIG.autoBackSummonEnabled = summonCheckbox ? summonCheckbox.checked : false;
-            CONFIG.autoBackAbilityEnabled = abilityCheckbox ? abilityCheckbox.checked : false;
-            
-            // 验证并清理输入值，确保在有效范围(1-99)内
-            let turnCount = parseInt(turnCountInput.value, 10);
-            if (isNaN(turnCount) || turnCount < 1) {
-                turnCount = 1;
-            } else if (turnCount > 99) {
-                turnCount = 99;
-            }
-            CONFIG.autoBackTurnCount = turnCount;
-            
-            // 保存到存储
-            storage.setValue('sb_auto_back_turn_enabled', CONFIG.autoBackTurnEnabled.toString());
-            storage.setValue('sb_auto_back_turn_count', CONFIG.autoBackTurnCount.toString());
-            storage.setValue('sb_auto_back_battle_end_enabled', CONFIG.autoBackBattleEndEnabled.toString());
-            storage.setValue('sb_auto_back_drop_enabled', CONFIG.autoBackDropEnabled.toString());
-            storage.setValue('sb_auto_back_summon_enabled', CONFIG.autoBackSummonEnabled.toString());
-            storage.setValue('sb_auto_back_ability_enabled', CONFIG.autoBackAbilityEnabled.toString());
+        confirmAutoNonbattle() {
+            CONFIG.autoBattleEndAction = this.getRadioAction('sb-nb-battleEnd');
+            CONFIG.autoDropAction = this.getRadioAction('sb-nb-drop');
+            storage.setValue('sb_auto_battle_end_action', CONFIG.autoBattleEndAction);
+            storage.setValue('sb_auto_drop_action', CONFIG.autoDropAction);
+            this.saveJumpTargetFromGrid('sb-nb-jump-grid');
+            this.hideAutoNonbattleModal();
+        }
 
-            // 仅在 grid 实际渲染了技能时更新过滤器；不在战斗中（grid 为空）则保留旧值
-            const newAbilityIds = this.collectAbilityFilter('sb-auto-back-ability-grid');
-            if (newAbilityIds !== null) {
-                CONFIG.autoBackAbilityIds = newAbilityIds;
-                storage.setValue('sb_auto_back_ability_ids', JSON.stringify(newAbilityIds));
+        resetAutoNonbattleForm() {
+            this.setRadioAction('sb-nb-battleEnd', 'none');
+            this.setRadioAction('sb-nb-drop', 'none');
+            const grid = document.getElementById('sb-nb-jump-grid');
+            if (grid) {
+                grid.querySelectorAll('input[type="radio"]').forEach(r => { r.checked = false; });
+                grid.querySelectorAll('.sb-drop-sub-item').forEach(el => el.classList.remove('checked'));
             }
-            const newSummonIds = this.collectSummonFilter('sb-auto-back-summon-grid');
-            if (newSummonIds !== null) {
-                CONFIG.autoBackSummonIds = newSummonIds;
-                storage.setValue('sb_auto_back_summon_ids', JSON.stringify(newSummonIds));
-            }
+        }
 
-            this.hideAutoBackModal();
-            //console.log(`✅ [CandyMark] 自动后退设置已更新：攻击=${CONFIG.autoBackTurnEnabled}(TURN≥${CONFIG.autoBackTurnCount})，结算=${CONFIG.autoBackDropEnabled}，召唤=${CONFIG.autoBackSummonEnabled}，技能=${CONFIG.autoBackAbilityEnabled}`);
+        // ===== 自动设置（战斗，按副本）=====
+        questLobbyImg(questId) {
+            return `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/quest/assets/lobby/${questId}.png`;
+        }
+
+        showAutoBattleModal() {
+            this.hideAddMenu();
+            const qs = CONFIG.questSettings || {};
+            const current = (gameDetectorInstance && gameDetectorInstance.battleData && gameDetectorInstance.battleData.questId) || '';
+            const last = CONFIG.lastQuestId || '';
+            // 只展示：当前副本、上次副本、以及配置过动作的副本（进过但没配过的不展示）
+            const ids = [];
+            if (current) ids.push(current);
+            if (last && last !== current) ids.push(last);
+            Object.keys(qs).forEach(id => {
+                if (this.isQuestConfigured(qs[id]) && !ids.includes(id)) ids.push(id);
+            });
+            const defaultId = current || last || (ids[0] || '');
+            this.renderQuestPicker(ids, defaultId, current, last);
+            this.renderAutoBattleScene(defaultId);
+            this.renderJumpTargetGrid('sb-bt-jump-grid', 'sb-bt-jump-hint');
+            document.getElementById('sb-auto-battle-modal').classList.add('show');
+        }
+
+        // 副本选择器：每个副本一张大厅图，单选切换；角标标注 当前 / 上次 / 未设置
+        renderQuestPicker(ids, selectedId, currentId, lastId) {
+            const grid = document.getElementById('sb-bt-quest-grid');
+            const hint = document.getElementById('sb-bt-quest-hint');
+            const qs = CONFIG.questSettings || {};
+            if (!grid || !hint) return;
+            if (ids.length === 0) {
+                hint.textContent = '暂无副本：进入一场战斗后再来设置。';
+                grid.innerHTML = '';
+                return;
+            }
+            hint.textContent = '点选要设置的副本（图为副本大厅图）。';
+            grid.innerHTML = ids.map(id => {
+                const sel = id === selectedId;
+                const img = (qs[id] && qs[id].questImg) || this.questLobbyImg(id);
+                let tag = qs[id] ? '' : '未设置';
+                if (id === currentId) tag = '当前';
+                else if (id === lastId) tag = '上次';
+                const tagHtml = tag ? `<div class="sb-quest-tag">${tag}</div>` : '';
+                return `<label class="sb-drop-sub-item ${sel ? 'checked' : ''}" data-quest-id="${id}">
+                    <input type="radio" name="sb-bt-quest" value="${id}" ${sel ? 'checked' : ''}>
+                    <img src="${img}" alt="${id}">
+                    ${tagHtml}
+                </label>`;
+            }).join('');
+            grid.querySelectorAll('input[type="radio"]').forEach(rb => {
+                rb.addEventListener('change', () => {
+                    grid.querySelectorAll('.sb-drop-sub-item').forEach(el => el.classList.remove('checked'));
+                    if (rb.checked) {
+                        rb.closest('.sb-drop-sub-item').classList.add('checked');
+                        this.renderAutoBattleScene(rb.value);
+                    }
+                });
+            });
+        }
+
+        selectedBattleQuestId() {
+            const el = document.querySelector('#sb-bt-quest-grid input[name="sb-bt-quest"]:checked');
+            return el ? el.value : '';
+        }
+
+        // 是否配置过动作（任一场景动作 ≠ none）。仅"进过副本"的自动快照不算已设置。
+        isQuestConfigured(q) {
+            if (!q) return false;
+            return (q.turnLte && q.turnLte.action !== 'none')
+                || (q.turnEq && q.turnEq.action !== 'none')
+                || (q.summon && q.summon.action !== 'none')
+                || (q.ability && q.ability.action !== 'none');
+        }
+
+        // 按选中副本渲染 4 个场景的动作单选 + 召唤/技能候选过滤
+        renderAutoBattleScene(questId) {
+            const qs = (CONFIG.questSettings && CONFIG.questSettings[questId]) || this.defaultQuestSetting();
+            this.setRadioAction('sb-bt-turnLte', qs.turnLte && qs.turnLte.action);
+            document.getElementById('sb-bt-turnLte-count').value = (qs.turnLte && qs.turnLte.count) || 3;
+            this.setRadioAction('sb-bt-turnEq', qs.turnEq && qs.turnEq.action);
+            document.getElementById('sb-bt-turnEq-count').value = (qs.turnEq && qs.turnEq.count) || 1;
+            this.setRadioAction('sb-bt-summon', qs.summon && qs.summon.action);
+            this.setRadioAction('sb-bt-ability', qs.ability && qs.ability.action);
+            this._renderFilterGrid('sb-bt-summon-grid', 'sb-bt-summon-hint',
+                (qs.summon && qs.summon.ids) || [], qs.summonChoices || [], 'imageId',
+                '该副本暂无召唤候选（进入一次该副本后会自动记录）。不选则任意召唤都满足条件。',
+                '勾选要监听的召唤石；不选则任意召唤都满足条件。');
+            this._renderFilterGrid('sb-bt-ability-grid', 'sb-bt-ability-hint',
+                (qs.ability && qs.ability.ids) || [], qs.abilityChoices || [], 'iconId',
+                '该副本暂无技能候选（进入一次该副本后会自动记录）。不选则任意技能都满足条件。',
+                '勾选要监听的技能；不选则任意技能都满足条件。');
+        }
+
+        hideAutoBattleModal() {
+            document.getElementById('sb-auto-battle-modal').classList.remove('show');
+        }
+
+        confirmAutoBattle() {
+            const questId = this.selectedBattleQuestId();
+            if (!questId) { this.hideAutoBattleModal(); return; }
+            if (!CONFIG.questSettings) CONFIG.questSettings = {};
+            const prev = CONFIG.questSettings[questId] || this.defaultQuestSetting();
+            const clampCount = (v) => {
+                let n = parseInt(v, 10);
+                if (isNaN(n) || n < 1) n = 1; else if (n > 99) n = 99;
+                return n;
+            };
+            // 候选为空（没进过该副本）时 grid 无勾选项，_collectFilter 返回 null，保留旧过滤器
+            const summonIds = this._collectFilter('sb-bt-summon-grid', prev.summonChoices || [], 'imageId');
+            const abilityIds = this._collectFilter('sb-bt-ability-grid', prev.abilityChoices || [], 'iconId');
+            CONFIG.questSettings[questId] = {
+                questImg: prev.questImg || this.questLobbyImg(questId),
+                turnLte: { action: this.getRadioAction('sb-bt-turnLte'), count: clampCount(document.getElementById('sb-bt-turnLte-count').value) },
+                turnEq: { action: this.getRadioAction('sb-bt-turnEq'), count: clampCount(document.getElementById('sb-bt-turnEq-count').value) },
+                summon: { action: this.getRadioAction('sb-bt-summon'), ids: summonIds === null ? ((prev.summon && prev.summon.ids) || []) : summonIds },
+                ability: { action: this.getRadioAction('sb-bt-ability'), ids: abilityIds === null ? ((prev.ability && prev.ability.ids) || []) : abilityIds },
+                summonChoices: prev.summonChoices || [],
+                abilityChoices: prev.abilityChoices || []
+            };
+            storage.setValue('sb_quest_settings', JSON.stringify(CONFIG.questSettings));
+            this.saveJumpTargetFromGrid('sb-bt-jump-grid');
+            this.hideAutoBattleModal();
+        }
+
+        deleteAutoBattleQuest() {
+            const questId = this.selectedBattleQuestId();
+            if (questId && CONFIG.questSettings && CONFIG.questSettings[questId]) {
+                if (!confirm(`确定删除副本 ${questId} 的战斗内自动设置吗？`)) return;
+                delete CONFIG.questSettings[questId];
+                storage.setValue('sb_quest_settings', JSON.stringify(CONFIG.questSettings));
+            }
+            this.hideAutoBattleModal();
         }
 
         // 通用过滤器网格渲染。
@@ -3289,20 +3213,6 @@
             return items;
         }
 
-        // === 技能过滤器（按 iconId 唯一）===
-        renderAbilityFilterGrid(gridId, hintId, savedFilter) {
-            const list = (gameDetectorInstance && gameDetectorInstance.battleData
-                && gameDetectorInstance.battleData.abilityList) || [];
-            this._renderFilterGrid(gridId, hintId, savedFilter, list, 'iconId',
-                '进入战斗后可在此选择具体技能。不选则任意技能触发都满足条件。',
-                '勾选要监听的技能；不选则任意技能触发都满足条件。');
-        }
-        collectAbilityFilter(gridId) {
-            const list = (gameDetectorInstance && gameDetectorInstance.battleData
-                && gameDetectorInstance.battleData.abilityList) || [];
-            return this._collectFilter(gridId, list, 'iconId');
-        }
-
         // === 召唤过滤器（按 imageId 唯一）===
         // 列表包含 5 个自携栏位 + 友方借召（如有）
         _currentSummonChoices() {
@@ -3310,275 +3220,6 @@
             const list = (bd.summonList || []).slice();
             if (bd.supporterSummon) list.push(bd.supporterSummon);
             return list;
-        }
-        renderSummonFilterGrid(gridId, hintId, savedFilter) {
-            this._renderFilterGrid(gridId, hintId, savedFilter, this._currentSummonChoices(), 'imageId',
-                '进入战斗后可在此选择具体召唤石。不选则任意召唤触发都满足条件。',
-                '勾选要监听的召唤石；不选则任意召唤触发都满足条件。');
-        }
-        collectSummonFilter(gridId) {
-            return this._collectFilter(gridId, this._currentSummonChoices(), 'imageId');
-        }
-
-        // 只重置 UI 状态，需要用户再点"确认"才落盘
-        resetAutoBackForm() {
-            document.getElementById('sb-auto-back-turn').checked = false;
-            document.getElementById('sb-auto-back-turn-count').value = 1;
-            document.getElementById('sb-auto-back-battle-end').checked = false;
-            document.getElementById('sb-auto-back-drop').checked = false;
-            document.getElementById('sb-auto-back-summon').checked = false;
-            document.getElementById('sb-auto-back-ability').checked = false;
-            this.clearAbilityFilterUI('sb-auto-back-ability-grid');
-            this.clearAbilityFilterUI('sb-auto-back-summon-grid');
-        }
-
-        showAutoRefreshModal() {
-            this.hideAddMenu();
-            const modal = document.getElementById('sb-auto-refresh-modal');
-            modal.classList.add('show');
-
-            // 设置当前选项状态
-            const turnCheckbox = document.getElementById('sb-auto-refresh-turn');
-            const battleEndCheckbox = document.getElementById('sb-auto-refresh-battle-end');
-            const dropCheckbox = document.getElementById('sb-auto-refresh-drop');
-            const summonCheckbox = document.getElementById('sb-auto-refresh-summon');
-            const abilityCheckbox = document.getElementById('sb-auto-refresh-ability');
-            const turnCount = document.getElementById('sb-auto-refresh-turn-count');
-
-            if (turnCheckbox) {
-                turnCheckbox.checked = CONFIG.autoRefreshTurnEnabled;
-                turnCount.value = CONFIG.autoRefreshTurnCount;
-            }
-            if (battleEndCheckbox) {
-                battleEndCheckbox.checked = CONFIG.autoRefreshBattleEndEnabled;
-            }
-            if (dropCheckbox) {
-                dropCheckbox.checked = CONFIG.autoRefreshDropEnabled;
-            }
-            if (summonCheckbox) {
-                summonCheckbox.checked = CONFIG.autoRefreshSummonEnabled;
-            }
-            if (abilityCheckbox) {
-                abilityCheckbox.checked = CONFIG.autoRefreshAbilityEnabled;
-            }
-
-            this.renderAbilityFilterGrid(
-                'sb-auto-refresh-ability-grid',
-                'sb-auto-refresh-ability-hint',
-                CONFIG.autoRefreshAbilityIds || []
-            );
-            this.renderSummonFilterGrid(
-                'sb-auto-refresh-summon-grid',
-                'sb-auto-refresh-summon-hint',
-                CONFIG.autoRefreshSummonIds || []
-            );
-        }
-
-        hideAutoRefreshModal() {
-            const modal = document.getElementById('sb-auto-refresh-modal');
-            modal.classList.remove('show');
-        }
-
-        confirmAutoRefreshChange() {
-            const turnCheckbox = document.getElementById('sb-auto-refresh-turn');
-            const battleEndCheckbox = document.getElementById('sb-auto-refresh-battle-end');
-            const dropCheckbox = document.getElementById('sb-auto-refresh-drop');
-            const summonCheckbox = document.getElementById('sb-auto-refresh-summon');
-            const abilityCheckbox = document.getElementById('sb-auto-refresh-ability');
-            const turnCountInput = document.getElementById('sb-auto-refresh-turn-count');
-
-            // 更新配置
-            CONFIG.autoRefreshTurnEnabled = turnCheckbox ? turnCheckbox.checked : false;
-            CONFIG.autoRefreshBattleEndEnabled = battleEndCheckbox ? battleEndCheckbox.checked : false;
-            CONFIG.autoRefreshDropEnabled = dropCheckbox ? dropCheckbox.checked : false;
-            CONFIG.autoRefreshSummonEnabled = summonCheckbox ? summonCheckbox.checked : false;
-            CONFIG.autoRefreshAbilityEnabled = abilityCheckbox ? abilityCheckbox.checked : false;
-
-            // 验证并清理输入值，确保在有效范围(1-99)内
-            let turnCount = parseInt(turnCountInput.value, 10);
-            if (isNaN(turnCount) || turnCount < 1) {
-                turnCount = 1;
-            } else if (turnCount > 99) {
-                turnCount = 99;
-            }
-            CONFIG.autoRefreshTurnCount = turnCount;
-
-            // 保存到存储
-            storage.setValue('sb_auto_refresh_turn_enabled', CONFIG.autoRefreshTurnEnabled.toString());
-            storage.setValue('sb_auto_refresh_turn_count', CONFIG.autoRefreshTurnCount.toString());
-            storage.setValue('sb_auto_refresh_battle_end_enabled', CONFIG.autoRefreshBattleEndEnabled.toString());
-            storage.setValue('sb_auto_refresh_drop_enabled', CONFIG.autoRefreshDropEnabled.toString());
-            storage.setValue('sb_auto_refresh_summon_enabled', CONFIG.autoRefreshSummonEnabled.toString());
-            storage.setValue('sb_auto_refresh_ability_enabled', CONFIG.autoRefreshAbilityEnabled.toString());
-
-            // 仅在 grid 实际渲染了技能时更新过滤器；不在战斗中（grid 为空）则保留旧值
-            const newAbilityIds = this.collectAbilityFilter('sb-auto-refresh-ability-grid');
-            if (newAbilityIds !== null) {
-                CONFIG.autoRefreshAbilityIds = newAbilityIds;
-                storage.setValue('sb_auto_refresh_ability_ids', JSON.stringify(newAbilityIds));
-            }
-            const newSummonIds = this.collectSummonFilter('sb-auto-refresh-summon-grid');
-            if (newSummonIds !== null) {
-                CONFIG.autoRefreshSummonIds = newSummonIds;
-                storage.setValue('sb_auto_refresh_summon_ids', JSON.stringify(newSummonIds));
-            }
-
-            this.hideAutoRefreshModal();
-        }
-
-        // 只重置 UI 状态，需要用户再点"确认"才落盘
-        resetAutoRefreshForm() {
-            document.getElementById('sb-auto-refresh-turn').checked = false;
-            document.getElementById('sb-auto-refresh-turn-count').value = 1;
-            document.getElementById('sb-auto-refresh-battle-end').checked = false;
-            document.getElementById('sb-auto-refresh-drop').checked = false;
-            document.getElementById('sb-auto-refresh-summon').checked = false;
-            document.getElementById('sb-auto-refresh-ability').checked = false;
-            this.clearAbilityFilterUI('sb-auto-refresh-ability-grid');
-            this.clearAbilityFilterUI('sb-auto-refresh-summon-grid');
-        }
-
-        resetAutoJumpForm() {
-            document.getElementById('sb-auto-jump-turn').checked = false;
-            document.getElementById('sb-auto-jump-turn-count').value = 1;
-            document.getElementById('sb-auto-jump-battle-end').checked = false;
-            document.getElementById('sb-auto-jump-drop').checked = false;
-            document.getElementById('sb-auto-jump-summon').checked = false;
-            document.getElementById('sb-auto-jump-ability').checked = false;
-            const grid = document.getElementById('sb-auto-jump-target-grid');
-            if (grid) {
-                grid.querySelectorAll('input[name="sb-auto-jump-target"]').forEach(r => { r.checked = false; });
-                grid.querySelectorAll('.sb-drop-sub-item').forEach(el => el.classList.remove('checked'));
-            }
-            this.clearAbilityFilterUI('sb-auto-jump-ability-grid');
-            this.clearAbilityFilterUI('sb-auto-jump-summon-grid');
-        }
-
-        clearAbilityFilterUI(gridId) {
-            const grid = document.getElementById(gridId);
-            if (!grid) return;
-            grid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                cb.checked = false;
-                cb.closest('.sb-drop-sub-item').classList.remove('checked');
-            });
-        }
-
-        showAutoJumpModal() {
-            this.hideAddMenu();
-            const modal = document.getElementById('sb-auto-jump-modal');
-            const grid = document.getElementById('sb-auto-jump-target-grid');
-            const hint = document.getElementById('sb-auto-jump-hint');
-
-            // 同步 5 个时机开关
-            document.getElementById('sb-auto-jump-turn').checked = !!CONFIG.autoJumpTurnEnabled;
-            document.getElementById('sb-auto-jump-turn-count').value = CONFIG.autoJumpTurnCount || 3;
-            document.getElementById('sb-auto-jump-battle-end').checked = !!CONFIG.autoJumpBattleEndEnabled;
-            document.getElementById('sb-auto-jump-drop').checked = !!CONFIG.autoJumpDropEnabled;
-            document.getElementById('sb-auto-jump-summon').checked = !!CONFIG.autoJumpSummonEnabled;
-            document.getElementById('sb-auto-jump-ability').checked = !!CONFIG.autoJumpAbilityEnabled;
-
-            this.renderAbilityFilterGrid(
-                'sb-auto-jump-ability-grid',
-                'sb-auto-jump-ability-hint',
-                CONFIG.autoJumpAbilityIds || []
-            );
-            this.renderSummonFilterGrid(
-                'sb-auto-jump-summon-grid',
-                'sb-auto-jump-summon-hint',
-                CONFIG.autoJumpSummonIds || []
-            );
-
-
-            // 过滤可选标签：必须有真实 URL，排除 back / click-through-back / reload
-            const candidates = (this.bookmarks || []).filter(b =>
-                b && b.url && b.url !== 'back' && b.url !== 'click-through-back' && b.url !== 'reload'
-            );
-
-            if (candidates.length === 0) {
-                hint.textContent = '请先添加 URL 标签后再来设置跳转目标。';
-                grid.innerHTML = '';
-            } else {
-                hint.textContent = '勾选一个标签作为跳转目标；不勾选则不跳转。';
-                const escAttr = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                grid.innerHTML = candidates.map(b => {
-                    const isTarget = b.id === CONFIG.autoJumpTargetId;
-                    const checked = isTarget ? 'checked' : '';
-                    const cls = isTarget ? 'checked' : '';
-                    const colorIndex = (b.colorIndex !== undefined ? b.colorIndex : 0) % this.colorPresets.length;
-                    const name = escAttr(b.name);
-                    const tip = escAttr(`${b.name || ''}\n${b.url || ''}`);
-                    return `<label class="sb-drop-sub-item ${cls}" data-bookmark-id="${b.id}">
-                        <input type="radio" name="sb-auto-jump-target" value="${b.id}" ${checked}>
-                        <div class="sb-bookmark-pick-icon sb-bookmark--color-${colorIndex}" title="${tip}">${name}</div>
-                    </label>`;
-                }).join('');
-
-                grid.querySelectorAll('input[type="radio"]').forEach(rb => {
-                    rb.addEventListener('change', () => {
-                        grid.querySelectorAll('.sb-drop-sub-item').forEach(el => el.classList.remove('checked'));
-                        if (rb.checked) {
-                            rb.closest('.sb-drop-sub-item').classList.add('checked');
-                        }
-                    });
-                });
-                // 允许点击同一项再次取消选择
-                grid.querySelectorAll('.sb-drop-sub-item').forEach(label => {
-                    label.addEventListener('click', (e) => {
-                        const rb = label.querySelector('input[type="radio"]');
-                        if (!rb) return;
-                        if (rb.checked && e.target !== rb) {
-                            // 点击已选项的非 input 区域，反选
-                            setTimeout(() => {
-                                rb.checked = false;
-                                label.classList.remove('checked');
-                            }, 0);
-                        }
-                    });
-                });
-            }
-
-            modal.classList.add('show');
-        }
-
-        hideAutoJumpModal() {
-            document.getElementById('sb-auto-jump-modal').classList.remove('show');
-        }
-
-        confirmAutoJumpChange() {
-            CONFIG.autoJumpTurnEnabled = document.getElementById('sb-auto-jump-turn').checked;
-            CONFIG.autoJumpBattleEndEnabled = document.getElementById('sb-auto-jump-battle-end').checked;
-            CONFIG.autoJumpDropEnabled = document.getElementById('sb-auto-jump-drop').checked;
-            CONFIG.autoJumpSummonEnabled = document.getElementById('sb-auto-jump-summon').checked;
-            CONFIG.autoJumpAbilityEnabled = document.getElementById('sb-auto-jump-ability').checked;
-
-            let turnCount = parseInt(document.getElementById('sb-auto-jump-turn-count').value, 10);
-            if (isNaN(turnCount) || turnCount < 1) turnCount = 1;
-            else if (turnCount > 99) turnCount = 99;
-            CONFIG.autoJumpTurnCount = turnCount;
-
-            const chosen = document.querySelector('input[name="sb-auto-jump-target"]:checked');
-            CONFIG.autoJumpTargetId = chosen ? parseInt(chosen.value, 10) : null;
-
-            storage.setValue('sb_auto_jump_turn_enabled', CONFIG.autoJumpTurnEnabled.toString());
-            storage.setValue('sb_auto_jump_turn_count', CONFIG.autoJumpTurnCount.toString());
-            storage.setValue('sb_auto_jump_battle_end_enabled', CONFIG.autoJumpBattleEndEnabled.toString());
-            storage.setValue('sb_auto_jump_drop_enabled', CONFIG.autoJumpDropEnabled.toString());
-            storage.setValue('sb_auto_jump_summon_enabled', CONFIG.autoJumpSummonEnabled.toString());
-            storage.setValue('sb_auto_jump_ability_enabled', CONFIG.autoJumpAbilityEnabled.toString());
-            storage.setValue('sb_auto_jump_target_id', CONFIG.autoJumpTargetId == null ? '' : String(CONFIG.autoJumpTargetId));
-
-            const newAbilityIds = this.collectAbilityFilter('sb-auto-jump-ability-grid');
-            if (newAbilityIds !== null) {
-                CONFIG.autoJumpAbilityIds = newAbilityIds;
-                storage.setValue('sb_auto_jump_ability_ids', JSON.stringify(newAbilityIds));
-            }
-            const newSummonIds = this.collectSummonFilter('sb-auto-jump-summon-grid');
-            if (newSummonIds !== null) {
-                CONFIG.autoJumpSummonIds = newSummonIds;
-                storage.setValue('sb_auto_jump_summon_ids', JSON.stringify(newSummonIds));
-            }
-
-            this.hideAutoJumpModal();
         }
 
         showDropSubscribeModal() {
@@ -3808,14 +3449,8 @@
                     this.deleteBookmark();
                     this.currentBookmarkId = null;
                     break;
-                case 'auto-back-global':
-                    this.showAutoBackModal();
-                    break;
-                case 'auto-refresh-global':
-                    this.showAutoRefreshModal();
-                    break;
-                case 'auto-jump-global':
-                    this.showAutoJumpModal();
+                case 'show-global-menu':
+                    this.showAddMenu();
                     break;
                 case 'drop-subscribe-global':
                     this.showDropSubscribeModal();
@@ -4462,6 +4097,7 @@
                 maxTurn: 0,
                 startTime: null,
                 lastUpdateTime: null,
+                questId: '',         // 当前副本标识（start.json 的 data.quest_id）
                 abilityList: [],     // {id, iconId, icon}[]
                 summonList: [],      // {id, imageId, icon}[]，按 summon_id 1-based 顺序排列
                 supporterSummon: null // {id, imageId, icon} —— 友方借召
@@ -4659,10 +4295,12 @@
                 if (url.includes('/start.json') && data.boss && data.turn !== undefined) {
                     currentTurn = data.turn;
                     this.battleData.startTime = Date.now();
-                    //console.log('🔮 [CandyMark] 战斗开始！初始TURN =', currentTurn);
+                    this.battleData.questId = String(data.quest_id || '');
                     // 缓存当前战斗的技能 / 召唤列表，供"技能后" / "召唤后"过滤器使用
                     this.cacheAbilityList(data);
                     this.cacheSummonList(data);
+                    // 记录"上次副本"，并把本场召唤/技能候选快照进该副本配置（供"自动设置（战斗）"展示）
+                    this.recordQuestSnapshot();
                     // 直前倒计时（参照 Tarou）：data.turn_waiting 是未来 ms 时间戳
                     if (data.turn_waiting != null) {
                         this.setChokuzenTarget(Number(data.turn_waiting));
@@ -4700,48 +4338,26 @@
                         && Array.isArray(data.scenario)
                         && data.scenario.some(item => item && item.cmd === 'win' && item.is_last_raid)) {
                     const config = loadConfig();
-                    let jumped = this.tryAutoJump('battle-end', config);
-                    if (jumped) {
-                        battleEndHandled = true;
-                    } else if (config.autoRefreshBattleEndEnabled) {
-                        setTimeout(() => {
-                            location.reload();
-                        }, 100);
-                        battleEndHandled = true;
-                    } else if (config.autoBackBattleEndEnabled) {
-                        setTimeout(() => {
-                            if (window.history.length > 1) {
-                                history.back();
-                            }
-                        }, 100);
+                    if (this.runAutoAction(config.autoBattleEndAction, config)) {
                         battleEndHandled = true;
                     }
                 }
 
-                // 攻击后自动跳转 / 自动后退
+                // 攻击后的战斗内自动动作（按副本设置）
                 // 用 battleData.currentTurn（这次响应到来"之前"的回合数 = 攻击发起时的那一回合）
                 // 这样即便击杀导致响应里没有 newTurn，也能用上一次记录的回合触发。
-                // 注意：两者条件不同。
-                //   自动后退：前 N 回合（turnAtAttack <= autoBackTurnCount，即第 1..N 回合都触发）
-                //   自动跳转：第 N 回合（turnAtAttack === autoJumpTurnCount，只在 N 那一次触发）
+                //   回合内攻击后（turnLte）：turnAtAttack <= count，第 1..N 回合都触发
+                //   该回合攻击后（turnEq）：turnAtAttack === count，只在第 N 回合那次触发，且优先于 turnLte
                 if (!battleEndHandled && url.includes('attack_result')) {
                     const config = loadConfig();
+                    const qs = this.currentQuestSetting(config);
                     const turnAtAttack = this.battleData.currentTurn;
-                    if (turnAtAttack > 0) {
-                        let jumped = false;
-                        if (turnAtAttack === config.autoJumpTurnCount) {
-                            jumped = this.tryAutoJump('turn', config);
-                        }
-                        if (!jumped && config.autoRefreshTurnEnabled && turnAtAttack <= config.autoRefreshTurnCount) {
-                            setTimeout(() => {
-                                location.reload();
-                            }, 100);
-                        } else if (!jumped && config.autoBackTurnEnabled && turnAtAttack <= config.autoBackTurnCount) {
-                            setTimeout(() => {
-                                if (window.history.length > 1) {
-                                    history.back();
-                                }
-                            }, 100);
+                    if (qs && turnAtAttack > 0) {
+                        // =N（该回合）优先于 ≤N（回合内）
+                        if (qs.turnEq && qs.turnEq.action !== 'none' && turnAtAttack === qs.turnEq.count) {
+                            this.runAutoAction(qs.turnEq.action, config);
+                        } else if (qs.turnLte && qs.turnLte.action !== 'none' && turnAtAttack <= qs.turnLte.count) {
+                            this.runAutoAction(qs.turnLte.action, config);
                         }
                     }
                 }
@@ -4753,46 +4369,24 @@
                 // 新增：召唤结果后的后退/跳转，可被召唤过滤器收窄
                 if (!battleEndHandled && url.includes('summon_result')) {
                     const config = loadConfig();
-                    const usedId = req.summon_id != null ? String(req.summon_id) : null;
-                    let jumped = false;
-                    if (this.matchesSummonFilter(config.autoJumpSummonIds, usedId)) {
-                        jumped = this.tryAutoJump('summon', config);
-                    }
-                    if (!jumped && config.autoRefreshSummonEnabled
-                            && this.matchesSummonFilter(config.autoRefreshSummonIds, usedId)) {
-                        setTimeout(() => {
-                            location.reload();
-                        }, 100);
-                    } else if (!jumped && config.autoBackSummonEnabled
-                            && this.matchesSummonFilter(config.autoBackSummonIds, usedId)) {
-                        setTimeout(() => {
-                            if (window.history.length > 1) {
-                                history.back();
-                            }
-                        }, 100);
+                    const qs = this.currentQuestSetting(config);
+                    if (qs && qs.summon && qs.summon.action !== 'none') {
+                        const usedId = req.summon_id != null ? String(req.summon_id) : null;
+                        if (this.matchesSummonFilter(qs.summon.ids, usedId)) {
+                            this.runAutoAction(qs.summon.action, config);
+                        }
                     }
                 }
 
                 // 新增：能力结果后的后退/跳转，可被技能过滤器收窄
                 if (!battleEndHandled && url.includes('ability_result')) {
                     const config = loadConfig();
-                    const usedId = req.ability_id != null ? String(req.ability_id) : null;
-                    let jumped = false;
-                    if (this.matchesAbilityFilter(config.autoJumpAbilityIds, usedId)) {
-                        jumped = this.tryAutoJump('ability', config);
-                    }
-                    if (!jumped && config.autoRefreshAbilityEnabled
-                            && this.matchesAbilityFilter(config.autoRefreshAbilityIds, usedId)) {
-                        setTimeout(() => {
-                            location.reload();
-                        }, 100);
-                    } else if (!jumped && config.autoBackAbilityEnabled
-                            && this.matchesAbilityFilter(config.autoBackAbilityIds, usedId)) {
-                        setTimeout(() => {
-                            if (window.history.length > 1) {
-                                history.back();
-                            }
-                        }, 100);
+                    const qs = this.currentQuestSetting(config);
+                    if (qs && qs.ability && qs.ability.action !== 'none') {
+                        const usedId = req.ability_id != null ? String(req.ability_id) : null;
+                        if (this.matchesAbilityFilter(qs.ability.ids, usedId)) {
+                            this.runAutoAction(qs.ability.action, config);
+                        }
                     }
                 }
             }
@@ -4956,15 +4550,8 @@
             }
 
             const config = loadConfig();
-
-            // 自动跳转优先于自动后退
-            if (this.tryAutoJump('drop', config)) {
-                this.autoBackAfterDropCheck.lastProcessed.url = currentUrl;
-                if (raidId) this.firedDropBackRaidIds.add(raidId);
-                return;
-            }
-
-            if (!config.autoBackDropEnabled && !config.autoRefreshDropEnabled) {
+            const action = config.autoDropAction;
+            if (action === 'none') {
                 return;
             }
 
@@ -4976,13 +4563,7 @@
                 this.autoBackAfterDropCheck.timeoutId = null;
             }
 
-            setTimeout(() => {
-                if (config.autoRefreshDropEnabled) {
-                    location.reload();
-                } else if (window.history.length > 1) {
-                    history.back();
-                }
-            }, 100);
+            this.runAutoAction(action, config);
         }
 
         /**
@@ -5092,18 +4673,32 @@
             });
         }
 
-        tryAutoJump(timing, cachedConfig) {
+        // 取当前副本（进战斗时记录的 quest_id）的战斗内自动设置；无则 null
+        currentQuestSetting(cachedConfig) {
             const config = cachedConfig || loadConfig();
-            const enabledMap = {
-                turn: config.autoJumpTurnEnabled,
-                'battle-end': config.autoJumpBattleEndEnabled,
-                drop: config.autoJumpDropEnabled,
-                summon: config.autoJumpSummonEnabled,
-                ability: config.autoJumpAbilityEnabled
-            };
-            if (!enabledMap[timing]) return false;
-            if (config.autoJumpTargetId == null) return false;
+            const qid = this.battleData && this.battleData.questId;
+            if (!qid) return null;
+            return (config.questSettings || {})[qid] || null;
+        }
 
+        // 执行一个自动动作：jump/refresh/back/none。返回是否执行了动作。所有动作统一延迟 100ms。
+        runAutoAction(action, cachedConfig) {
+            if (action === 'jump') return this.doAutoJump(cachedConfig);
+            if (action === 'refresh') {
+                setTimeout(() => { location.reload(); }, 100);
+                return true;
+            }
+            if (action === 'back') {
+                setTimeout(() => { if (window.history.length > 1) history.back(); }, 100);
+                return true;
+            }
+            return false;
+        }
+
+        // 跳转到全局跳转目标（若已配置且合法）。返回是否触发。
+        doAutoJump(cachedConfig) {
+            const config = cachedConfig || loadConfig();
+            if (config.autoJumpTargetId == null) return false;
             let target = null;
             try {
                 const bookmarks = JSON.parse(localStorage.getItem('candymark-bookmarks-javascript') || '[]');
@@ -5113,13 +4708,35 @@
             }
             if (!target || !target.url) return false;
             if (target.url === 'back' || target.url === 'click-through-back' || target.url === 'reload') return false;
-
-            // 延迟与自动后退保持一致：所有时机统一 100ms
-            const delayMap = { turn: 100, 'battle-end': 100, drop: 100, summon: 100, ability: 100 };
-            setTimeout(() => {
-                location.href = target.url;
-            }, delayMap[timing] || 100);
+            setTimeout(() => { location.href = target.url; }, 100);
             return true;
+        }
+
+        // 进入副本时：记录"上次副本"，并把本场召唤/技能候选快照进该副本配置
+        recordQuestSnapshot() {
+            const qid = this.battleData.questId;
+            if (!qid) return;
+            storage.setValue('sb_last_quest_id', qid);
+            const config = loadConfig();
+            config.lastQuestId = qid;
+            if (!config.questSettings) config.questSettings = {};
+            const summonChoices = (this.battleData.summonList || []).slice();
+            if (this.battleData.supporterSummon) summonChoices.push(this.battleData.supporterSummon);
+            const abilityChoices = (this.battleData.abilityList || []).slice();
+            const base = config.questSettings[qid] || {
+                questImg: '',
+                turnLte: { action: 'none', count: 3 },
+                turnEq: { action: 'none', count: 1 },
+                summon: { action: 'none', ids: [] },
+                ability: { action: 'none', ids: [] },
+                summonChoices: [],
+                abilityChoices: []
+            };
+            base.questImg = `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/quest/assets/lobby/${qid}.png`;
+            base.summonChoices = summonChoices.map(s => ({ imageId: s.imageId, icon: s.icon }));
+            base.abilityChoices = abilityChoices.map(a => ({ iconId: a.iconId, icon: a.icon }));
+            config.questSettings[qid] = base;
+            storage.setValue('sb_quest_settings', JSON.stringify(config.questSettings));
         }
     }
 
