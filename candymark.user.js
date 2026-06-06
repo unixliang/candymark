@@ -902,21 +902,23 @@
         .sb-auto-action-row {
             display: flex;
             gap: 6px;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
         }
         .sb-auto-action-row label {
             flex: 1 1 0;
-            min-width: 56px;
+            min-width: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 4px;
-            padding: 6px 4px;
+            padding: 8px 2px;
             border: 2px solid #e0e0e0;
             border-radius: 6px;
             background: #f7f7f7;
             cursor: pointer;
             font-size: 13px;
+            line-height: 1.2;
+            white-space: nowrap;
+            text-align: center;
             transition: all 0.15s;
         }
         .sb-auto-action-row label:has(input:checked) {
@@ -925,8 +927,13 @@
             color: #4f56c8;
             font-weight: 600;
         }
+        /* 隐藏原生 radio：移动端原生控件过大且会把文字挤成竖排，改用整块 label 高亮 */
         .sb-auto-action-row input[type="radio"] {
-            margin: 0;
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+            pointer-events: none;
         }
         .sb-number-adjuster--inline {
             display: inline-flex;
@@ -1180,7 +1187,6 @@
             <div class="sb-menu-item" data-action="edit">✏️ 修改名称</div>
             <div class="sb-menu-item" data-action="delete">🗑️ 删除标签</div>
             <div class="sb-menu-item" data-action="show-global-menu">⚙️ 全局配置</div>
-            <div class="sb-menu-item" data-action="drop-subscribe-global">🔔 掉落通知【全局】</div>
             <div class="sb-menu-item" data-action="cancel">❌ 取消</div>
         </div>
         <div id="sb-add-menu">
@@ -3452,9 +3458,6 @@
                 case 'show-global-menu':
                     this.showAddMenu();
                     break;
-                case 'drop-subscribe-global':
-                    this.showDropSubscribeModal();
-                    break;
                 case 'cancel':
                     // 什么都不做，只是关闭菜单
                     break;
@@ -4716,14 +4719,15 @@
         recordQuestSnapshot() {
             const qid = this.battleData.questId;
             if (!qid) return;
-            storage.setValue('sb_last_quest_id', qid);
-            const config = loadConfig();
-            config.lastQuestId = qid;
-            if (!config.questSettings) config.questSettings = {};
+            // 直接写 manager 持有的 CONFIG（而非 loadConfig() 的重建副本）：
+            // storage.setValue 任何 sb_* 都会让 _configCache 失效，loadConfig() 会返回一个
+            // 新对象，本次快照就进不了打开面板时读取的 CONFIG，要等整页 reload 才可见。
+            CONFIG.lastQuestId = qid;
+            if (!CONFIG.questSettings) CONFIG.questSettings = {};
             const summonChoices = (this.battleData.summonList || []).slice();
             if (this.battleData.supporterSummon) summonChoices.push(this.battleData.supporterSummon);
             const abilityChoices = (this.battleData.abilityList || []).slice();
-            const base = config.questSettings[qid] || {
+            const base = CONFIG.questSettings[qid] || {
                 questImg: '',
                 turnLte: { action: 'none', count: 3 },
                 turnEq: { action: 'none', count: 1 },
@@ -4735,8 +4739,9 @@
             base.questImg = `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/quest/assets/lobby/${qid}.png`;
             base.summonChoices = summonChoices.map(s => ({ imageId: s.imageId, icon: s.icon }));
             base.abilityChoices = abilityChoices.map(a => ({ iconId: a.iconId, icon: a.icon }));
-            config.questSettings[qid] = base;
-            storage.setValue('sb_quest_settings', JSON.stringify(config.questSettings));
+            CONFIG.questSettings[qid] = base;
+            storage.setValue('sb_quest_settings', JSON.stringify(CONFIG.questSettings));
+            storage.setValue('sb_last_quest_id', qid);
         }
     }
 
