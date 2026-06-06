@@ -358,6 +358,34 @@
             border-top: 1px solid #eee;
             z-index: 2;
         }
+        /* 自动设置两个长面板：改三段式——标题贴顶、按钮贴底、中间 body 单独滚动，
+           避免 sticky 在带 padding 的滚动容器里露出 padding 区内容 */
+        #sb-auto-battle-modal > .sb-modal-content,
+        #sb-auto-nonbattle-modal > .sb-modal-content {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #sb-auto-battle-modal .sb-modal-body,
+        #sb-auto-nonbattle-modal .sb-modal-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+        }
+        #sb-auto-battle-modal > .sb-modal-content > h3,
+        #sb-auto-nonbattle-modal > .sb-modal-content > h3,
+        #sb-auto-battle-modal > .sb-modal-content > .sb-modal-buttons,
+        #sb-auto-nonbattle-modal > .sb-modal-content > .sb-modal-buttons {
+            flex: 0 0 auto;
+        }
+        /* body 统一滚动：取消内部网格各自的 max-height，避免嵌套双滚动条 */
+        #sb-auto-battle-modal .sb-modal-body .sb-drop-subscribe-grid,
+        #sb-auto-battle-modal .sb-modal-body .sb-ability-filter-grid,
+        #sb-auto-battle-modal .sb-modal-body #sb-bt-quest-grid,
+        #sb-auto-nonbattle-modal .sb-modal-body .sb-drop-subscribe-grid {
+            max-height: none;
+            overflow-y: visible;
+        }
 
         @keyframes sbModalAppear {
             from {
@@ -1329,6 +1357,7 @@
         <div id="sb-auto-nonbattle-modal" class="sb-modal">
             <div class="sb-modal-content">
                 <h3>自动设置（非战斗）</h3>
+                <div class="sb-modal-body">
                 <div class="sb-drop-notify-options">
                     <div class="sb-auto-scene">
                         <div class="sb-auto-scene-title">🏆 战斗结束后</div>
@@ -1352,6 +1381,7 @@
                 <div class="sb-auto-jump-target-label">跳转目标（全局，单选；任一时机选"跳转"都用它）</div>
                 <div class="sb-drop-subscribe-hint" id="sb-nb-jump-hint"></div>
                 <div class="sb-drop-subscribe-grid" id="sb-nb-jump-grid"></div>
+                </div>
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-nb-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-nb-reset">重置</button>
@@ -1362,6 +1392,7 @@
         <div id="sb-auto-battle-modal" class="sb-modal">
             <div class="sb-modal-content">
                 <h3>自动设置（战斗）</h3>
+                <div class="sb-modal-body">
                 <div class="sb-bt-quest-hint" id="sb-bt-quest-hint"></div>
                 <div class="sb-drop-subscribe-grid" id="sb-bt-quest-grid"></div>
 
@@ -1426,6 +1457,7 @@
                 <div class="sb-auto-jump-target-label">跳转目标（全局，单选；任一时机选"跳转"都用它）</div>
                 <div class="sb-drop-subscribe-hint" id="sb-bt-jump-hint"></div>
                 <div class="sb-drop-subscribe-grid" id="sb-bt-jump-grid"></div>
+                </div>
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-bt-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-bt-delete">删除</button>
