@@ -89,7 +89,7 @@
             bookmarkSize: parseInt(storage.getValue('sb_bookmark_size', '3')),
             bookmarkOpacity: parseInt(storage.getValue('sb_bookmark_opacity', '10')),
             bookmarksVisible: storage.getValue('sb_bookmarks_visible', 'true') === 'true',
-            // 非战斗自动设置（全局）：battle-end / drop，动作 none|back|refresh|jump
+            // 非战斗辅助设置（全局）：battle-end / drop，动作 none|back|refresh|jump
             autoBattleEndAction: storage.getValue('sb_auto_battle_end_action', 'none'),
             autoDropAction: storage.getValue('sb_auto_drop_action', 'none'),
             // 跳转目标（全局单一，所有"跳转"动作共用同一个目标）
@@ -98,7 +98,7 @@
                 const n = parseInt(raw, 10);
                 return Number.isNaN(n) ? null : n;
             })(),
-            // 战斗内自动设置（按副本 quest_id 存）：
+            // 战斗内辅助设置（按副本 quest_id 存）：
             // { [questId]: { questImg, turnLte:{action,count}, turnEq:{action,count},
             //                summon:{action,ids:[{id,icon}]}, ability:{action,ids:[{id,icon}]},
             //                summonChoices:[{imageId,icon}], abilityChoices:[{iconId,icon}] } }
@@ -110,7 +110,7 @@
                     return {};
                 }
             })(),
-            // 内存+持久化记录最近进入的副本，供"自动设置（战斗）"默认选中
+            // 内存+持久化记录最近进入的副本，供"辅助设置（战斗）"默认选中
             lastQuestId: storage.getValue('sb_last_quest_id', ''),
             dropSubscriptions: dropSubscriptions
         };
@@ -358,7 +358,7 @@
             border-top: 1px solid #eee;
             z-index: 2;
         }
-        /* 自动设置两个长面板：改三段式——标题贴顶、按钮贴底、中间 body 单独滚动，
+        /* 辅助设置两个长面板：改三段式——标题贴顶、按钮贴底、中间 body 单独滚动，
            避免 sticky 在带 padding 的滚动容器里露出 padding 区内容 */
         #sb-auto-battle-modal > .sb-modal-content,
         #sb-auto-normal-modal > .sb-modal-content {
@@ -918,7 +918,7 @@
         #sb-nm-jump-grid .sb-drop-sub-item, #sb-bt-jump-grid .sb-drop-sub-item {
             flex: 0 0 auto;
         }
-        /* 自动设置（新版）：场景行 + 动作单选 */
+        /* 辅助设置（新版）：场景行 + 动作单选 */
         .sb-auto-scene {
             padding: 8px 0;
             border-bottom: 1px solid rgba(0, 0, 0, 0.06);
@@ -1243,8 +1243,8 @@
             <div class="sb-menu-item" data-action="add-bookmark">➕ 增加标签</div>
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
-            <div class="sb-menu-item" data-action="auto-normal">🌐 自动设置（常态）</div>
-            <div class="sb-menu-item" data-action="auto-battle">⚔️ 自动设置（战斗）</div>
+            <div class="sb-menu-item" data-action="auto-normal">🌐 辅助设置（常态）</div>
+            <div class="sb-menu-item" data-action="auto-battle">⚔️ 辅助设置（战斗）</div>
             <div class="sb-menu-item" data-action="subscribe-from-drop-list">🔔 掉落通知</div>
             <div class="sb-menu-item" data-action="config-management">⚙️ 配置管理</div>
             <div class="sb-menu-item" data-action="cancel-add">❌ 取消</div>
@@ -1378,7 +1378,7 @@
         </div>
         <div id="sb-auto-normal-modal" class="sb-modal">
             <div class="sb-modal-content">
-                <h3>自动设置（常态）</h3>
+                <h3>辅助设置（常态）</h3>
                 <div class="sb-modal-body">
                 <div class="sb-drop-notify-options">
                     <div class="sb-auto-scene">
@@ -1413,7 +1413,7 @@
         </div>
         <div id="sb-auto-battle-modal" class="sb-modal">
             <div class="sb-modal-content">
-                <h3>自动设置（战斗）</h3>
+                <h3>辅助设置（战斗）</h3>
                 <div class="sb-modal-body">
                 <div class="sb-bt-quest-hint" id="sb-bt-quest-hint"></div>
                 <div class="sb-drop-subscribe-grid" id="sb-bt-quest-grid"></div>
@@ -2075,12 +2075,12 @@
                 this.hideDropSubscribeModal();
             });
 
-            // 自动设置（常态）
+            // 辅助设置（常态）
             document.getElementById('sb-nm-confirm').addEventListener('click', () => { this.confirmAutoNormal(); });
             document.getElementById('sb-nm-cancel').addEventListener('click', () => { this.hideAutoNormalModal(); });
             document.getElementById('sb-nm-reset').addEventListener('click', () => { this.resetAutoNormalForm(); });
 
-            // 自动设置（战斗）
+            // 辅助设置（战斗）
             document.getElementById('sb-bt-confirm').addEventListener('click', () => { this.confirmAutoBattle(); });
             document.getElementById('sb-bt-cancel').addEventListener('click', () => { this.hideAutoBattleModal(); });
             document.getElementById('sb-bt-delete').addEventListener('click', () => { this.deleteAutoBattleQuest(); });
@@ -2957,7 +2957,7 @@
             this.hideOpacityModal();
         }
         
-        // ===== 自动设置（新版）：公共辅助 =====
+        // ===== 辅助设置（新版）：公共辅助 =====
         defaultQuestSetting() {
             return {
                 questImg: '',
@@ -3038,7 +3038,7 @@
             storage.setValue('sb_auto_jump_target_id', target == null ? '' : String(target));
         }
 
-        // ===== 自动设置（常态）=====
+        // ===== 辅助设置（常态）=====
         showAutoNormalModal() {
             this.hideAddMenu();
             this.setRadioAction('sb-nm-battleEnd', CONFIG.autoBattleEndAction);
@@ -3070,7 +3070,7 @@
             }
         }
 
-        // ===== 自动设置（战斗，按副本）=====
+        // ===== 辅助设置（战斗，按副本）=====
         questLobbyImg(questId) {
             return `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/quest/assets/lobby/${questId}.png`;
         }
@@ -3201,7 +3201,7 @@
         deleteAutoBattleQuest() {
             const questId = this.selectedBattleQuestId();
             if (questId && CONFIG.questSettings && CONFIG.questSettings[questId]) {
-                if (!confirm(`确定删除副本 ${questId} 的战斗内自动设置吗？`)) return;
+                if (!confirm(`确定删除副本 ${questId} 的战斗内辅助设置吗？`)) return;
                 delete CONFIG.questSettings[questId];
                 storage.setValue('sb_quest_settings', JSON.stringify(CONFIG.questSettings));
             }
@@ -4362,7 +4362,7 @@
                     // 缓存当前战斗的技能 / 召唤列表，供"技能后" / "召唤后"过滤器使用
                     this.cacheAbilityList(data);
                     this.cacheSummonList(data);
-                    // 记录"上次副本"，并把本场召唤/技能候选快照进该副本配置（供"自动设置（战斗）"展示）
+                    // 记录"上次副本"，并把本场召唤/技能候选快照进该副本配置（供"辅助设置（战斗）"展示）
                     this.recordQuestSnapshot();
                     // 直前倒计时（参照 Tarou）：data.turn_waiting 是未来 ms 时间戳
                     if (data.turn_waiting != null) {
@@ -4736,7 +4736,7 @@
             });
         }
 
-        // 取当前副本（进战斗时记录的 quest_id）的战斗内自动设置；无则 null
+        // 取当前副本（进战斗时记录的 quest_id）的战斗内辅助设置；无则 null
         currentQuestSetting(cachedConfig) {
             const config = cachedConfig || loadConfig();
             const qid = this.battleData && this.battleData.questId;

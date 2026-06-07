@@ -48,7 +48,7 @@ git push github main      # 远程名是 github（不是 origin）
 - 拖拽定位、10 级大小 / 透明度、配色循环。
 - 菜单结构：
   - **书签长按菜单**（`sb-menu`）：拖拽 / 设置当前页 / 设置后退 / 设置刷新 / 设置穿透点击后退 / 穿透后退延迟 / 改名 / 删除 / **⚙️ 全局配置（打开左上角主菜单 `sb-add-menu`）** / 取消。
-  - **主菜单**（`sb-add-menu`，点左上角触发器）：增加标签 / 调整大小 / 调整透明度 / 🌐 自动设置（常态）/ ⚔️ 自动设置（战斗）/ 🔔 掉落通知 / ⚙️ 配置管理 / 取消。
+  - **主菜单**（`sb-add-menu`，点左上角触发器）：增加标签 / 调整大小 / 调整透明度 / 🌐 辅助设置（常态）/ ⚔️ 辅助设置（战斗）/ 🔔 掉落通知 / ⚙️ 配置管理 / 取消。
 
 ### 特殊链接
 书签 `url` 除普通 URL 外支持动作值：
@@ -56,7 +56,7 @@ git push github main      # 远程名是 github（不是 origin）
 - `"reload"` → `location.reload()`
 - `"click-through-back"` → 用 `pointer-events: none` 实现真正点击穿透到下层元素，延迟 `clickThroughDelay` 后 `history.back()`。仅在书签常态触发；菜单打开 / 拖拽模式 / 刚长按打开菜单时不触发。
 
-## 自动导航（自动设置）
+## 自动导航（辅助设置）
 
 把页面事件分成两组，每个时机可选一个动作：`none | back | refresh | jump`（`jump` 跳到全局唯一目标书签 `autoJumpTargetId`）。
 
