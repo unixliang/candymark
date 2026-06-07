@@ -189,6 +189,46 @@
             white-space: nowrap;
         }
         #sb-chokuzen-countdown.active { display: flex; }
+        /* 预兆信息浮层：底部 bar 上方，最多 3 行，新行在下，每行 10s 消失 */
+        #sb-omen-log {
+            position: fixed;
+            left: 10px;
+            bottom: 46px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: flex-start;
+            z-index: 999998;
+            pointer-events: none;
+            max-width: 92vw;
+        }
+        .sb-omen-row {
+            background: rgba(0, 0, 0, 0.72);
+            color: #fff;
+            font-size: 13px;
+            line-height: 1.3;
+            padding: 4px 10px;
+            border-radius: 6px;
+            max-width: 92vw;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+        .sb-omen-row .sb-omen-turn {
+            color: #ffd76a;
+            margin-right: 4px;
+        }
+        .sb-omen-row .sb-omen-success {
+            color: #46d369;
+            font-weight: 700;
+            margin-left: 6px;
+        }
+        .sb-omen-row .sb-omen-fail {
+            color: #ff5a5a;
+            font-weight: 700;
+            margin-left: 6px;
+        }
 
         .sb-bookmark {
             position: absolute;
@@ -1227,6 +1267,7 @@
     container.innerHTML = `
         <div id="sb-trigger" title="点击添加标签 (${CONFIG.shortcutKey.replace('Key', 'Ctrl+')})"></div>
         <div id="sb-chokuzen-countdown"></div>
+        <div id="sb-omen-log"></div>
         <div id="sb-menu">
             <div class="sb-menu-item" data-action="drag">🖱️ 拖拽移动</div>
             <div class="sb-menu-item" data-action="set-url">📍 设置当前页面</div>
@@ -4180,12 +4221,15 @@
             };
             // 直前倒计时（参照 Tarou：turn_waiting 是服务端给的未来 ms 时间戳）
             this.chokuzenTimer = null;
+            // 预兆信息浮层：信息落盘 cm_omen_log（按 raidId 分组，每战斗≤3 条，每条 1min 过期）
+            this._omenRenderTimer = null;
             this.init();
         }
 
         init() {
             this.setupUrlMonitoring();
             this.restoreChokuzen();
+            this.renderOmenLog();   // 后退/刷新后从落盘恢复展示当前战斗的预兆
         }
 
         // ====== 直前倒计时 ======
@@ -4352,6 +4396,7 @@
             const req = requestBody || {};
             // 分析响应数据，提取TURN信息，类似Chrome-Extension的处理方式
             if (data && typeof data === 'object') {
+                this.detectOmen(data);
                 let currentTurn = null;
                 
                 // 检查是否是战斗开始数据
@@ -4802,6 +4847,115 @@
             CONFIG.questSettings[qid] = base;
             storage.setValue('sb_quest_settings', JSON.stringify(CONFIG.questSettings));
             storage.setValue('sb_last_quest_id', qid);
+        }
+
+        // ===== 预兆信息浮层（落盘版）=====
+        // 落盘在 cm_omen_log（cm_ 前缀，不触发配置缓存失效），结构 { [raidId]: [{turn,text,result,ts}] }
+        // 每个战斗(raidId)只保留 3 条；每条出现 1min 后过期；只在战斗页展示，后退/刷新后从落盘恢复
+        // 回合归属与「第N回合攻击后」(turnEq/turnLte) 一致：
+        //   结果 → battleData.currentTurn（攻击发起回合，= 那里的 turnAtAttack；detectOmen 在 onTurnChange 之前跑）
+        //   新预兆 → status.turn（操作后回合 = onTurnChange 马上要更新成的下一拍 currentTurn）
+        currentRaidId() {
+            const url = window.location.href;
+            if (!/[#/]raid/i.test(url)) return null;   // 不在战斗页则不展示/不记录
+            return this.extractRaidIdFromUrl(url);
+        }
+
+        loadOmenStore() {
+            try {
+                const obj = JSON.parse(storage.getValue('cm_omen_log', '{}'));
+                return (obj && typeof obj === 'object') ? obj : {};
+            } catch (e) { return {}; }
+        }
+
+        saveOmenStore(store) {
+            storage.setValue('cm_omen_log', JSON.stringify(store));
+        }
+
+        // 删除所有过期(>60s)记录；返回是否有改动
+        pruneOmenStore(store) {
+            const now = Date.now();
+            let changed = false;
+            for (const rid of Object.keys(store)) {
+                const orig = store[rid] || [];
+                const kept = orig.filter(r => r && (now - r.ts) <= 60000);
+                if (kept.length !== orig.length) changed = true;
+                if (kept.length) store[rid] = kept;
+                else { delete store[rid]; changed = true; }
+            }
+            return changed;
+        }
+
+        detectOmen(data) {
+            const raidId = this.currentRaidId();
+            if (!raidId) return;   // 战斗以外不记录
+            const prevTurn = this.battleData.currentTurn || 0;
+            const newTurn = (data.status && data.status.turn != null) ? Number(data.status.turn)
+                : (data.turn != null ? Number(data.turn) : prevTurn);
+
+            // 1) 结算上一个预兆的结果（归属操作前回合）
+            if (Array.isArray(data.scenario)) {
+                const interrupted = data.scenario.some(i => i && i.cmd === 'special_skill_interrupt');
+                const bossSuper = data.scenario.some(i => i && i.cmd === 'super' && i.target === 'player');
+                if (interrupted) this.setOmenResult(raidId, prevTurn, 'success');
+                else if (bossSuper) this.setOmenResult(raidId, prevTurn, 'fail');
+            }
+
+            // 2) 登记新预兆（归属操作后回合，结果留空，显示「当前」）
+            const ind = (data.status && data.status.special_skill_indicate) || data.special_skill_indicate;
+            const text = (ind && ind[0] && Array.isArray(ind[0].interrupt_display_text))
+                ? ind[0].interrupt_display_text.filter(Boolean).join(' / ') : '';
+            if (text) this.upsertOmen(raidId, newTurn, text);
+        }
+
+        upsertOmen(raidId, turn, text) {
+            const store = this.loadOmenStore();
+            const rows = store[raidId] || (store[raidId] = []);
+            const row = rows.find(r => r.turn === turn);
+            if (row) { row.text = text; row.ts = Date.now(); }
+            else {
+                rows.push({ turn, text, result: null, ts: Date.now() });
+                rows.sort((a, b) => a.turn - b.turn);   // 最新回合在最下
+                while (rows.length > 3) rows.shift();    // 每个战斗只保留 3 条
+            }
+            this.saveOmenStore(store);
+            this.renderOmenLog();
+        }
+
+        setOmenResult(raidId, turn, result) {
+            const store = this.loadOmenStore();
+            const rows = store[raidId];
+            if (!rows) return;
+            const row = rows.find(r => r.turn === turn);
+            if (!row || row.result) return;
+            row.result = result;
+            row.ts = Date.now();   // 结算后重置过期计时，让结果完整展示
+            this.saveOmenStore(store);
+            this.renderOmenLog();
+        }
+
+        renderOmenLog() {
+            const el = document.getElementById('sb-omen-log');
+            if (!el) return;
+            if (this._omenRenderTimer) { clearTimeout(this._omenRenderTimer); this._omenRenderTimer = null; }
+            const store = this.loadOmenStore();
+            if (this.pruneOmenStore(store)) this.saveOmenStore(store);
+            const raidId = this.currentRaidId();
+            const rows = (raidId && store[raidId]) ? store[raidId] : [];
+            if (!rows.length) { el.innerHTML = ''; return; }
+            const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            el.innerHTML = rows.map(r => {
+                const cur = r.result == null ? '（当前）' : '';   // 未结算 = 当前
+                let resultHtml = '';
+                if (r.result === 'success') resultHtml = '<span class="sb-omen-success">成功</span>';
+                else if (r.result === 'fail') resultHtml = '<span class="sb-omen-fail">失败</span>';
+                return `<div class="sb-omen-row"><span class="sb-omen-turn">第${r.turn}回合${cur}</span>${esc(r.text)}${resultHtml}</div>`;
+            }).join('');
+            // 定时重渲染清理过期：取最近一条的剩余时间（≥1s，≤5s 兜底）
+            const now = Date.now();
+            let minLeft = 60000;
+            rows.forEach(r => { minLeft = Math.min(minLeft, 60000 - (now - r.ts)); });
+            this._omenRenderTimer = setTimeout(() => this.renderOmenLog(), Math.max(1000, Math.min(minLeft, 5000)));
         }
     }
 
