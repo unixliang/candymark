@@ -4,241 +4,119 @@
 
 ## 项目概述
 
-CandyMark 是一个移动端优化的用户脚本（Greasemonkey/Tampermonkey），在任何网站上提供浮动书签导航功能。项目使用原生 JavaScript 编写，包含性能优化，并设计为自动部署到 GitHub Pages。
+CandyMark 是一个移动端优化的用户脚本（Tampermonkey/Greasemonkey），用原生 JavaScript 编写，单文件 `candymark.user.js`。核心是浮动书签导航；并提供一组基于页面事件的自动导航与提醒功能（针对碧蓝幻想的单页应用）。
+
+- `@match` 实际限定为碧蓝幻想域名：`game.granbluefantasy.jp`、`gbf.game.mbga.jp`（**不是任意网站**）。
+- 通过 GitHub Pages 部署/分发，安装地址 `https://unixliang.github.io/candymark/candymark.user.js`。
 
 ## 部署
 
 ```bash
-# 部署到 GitHub Pages
 git add .
-git commit -m "feat: update"
-git push origin main
+git commit -m "..."
+git push github main      # 远程名是 github（不是 origin）
 ```
 
-脚本安装地址: `https://unixliang.github.io/candymark/candymark.user.js`
+合并工作流（worktree → main）：在 worktree 提交后 `git -C <repo> merge <branch> --no-edit` 再 `git push github main`，通常是 fast-forward。
 
-## 架构概述
+## 存储与配置（重要）
 
-### 核心类: CandyMarkManager
-主类管理所有书签功能，包含以下关键领域：
+- **存储后端是 `localStorage`，不是 GM_setValue**。`storage.setValue/getValue` 是对 `localStorage` 的封装（见文件顶部 `const storage`）。
+- 书签数组单独存：key `candymark-bookmarks-javascript`。
+- 其余设置以 `sb_` 前缀存储。
+- **配置缓存陷阱**：`loadConfig()` 带缓存 `_configCache`；**任何 `sb_*` 写入都会 `invalidateConfigCache()`**，下次 `loadConfig()` 会重建一个新对象。而 `const CONFIG = loadConfig()` 在启动时只求值一次，**永久绑定初始对象**。
+  - manager（面板/导入导出）统一读写全局 `CONFIG`；GameDetector 的触发逻辑用 `loadConfig()` 只读取值。
+  - **若要在后台写入、又希望面板立即可见，必须直接写 `CONFIG`**（不要先 `setValue` 再 `loadConfig()`，否则拿到的是重建副本，写入进不了面板读取的 `CONFIG`，要等整页 reload 才可见）。`recordQuestSnapshot` 就是踩过这个坑后改成直接写 `CONFIG` 的。
 
-**状态管理：**
-- `bookmarks[]`: 书签对象数组，包含 id、name、url、x、y、domain
-- `currentBookmarkId`: 当前选中用于操作的书签
-- `isContextMenuOpen`: 防止菜单与点击事件冲突
+## 架构
 
-**性能优化：**
-- **事件委托**: 容器级别的事件处理，替代每个元素单独监听
-- **增量渲染**: 仅更新变化的书签，而非全量重新渲染
-- **防抖存储**: 高频操作延迟 300ms，关键操作立即保存
-- **CSS 类**: 使用 CSS 类替代内联样式以提升性能
+### CandyMarkManager
+管理书签、UI、菜单、所有模态框。状态：`bookmarks[]`（id/name/url/x/y/domain/colorIndex）、`currentBookmarkId`、`isContextMenuOpen`。
 
-### 用户脚本集成
-- **GM_setValue/GM_getValue**: 跨域持久化存储
-- **GM_registerMenuCommand**: 脚本配置入口
-- **自动执行**: 在所有网站运行，除了黑名单域名
-- **配置系统**: 通过 CONFIG 对象进行运行时设置
+性能：事件委托、增量渲染（`renderBookmarks()` 增量 / `renderBookmarks(true)` 全量）、防抖存储（位置等 300ms，关键操作立即）、CSS 类替代内联样式。
 
-### 移动端触摸优化
-- **长按检测**: 600ms 阈值触发右键菜单
-- **触摸事件处理**: 统一的触摸/鼠标事件委托
-- **手势防护**: 拖拽时禁用冲突的浏览器手势
+### GameDetector
+监听 jQuery ajax 响应（`handleGameResponse(data, url, requestBody)`），负责：
+- 战斗数据采集：`start.json` → `cacheAbilityList` / `cacheSummonList`，填充 `battleData.{abilityList, summonList, supporterSummon, questId, currentTurn...}`（内存，每场战斗由 start.json 重填，不落盘）。
+- 自动导航触发（见下）。
+- 掉落检测（`/result(multi)/content/index` → `checkDropsFromResponse`）。
+- 直前倒计时（参照 Tarou：`data.turn_waiting` 是未来 epoch ms，持久化到 `cm_chokuzen_target`）。
 
-## 关键技术特性
+## 浮动书签导航
 
-### 配置管理系统
-- **导出/导入**: 支持导出和导入完整配置
-- **多种格式**: 基于文件（.json）和剪贴板传输
-- **数据验证**: 导入过程中的全面验证
-- **设置备份**: 包含书签、视觉设置和行为设置
+- 添加：左上角触发器 / `Ctrl+B`；菜单：移动端长按 600ms / PC 右键。
+- 拖拽定位、10 级大小 / 透明度、配色循环。
+- 菜单结构：
+  - **书签长按菜单**（`sb-menu`）：拖拽 / 设置当前页 / 设置后退 / 设置刷新 / 设置穿透点击后退 / 穿透后退延迟 / 改名 / 删除 / **⚙️ 全局配置（打开左上角主菜单 `sb-add-menu`）** / 取消。
+  - **主菜单**（`sb-add-menu`，点左上角触发器）：增加标签 / 调整大小 / 调整透明度 / 🌐 自动设置（常态）/ ⚔️ 自动设置（战斗）/ 🔔 掉落通知 / ⚙️ 配置管理 / 取消。
 
-### 菜单系统架构
-- **层级菜单**: 主菜单与配置管理子菜单
-- **触摸/点击委托**: 移动端和桌面端统一的事件处理
-- **动作路由**: 集中式的菜单交互动作处理器
-- **视觉反馈**: 基于 CSS 的菜单动画和状态管理
+### 特殊链接
+书签 `url` 除普通 URL 外支持动作值：
+- `"back"` → `window.history.back()`
+- `"reload"` → `location.reload()`
+- `"click-through-back"` → 用 `pointer-events: none` 实现真正点击穿透到下层元素，延迟 `clickThroughDelay` 后 `history.back()`。仅在书签常态触发；菜单打开 / 拖拽模式 / 刚长按打开菜单时不触发。
 
-### 特殊 URL 处理
-- URL 设置为 `"back"` 时触发 `window.history.back()` 而非导航
-- **穿透点击后退**: 支持 `"click-through-back"`，实现真正的点击穿透
+## 自动导航（自动设置）
 
-**穿透点击后退功能规格：**
+把页面事件分成两组，每个时机可选一个动作：`none | back | refresh | jump`（`jump` 跳到全局唯一目标书签 `autoJumpTargetId`）。
 
-| 项目 | 说明 |
-|------|------|
-| **功能描述** | 触按或点击书签后，点击事件直接穿透到下层元素，并在延迟后触发后退 |
-| **配置项** | 通过"👆 设置穿透点击后退"启用，"⏱️ 穿透后退延迟"配置延迟时间 |
-| **延迟参数** | `clickThroughDelay`（毫秒），用户可自定义 |
+### 常态（全局）
+- `autoBattleEndAction`（战斗结束后）、`autoDropAction`（结算后）。存 `sb_auto_battle_end_action` / `sb_auto_drop_action`。
+- UI：`#sb-auto-normal-modal`，方法 `showAutoNormalModal` 等，id 前缀 `sb-nm-`，`data-action="auto-normal"`。
 
-**技术实现：**
-- 使用 `pointer-events: none` 实现真正的点击穿透，而非由书签接收后模拟点击
-- 点击事件直接穿过书签到达下层元素
-- 延迟指定时间后执行 `window.history.back()`
+### 战斗内（按副本）
+- **副本标识 = `start.json` 的 `data.quest_id`**（参照 Tarou）。**副本大厅图** = `…/sp/quest/assets/lobby/{quest_id}.png`。
+- `CONFIG.questSettings`（存 `sb_quest_settings`）是 map：
+  ```
+  { [questId]: {
+      questImg,
+      turnLte: { action, count },   // 前 N 回合攻击后（turnAtAttack <= count）
+      turnEq:  { action, count },   // 第 N 回合攻击后（turnAtAttack === count）
+      summon:  { action, ids:[{id,icon}] },   // ids 为 imageId 过滤
+      ability: { action, ids:[{id,icon}] },   // ids 为 iconId 过滤
+      summonChoices:  [{imageId, icon}],      // 候选快照（落盘，供脱离战斗时 UI 展示）
+      abilityChoices: [{iconId,  icon}],
+  } }
+  ```
+- `lastQuestId`（存 `sb_last_quest_id`）：最近进入的副本。
+- UI：`#sb-auto-battle-modal`，副本用大厅图网格选择（标注 当前/上次/未设置；列表只展示 当前 + 上次 + 已配置过动作的副本）。`renderAutoBattleScene(questId)` 渲染 4 个场景；`recordQuestSnapshot()` 在进副本时把召唤/技能候选快照进该副本并落盘。
 
-**触发条件（仅在常态下触发）：**
-- ✅ 书签处于常态时，触按/点击触发穿透后退
-- ❌ 菜单打开状态（`sb-container--menu-open`）：不触发
-- ❌ 拖拽模式状态（`sb-container--drag-mode`）：不触发
-- ❌ 右键/长按打开菜单时点击书签区域：不触发
+### 触发逻辑（`handleGameResponse`）
+- `start.json` → 记 `battleData.questId` + `recordQuestSnapshot()`。
+- 战斗结束（`attack/ability/summon_result` 的 `data.scenario` 含 `win && is_last_raid`）→ `runAutoAction(autoBattleEndAction)`。
+- `attack_result` → 按当前副本设置：**`turnEq`（=N）优先于 `turnLte`（≤N）**。
+- `summon_result` / `ability_result` → 按副本设置，`matchesSummonFilter` / `matchesAbilityFilter` 收窄（把请求体的栏位下标 / ability_id 用 **当前战斗的** battleData 翻译成 imageId / iconId 再比对——所以触发判断必须用内存实时列表，不能用落盘快照）。
+- 结算（`result content/index`）→ 先检查掉落订阅命中（弹窗），否则 `triggerAutoBack()` 走 `autoDropAction`（按 raidId 去重）。
+- 统一执行：`runAutoAction(action, config)` / `doAutoJump(config)`，所有动作统一延迟 100ms。
 
-**交互兼容：**
-- 触按/点击后仍触发标签点击动画（视觉反馈）
-- 右键或长按（600ms）仍可正常打开菜单进行编辑
-- 拖拽功能不受影响
+## 掉落提醒
 
-- 域名提取安全处理非 URL 值
+`dropSubscriptions`（存 `sb_drop_subscriptions`，每项 `{itemId, kind, iconUrl}`）。用户从副本掉落预览页（`.prt-drop-item-list`）或战斗结算页（`.prt-item-list` 内 `data-key`）勾选订阅；结算响应命中时弹窗（`showDropHitModal`）。图标 URL 经 `imgSrcToKey` 归一化比对。
 
-### 拖拽系统架构
-```javascript
-// 拖拽状态封装
-const dragState = {
-    element: HTMLElement,
-    isDragging: boolean,
-    dragOffset: {x, y},
-    originalPos: ghostElement,
-    hint: hintElement
-}
-```
+## 配置导入导出
 
-**预绑定事件处理器**: 减少拖拽操作时的内存分配
-**状态管理**: 集中式拖拽状态防止内存泄漏
-**视觉反馈**: 幽灵位置指示器和拖拽提示
-
-### 容器状态类
-```css
-.sb-container--menu-open      /* 菜单打开状态 */
-.sb-container--drag-mode      /* 拖拽模式状态 */
-```
-
-### 视觉自定义系统
-- **尺寸调整**: 10 级书签大小缩放（0.3x 到 1.2x）
-- **透明度控制**: 10 级透明度设置（0.1 到 1.0）
-- **实时预览**: 调整时通过模态框控件实时预览
-- **CSS 变量**: 通过 CSS 自定义属性动态更新样式
-
-### 通知系统
-- **掉落通知**: 可配置的 FFJ 和沙漏掉落提醒
-- **事件检测**: 监控特定游戏事件并触发通知
-- **用户偏好**: 每种通知类型可单独启用/禁用
-
-### 存储策略
-- **立即保存**: 关键操作（添加/删除书签）
-- **防抖保存**: 位置更新和非关键变更（300ms）
-- **数据结构**: JSON 序列化，包含 id、name、url、x、y、domain、colorIndex 字段
-- **配置存储**: 基于 localStorage 的设置，带验证
-
-### 性能相关 CSS 类
-```css
-.sb-bookmark--dragging-prep     /* 拖拽前优化 */
-.sb-bookmark--dragging-active   /* 活动拖拽状态 */
-.sb-bookmark--updating          /* 平滑过渡 */
-.sb-bookmark--hidden           /* 淡出动画 */
-```
-
-## 文件结构
-
-### 核心文件
-- **candymark.user.js**: 油猴脚本主文件，包含所有功能
-- **GREASYFORK.md**: Greasyfork 发布指南和元数据
-- **CLAUDE.md**: Claude Code 项目指导文件
-- **README.md**: 项目说明文档
-
-### 当前部署
-- 在 @match 指令中配置了特定的 GBF（Granblue Fantasy）域名
-- 更新 URL 指向 `unixliang.github.io/candymark/`
-
-## 开发说明
-
-### 事件委托模式
-所有书签交互使用容器级别的事件委托：
-```javascript
-container.addEventListener('click', (e) => {
-    const bookmark = e.target.closest('.sb-bookmark');
-    if (bookmark) {
-        // 处理书签点击
-    }
-});
-```
-
-### 增量渲染逻辑
-- `renderBookmarks()`: 默认增量模式
-- `renderBookmarks(true)`: 强制全量重新渲染用于重大变更
-- `updateBookmarksIncremental()`: 智能差异更新
-
-### 内存管理
-- 预绑定拖拽处理器防止闭包重复创建
-- 拖拽退出处理器中的定时器清理
-- 清理方法中移除事件监听器
-
-### 浏览器兼容性
-- 使用 `transform: translateZ(0)` 启用硬件加速
-- 现代浏览器的 backdrop filters
-- 触摸设备的回退交互
-
-## 用户脚本生命周期
-
-1. **黑名单检查**: 如果域名在黑名单中则提前退出
-2. **CSS 注入**: 内联样式用于立即渲染
-3. **DOM 创建**: 容器和 UI 元素
-4. **事件绑定**: 基于委托的事件设置
-5. **数据加载**: 从 GM 存储恢复书签
-6. **渲染**: 初始书签显示
-
-## 近期功能新增
-
-### 配置管理（v2.0+）
-- **统一配置菜单**: 通过主触发菜单中的"⚙️ 配置管理"访问
-- **导出选项**:
-  - 📤 导出到文件（下载 JSON 文件）
-  - 📋 导出到剪贴板（复制到剪贴板）
-- **导入选项**:
-  - 📥 从文件导入（上传 JSON 文件）
-  - 📝 从剪贴板导入（从剪贴板粘贴）
-- **数据验证**: 确保导入数据的完整性和兼容性
-
-### 视觉自定义控件
-- **尺寸调整模态框**: 10 级缩放，带实时预览
-- **透明度调整模态框**: 10 级透明度，带实时反馈
-- **菜单访问**: 通过触发菜单的"📏 调整标签大小"和"🌓 调整标签透明度"
-
-### 增强导航功能
-- **穿透点击后退**: "👆 设置穿透点击后退"用于复杂导航模式
-- **可配置延迟**: "⏱️ 穿透后退延迟"支持用户自定义时间
-- **智能 URL 检测**: 处理特殊导航命令
-
-### 通知系统集成
-- **游戏事件检测**: 支持游戏的 FFJ 和沙漏掉落通知
-- **开关控制**: "🔔 掉落通知"菜单用于启用/禁用提醒
-- **非侵入式设计**: 通知与现有书签工作流程集成
+`exportConfig` / `exportToClipboard` 导出 `{bookmarks, settings}`；`importConfig`（文件）/ `importFromClipboard` 导入并逐项校验。settings 含书签视觉设置、`dropSubscriptions`、`autoBattleEndAction` / `autoDropAction` / `autoJumpTargetId` / `questSettings` / `lastQuestId`。**新增配置项时，导出两处 + 导入两处都要同步。**
 
 ## 常见修改模式
 
-### 添加新配置选项
-1. 在 `loadConfig()` 中添加到 CONFIG 对象
-2. 包含在导出函数中（`exportConfig()`、`exportToClipboard()`）
-3. 在导入函数中添加验证逻辑
-4. 使用 `sb_` 前缀更新存储键
+### 添加配置项
+1. `loadConfig()` 的 `_configCache` 里加字段（读 `sb_` 键）。
+2. 导出（`exportConfig` + `exportToClipboard`）和导入（`importConfig` + `importFromClipboard`）各两处同步。
+3. 写入用 `storage.setValue('sb_...', ...)`；若需面板即时可见，注意上面的「配置缓存陷阱」。
 
-### 扩展菜单系统
-1. 将菜单项添加到适当的菜单 HTML 结构
-2. 为新动作定义 `data-action` 属性
-3. 在相应的 `handleMenuAction()` 函数中添加 case 处理器
-4. 实现实际功能方法
+### 扩展菜单 / 模态框
+1. 菜单 HTML 加项 + `data-action`；在对应 `handleMenuAction` / `handleAddMenuAction` 加 case。
+2. 模态框 HTML + CSS + show/hide/confirm 方法 + 事件绑定。
 
-### 添加视觉控件
-1. 按照现有模式创建模态框 HTML 结构
-2. 为新模态框添加 CSS 样式
-3. 实现显示/隐藏模态框函数
-4. 添加使用 CSS 变量的实时预览功能
+## 其它实现要点
 
-### 性能调优
-- 使用 CSS 类替代内联样式
-- 为新交互利用事件委托
-- 为高频操作实现防抖
-- 为拖拽操作预绑定事件处理器
+- 拖拽：集中式 `dragState`，预绑定处理器减少分配，定时器与监听器清理防泄漏。
+- 容器状态类：`.sb-container--menu-open` / `.sb-container--drag-mode`。
+- 移动端：长按 600ms、手势防护、`transform: translateZ(0)` 硬件加速。
+- 生命周期：黑名单检查 → CSS 注入 → DOM 创建 → 事件绑定（委托）→ 数据加载 → 渲染。
 
-### 移动端优化
-- `setupBookmarkEventDelegation()` 中的触摸事件持续时间阈值
-- CSS 媒体查询中的响应式尺寸
-- 用于流畅动画的硬件加速类
+## 文件结构
 
+- `candymark.user.js`：脚本主文件（全部功能）。
+- `README.md`：项目说明（面向用户，已弱化辅助定位、注明仅供学习交流）。
+- `CLAUDE.md`：本文件。
