@@ -361,28 +361,34 @@
         /* 自动设置两个长面板：改三段式——标题贴顶、按钮贴底、中间 body 单独滚动，
            避免 sticky 在带 padding 的滚动容器里露出 padding 区内容 */
         #sb-auto-battle-modal > .sb-modal-content,
-        #sb-auto-nonbattle-modal > .sb-modal-content {
+        #sb-auto-normal-modal > .sb-modal-content {
             display: flex;
             flex-direction: column;
             overflow: hidden;
         }
         #sb-auto-battle-modal .sb-modal-body,
-        #sb-auto-nonbattle-modal .sb-modal-body {
+        #sb-auto-normal-modal .sb-modal-body {
             flex: 1 1 auto;
             min-height: 0;
             overflow-y: auto;
         }
         #sb-auto-battle-modal > .sb-modal-content > h3,
-        #sb-auto-nonbattle-modal > .sb-modal-content > h3,
+        #sb-auto-normal-modal > .sb-modal-content > h3,
         #sb-auto-battle-modal > .sb-modal-content > .sb-modal-buttons,
-        #sb-auto-nonbattle-modal > .sb-modal-content > .sb-modal-buttons {
+        #sb-auto-normal-modal > .sb-modal-content > .sb-modal-buttons {
             flex: 0 0 auto;
+        }
+        /* 标题下方分割线，与底部按钮上方分割线一致 */
+        #sb-auto-battle-modal > .sb-modal-content > h3,
+        #sb-auto-normal-modal > .sb-modal-content > h3 {
+            padding-bottom: 12px;
+            border-bottom: 1px solid #eee;
         }
         /* body 统一滚动：取消内部网格各自的 max-height，避免嵌套双滚动条 */
         #sb-auto-battle-modal .sb-modal-body .sb-drop-subscribe-grid,
         #sb-auto-battle-modal .sb-modal-body .sb-ability-filter-grid,
         #sb-auto-battle-modal .sb-modal-body #sb-bt-quest-grid,
-        #sb-auto-nonbattle-modal .sb-modal-body .sb-drop-subscribe-grid {
+        #sb-auto-normal-modal .sb-modal-body .sb-drop-subscribe-grid {
             max-height: none;
             overflow-y: visible;
         }
@@ -901,7 +907,7 @@
             text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
         }
         /* 跳转目标网格按真实标签大小排列，不用 4 列等分 */
-        #sb-nb-jump-grid, #sb-bt-jump-grid {
+        #sb-nm-jump-grid, #sb-bt-jump-grid {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
@@ -909,7 +915,7 @@
             grid-template-columns: none;
             padding: 4px;
         }
-        #sb-nb-jump-grid .sb-drop-sub-item, #sb-bt-jump-grid .sb-drop-sub-item {
+        #sb-nm-jump-grid .sb-drop-sub-item, #sb-bt-jump-grid .sb-drop-sub-item {
             flex: 0 0 auto;
         }
         /* 自动设置（新版）：场景行 + 动作单选 */
@@ -922,10 +928,6 @@
             font-weight: 600;
             color: #333;
             margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 4px;
         }
         .sb-auto-action-row {
             display: flex;
@@ -963,10 +965,28 @@
             height: 0;
             pointer-events: none;
         }
-        .sb-number-adjuster--inline {
+        /* 弱化「不启用」（每组第一个）：中性灰、降低权重，突出 后退/刷新/跳转 */
+        .sb-auto-action-row label:first-child {
+            color: #9aa0a6;
+        }
+        .sb-auto-action-row label:first-child:has(input:checked) {
+            border-color: #c4c7cc;
+            background: #f1f3f4;
+            color: #80868b;
+        }
+        .sb-scene-stepper {
             display: inline-flex;
-            vertical-align: middle;
+            align-items: center;
+            justify-content: flex-start;
             gap: 2px;
+            margin-bottom: 10px;
+        }
+        .sb-turn-n {
+            display: inline-block;
+            min-width: 1em;
+            text-align: center;
+            color: #667eea;
+            font-weight: 700;
         }
         /* 副本选择器：大厅图网格，按真实比例横向排列 */
         #sb-bt-quest-grid {
@@ -975,9 +995,11 @@
             gap: 10px;
             justify-content: flex-start;
             grid-template-columns: none;
-            padding: 4px;
+            padding: 4px 4px 14px;
             max-height: 30vh;
             overflow-y: auto;
+            border-bottom: 1px solid #e0e0e0;
+            margin-bottom: 10px;
         }
         #sb-bt-quest-grid .sb-drop-sub-item {
             flex: 0 0 auto;
@@ -1221,7 +1243,7 @@
             <div class="sb-menu-item" data-action="add-bookmark">➕ 增加标签</div>
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
-            <div class="sb-menu-item" data-action="auto-nonbattle">🌐 自动设置（非战斗）</div>
+            <div class="sb-menu-item" data-action="auto-normal">🌐 自动设置（常态）</div>
             <div class="sb-menu-item" data-action="auto-battle">⚔️ 自动设置（战斗）</div>
             <div class="sb-menu-item" data-action="subscribe-from-drop-list">🔔 掉落通知</div>
             <div class="sb-menu-item" data-action="config-management">⚙️ 配置管理</div>
@@ -1354,38 +1376,38 @@
         <div id="sb-drag-hint" class="sb-drag-hint">
             按住标签拖拽到任意位置，松开鼠标完成移动
         </div>
-        <div id="sb-auto-nonbattle-modal" class="sb-modal">
+        <div id="sb-auto-normal-modal" class="sb-modal">
             <div class="sb-modal-content">
-                <h3>自动设置（非战斗）</h3>
+                <h3>自动设置（常态）</h3>
                 <div class="sb-modal-body">
                 <div class="sb-drop-notify-options">
                     <div class="sb-auto-scene">
                         <div class="sb-auto-scene-title">🏆 战斗结束后</div>
                         <div class="sb-auto-action-row" data-scene="battleEnd">
-                            <label><input type="radio" name="sb-nb-battleEnd" value="none">不启用</label>
-                            <label><input type="radio" name="sb-nb-battleEnd" value="back">后退</label>
-                            <label><input type="radio" name="sb-nb-battleEnd" value="refresh">刷新</label>
-                            <label><input type="radio" name="sb-nb-battleEnd" value="jump">跳转</label>
+                            <label><input type="radio" name="sb-nm-battleEnd" value="none">不启用</label>
+                            <label><input type="radio" name="sb-nm-battleEnd" value="back">后退</label>
+                            <label><input type="radio" name="sb-nm-battleEnd" value="refresh">刷新</label>
+                            <label><input type="radio" name="sb-nm-battleEnd" value="jump">跳转</label>
                         </div>
                     </div>
                     <div class="sb-auto-scene">
                         <div class="sb-auto-scene-title">🎯 结算后</div>
                         <div class="sb-auto-action-row" data-scene="drop">
-                            <label><input type="radio" name="sb-nb-drop" value="none">不启用</label>
-                            <label><input type="radio" name="sb-nb-drop" value="back">后退</label>
-                            <label><input type="radio" name="sb-nb-drop" value="refresh">刷新</label>
-                            <label><input type="radio" name="sb-nb-drop" value="jump">跳转</label>
+                            <label><input type="radio" name="sb-nm-drop" value="none">不启用</label>
+                            <label><input type="radio" name="sb-nm-drop" value="back">后退</label>
+                            <label><input type="radio" name="sb-nm-drop" value="refresh">刷新</label>
+                            <label><input type="radio" name="sb-nm-drop" value="jump">跳转</label>
                         </div>
                     </div>
                 </div>
                 <div class="sb-auto-jump-target-label">跳转目标（全局，单选；任一时机选"跳转"都用它）</div>
-                <div class="sb-drop-subscribe-hint" id="sb-nb-jump-hint"></div>
-                <div class="sb-drop-subscribe-grid" id="sb-nb-jump-grid"></div>
+                <div class="sb-drop-subscribe-hint" id="sb-nm-jump-hint"></div>
+                <div class="sb-drop-subscribe-grid" id="sb-nm-jump-grid"></div>
                 </div>
                 <div class="sb-modal-buttons">
-                    <button class="sb-btn-primary" id="sb-nb-confirm">确认</button>
-                    <button class="sb-btn-secondary" id="sb-nb-reset">重置</button>
-                    <button class="sb-btn-secondary" id="sb-nb-cancel">取消</button>
+                    <button class="sb-btn-primary" id="sb-nm-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-nm-reset">重置</button>
+                    <button class="sb-btn-secondary" id="sb-nm-cancel">取消</button>
                 </div>
             </div>
         </div>
@@ -1398,14 +1420,11 @@
 
                 <div class="sb-drop-notify-options">
                     <div class="sb-auto-scene">
-                        <div class="sb-auto-scene-title">
-                            ⚔️ 回合内攻击后（≤
-                            <span class="sb-number-adjuster sb-number-adjuster--inline">
-                                <button class="sb-number-adjuster-btn" id="sb-bt-turnLte-decrease">-</button>
-                                <input type="number" id="sb-bt-turnLte-count" class="sb-number-adjuster-input" min="1" max="99" value="3">
-                                <button class="sb-number-adjuster-btn" id="sb-bt-turnLte-increase">+</button>
-                            </span>
-                            回合）
+                        <div class="sb-auto-scene-title">⚔️ 前 <span class="sb-turn-n" id="sb-bt-turnLte-n">3</span> 回合攻击后</div>
+                        <div class="sb-scene-stepper">
+                            <button class="sb-number-adjuster-btn" id="sb-bt-turnLte-decrease">-</button>
+                            <input type="number" id="sb-bt-turnLte-count" class="sb-number-adjuster-input" min="1" max="99" value="3">
+                            <button class="sb-number-adjuster-btn" id="sb-bt-turnLte-increase">+</button>
                         </div>
                         <div class="sb-auto-action-row" data-scene="turnLte">
                             <label><input type="radio" name="sb-bt-turnLte" value="none">不启用</label>
@@ -1415,14 +1434,11 @@
                         </div>
                     </div>
                     <div class="sb-auto-scene">
-                        <div class="sb-auto-scene-title">
-                            🎯 该回合攻击后（=
-                            <span class="sb-number-adjuster sb-number-adjuster--inline">
-                                <button class="sb-number-adjuster-btn" id="sb-bt-turnEq-decrease">-</button>
-                                <input type="number" id="sb-bt-turnEq-count" class="sb-number-adjuster-input" min="1" max="99" value="1">
-                                <button class="sb-number-adjuster-btn" id="sb-bt-turnEq-increase">+</button>
-                            </span>
-                            回合）
+                        <div class="sb-auto-scene-title">🎯 第 <span class="sb-turn-n" id="sb-bt-turnEq-n">1</span> 回合攻击后</div>
+                        <div class="sb-scene-stepper">
+                            <button class="sb-number-adjuster-btn" id="sb-bt-turnEq-decrease">-</button>
+                            <input type="number" id="sb-bt-turnEq-count" class="sb-number-adjuster-input" min="1" max="99" value="1">
+                            <button class="sb-number-adjuster-btn" id="sb-bt-turnEq-increase">+</button>
                         </div>
                         <div class="sb-auto-action-row" data-scene="turnEq">
                             <label><input type="radio" name="sb-bt-turnEq" value="none">不启用</label>
@@ -2059,10 +2075,10 @@
                 this.hideDropSubscribeModal();
             });
 
-            // 自动设置（非战斗）
-            document.getElementById('sb-nb-confirm').addEventListener('click', () => { this.confirmAutoNonbattle(); });
-            document.getElementById('sb-nb-cancel').addEventListener('click', () => { this.hideAutoNonbattleModal(); });
-            document.getElementById('sb-nb-reset').addEventListener('click', () => { this.resetAutoNonbattleForm(); });
+            // 自动设置（常态）
+            document.getElementById('sb-nm-confirm').addEventListener('click', () => { this.confirmAutoNormal(); });
+            document.getElementById('sb-nm-cancel').addEventListener('click', () => { this.hideAutoNormalModal(); });
+            document.getElementById('sb-nm-reset').addEventListener('click', () => { this.resetAutoNormalForm(); });
 
             // 自动设置（战斗）
             document.getElementById('sb-bt-confirm').addEventListener('click', () => { this.confirmAutoBattle(); });
@@ -2072,30 +2088,38 @@
             // 战斗内两个回合数调节器（≤N 与 =N），范围 1-99
             ['turnLte', 'turnEq'].forEach(scene => {
                 const countId = `sb-bt-${scene}-count`;
+                const syncN = () => {
+                    const n = document.getElementById(`sb-bt-${scene}-n`);
+                    if (n) n.textContent = document.getElementById(countId).value;
+                };
                 document.getElementById(countId).addEventListener('input', (e) => {
                     let v = parseInt(e.target.value, 10);
                     if (isNaN(v)) return;
                     if (v < 1) v = 1;
                     if (v > 99) v = 99;
                     e.target.value = v;
+                    syncN();
                 });
                 document.getElementById(countId).addEventListener('blur', (e) => {
                     let v = parseInt(e.target.value, 10);
                     if (isNaN(v) || v < 1) v = 1;
                     if (v > 99) v = 99;
                     e.target.value = v;
+                    syncN();
                 });
                 document.getElementById(`sb-bt-${scene}-decrease`).addEventListener('click', () => {
                     const input = document.getElementById(countId);
                     let v = parseInt(input.value, 10);
                     if (isNaN(v)) v = 4;
                     input.value = Math.max(1, v - 1);
+                    syncN();
                 });
                 document.getElementById(`sb-bt-${scene}-increase`).addEventListener('click', () => {
                     const input = document.getElementById(countId);
                     let v = parseInt(input.value, 10);
                     if (isNaN(v)) v = 2;
                     input.value = Math.min(99, v + 1);
+                    syncN();
                 });
             });
 
@@ -2541,8 +2565,8 @@
                 case 'adjust-opacity':
                     this.showOpacityModal();
                     break;
-                case 'auto-nonbattle':
-                    this.showAutoNonbattleModal();
+                case 'auto-normal':
+                    this.showAutoNormalModal();
                     break;
                 case 'auto-battle':
                     this.showAutoBattleModal();
@@ -3014,32 +3038,32 @@
             storage.setValue('sb_auto_jump_target_id', target == null ? '' : String(target));
         }
 
-        // ===== 自动设置（非战斗）=====
-        showAutoNonbattleModal() {
+        // ===== 自动设置（常态）=====
+        showAutoNormalModal() {
             this.hideAddMenu();
-            this.setRadioAction('sb-nb-battleEnd', CONFIG.autoBattleEndAction);
-            this.setRadioAction('sb-nb-drop', CONFIG.autoDropAction);
-            this.renderJumpTargetGrid('sb-nb-jump-grid', 'sb-nb-jump-hint');
-            document.getElementById('sb-auto-nonbattle-modal').classList.add('show');
+            this.setRadioAction('sb-nm-battleEnd', CONFIG.autoBattleEndAction);
+            this.setRadioAction('sb-nm-drop', CONFIG.autoDropAction);
+            this.renderJumpTargetGrid('sb-nm-jump-grid', 'sb-nm-jump-hint');
+            document.getElementById('sb-auto-normal-modal').classList.add('show');
         }
 
-        hideAutoNonbattleModal() {
-            document.getElementById('sb-auto-nonbattle-modal').classList.remove('show');
+        hideAutoNormalModal() {
+            document.getElementById('sb-auto-normal-modal').classList.remove('show');
         }
 
-        confirmAutoNonbattle() {
-            CONFIG.autoBattleEndAction = this.getRadioAction('sb-nb-battleEnd');
-            CONFIG.autoDropAction = this.getRadioAction('sb-nb-drop');
+        confirmAutoNormal() {
+            CONFIG.autoBattleEndAction = this.getRadioAction('sb-nm-battleEnd');
+            CONFIG.autoDropAction = this.getRadioAction('sb-nm-drop');
             storage.setValue('sb_auto_battle_end_action', CONFIG.autoBattleEndAction);
             storage.setValue('sb_auto_drop_action', CONFIG.autoDropAction);
-            this.saveJumpTargetFromGrid('sb-nb-jump-grid');
-            this.hideAutoNonbattleModal();
+            this.saveJumpTargetFromGrid('sb-nm-jump-grid');
+            this.hideAutoNormalModal();
         }
 
-        resetAutoNonbattleForm() {
-            this.setRadioAction('sb-nb-battleEnd', 'none');
-            this.setRadioAction('sb-nb-drop', 'none');
-            const grid = document.getElementById('sb-nb-jump-grid');
+        resetAutoNormalForm() {
+            this.setRadioAction('sb-nm-battleEnd', 'none');
+            this.setRadioAction('sb-nm-drop', 'none');
+            const grid = document.getElementById('sb-nm-jump-grid');
             if (grid) {
                 grid.querySelectorAll('input[type="radio"]').forEach(r => { r.checked = false; });
                 grid.querySelectorAll('.sb-drop-sub-item').forEach(el => el.classList.remove('checked'));
@@ -3124,9 +3148,13 @@
         renderAutoBattleScene(questId) {
             const qs = (CONFIG.questSettings && CONFIG.questSettings[questId]) || this.defaultQuestSetting();
             this.setRadioAction('sb-bt-turnLte', qs.turnLte && qs.turnLte.action);
-            document.getElementById('sb-bt-turnLte-count').value = (qs.turnLte && qs.turnLte.count) || 3;
+            const lteCount = (qs.turnLte && qs.turnLte.count) || 3;
+            document.getElementById('sb-bt-turnLte-count').value = lteCount;
+            document.getElementById('sb-bt-turnLte-n').textContent = lteCount;
             this.setRadioAction('sb-bt-turnEq', qs.turnEq && qs.turnEq.action);
-            document.getElementById('sb-bt-turnEq-count').value = (qs.turnEq && qs.turnEq.count) || 1;
+            const eqCount = (qs.turnEq && qs.turnEq.count) || 1;
+            document.getElementById('sb-bt-turnEq-count').value = eqCount;
+            document.getElementById('sb-bt-turnEq-n').textContent = eqCount;
             this.setRadioAction('sb-bt-summon', qs.summon && qs.summon.action);
             this.setRadioAction('sb-bt-ability', qs.ability && qs.ability.action);
             this._renderFilterGrid('sb-bt-summon-grid', 'sb-bt-summon-hint',
