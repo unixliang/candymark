@@ -198,7 +198,7 @@
             flex-direction: column;
             gap: 4px;
             align-items: flex-start;
-            z-index: 999998;
+            z-index: -1; /* 低于书签(z-index:auto=0)，让标签盖在预兆之上；仍在 container(999999) 内、游戏 UI 之上 */
             pointer-events: none;
             max-width: 92vw;
         }
@@ -210,9 +210,8 @@
             padding: 4px 10px;
             border-radius: 6px;
             max-width: 92vw;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            white-space: normal;
+            word-break: break-word;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
         }
         .sb-omen-row .sb-omen-turn {
