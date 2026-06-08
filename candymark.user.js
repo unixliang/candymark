@@ -193,7 +193,7 @@
         #sb-omen-log {
             position: fixed;
             left: 10px;
-            bottom: 46px;
+            bottom: 40px;
             display: flex;
             flex-direction: column;
             gap: 4px;
