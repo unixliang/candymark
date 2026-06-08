@@ -4849,11 +4849,20 @@
         }
 
         // ===== 预兆信息浮层（落盘版）=====
-        // 落盘在 cm_omen_log（cm_ 前缀，不触发配置缓存失效），结构 { [raidId]: [{turn,text,result,ts}] }
-        // 每个战斗(raidId)只保留 3 条；每条出现 1min 后过期；只在战斗页展示，后退/刷新后从落盘恢复
-        // 回合归属与「第N回合攻击后」(turnEq/turnLte) 一致：
-        //   结果 → battleData.currentTurn（攻击发起回合，= 那里的 turnAtAttack；detectOmen 在 onTurnChange 之前跑）
-        //   新预兆 → status.turn（操作后回合 = onTurnChange 马上要更新成的下一拍 currentTurn）
+        // 落盘在 cm_omen_log（cm_ 前缀，不触发配置缓存失效），结构 { [raidId]: [{turn,text,preLabel,result,ts}] }
+        // 每个战斗(raidId)只保留 3 条；每条出现/结算后 3min 过期；只在战斗页展示，后退/刷新后从落盘恢复。
+        //
+        // 结算逻辑（两侧精度不对称，刻意如此）：
+        //   解除 = special_skill_interrupt（带 label，如 "break_standby_A"）→ 去 break_ 得被解除预兆的
+        //          pre_label → 找「最晚命中该 pre_label 且未结算」的行标解除。精确：延迟解除（信号晚到别的
+        //          回合，如奥义连锁后才发动的被动技伤）、pre_label 循环复用都不会标错。
+        //   未解除 = super（boss 兑现特殊技，target=player，无 label）→ 只能标「最早一个未结算」。
+        //          近似：隐含假设「未解除 ⇒ boss 必放 super 当惩罚」（GBF 机制确实如此）；但 super 没 label，
+        //          多个预兆并存时兑现的未必是最早那个（状态对、挂到的行可能错）。单个预兆挂着时无此问题。
+        //   登记新预兆 → 用 status.turn 当回合（= onTurnChange 马上要更新成的下一拍 currentTurn）。
+        //
+        // 边界：预兆若「没结局就消失」（formchange 换阶段顶掉 / HP·回合触发型条件没满足就过期），
+        //       既无 interrupt 也无 super，该行留空到 3min 过期——不会误标，只是没下文。
         currentRaidId() {
             const url = window.location.href;
             if (!/[#/]raid/i.test(url)) return null;   // 不在战斗页则不展示/不记录
