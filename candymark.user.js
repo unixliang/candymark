@@ -4855,17 +4855,19 @@
         // 落盘在 cm_omen_log（cm_ 前缀，不触发配置缓存失效），结构 { [raidId]: [{turn,text,preLabel,result,ts}] }
         // 每个战斗(raidId)只保留 3 条；每条出现/结算后 3min 过期；只在战斗页展示，后退/刷新后从落盘恢复。
         //
-        // 结算逻辑（两侧精度不对称，刻意如此）：
+        // 结算逻辑（解除写存储、未解除靠渲染推断）：
         //   解除 = special_skill_interrupt（带 label，如 "break_standby_A"）→ 去 break_ 得被解除预兆的
-        //          pre_label → 找「最晚命中该 pre_label 且未结算」的行标解除。精确：延迟解除（信号晚到别的
-        //          回合，如奥义连锁后才发动的被动技伤）、pre_label 循环复用都不会标错。
-        //   未解除 = super（boss 兑现特殊技，target=player，无 label）→ 只能标「最早一个未结算」。
-        //          近似：隐含假设「未解除 ⇒ boss 必放 super 当惩罚」（GBF 机制确实如此）；但 super 没 label，
-        //          多个预兆并存时兑现的未必是最早那个（状态对、挂到的行可能错）。单个预兆挂着时无此问题。
-        //   登记新预兆 → 用 status.turn 当回合（= onTurnChange 马上要更新成的下一拍 currentTurn）。
+        //          pre_label → 找「最晚命中该 pre_label 且未结算」的行，写 result='success'。精确：延迟解除
+        //          （信号晚到别的回合，如奥义连锁后才发动的被动技伤）、pre_label 循环复用都不会标错。
+        //          这是唯一写入存储的结算结果。
+        //   未解除 = 渲染时推断，不写存储。依据：解除是准确的，一个预兆只有「解除 / 未解除」两种结局，每回合
+        //          都应落到其一。所以「未被标解除、且已非当前（被更晚回合的预兆顶下去）」的行即未解除。
+        //          不依赖 super（未解除未必伴随 super）。延迟解除也安全——未解除只是渲染推断，存储仍是 null，
+        //          迟到的 interrupt 仍能按 pre_label 把该行改写为 success，渲染随之从「未解除」变「解除」。
+        //   登记新预兆 → 用 status.turn 当回合。登记到更高回合时，旧的当前行自动变「非当前」→ 渲染为未解除。
         //
-        // 边界：预兆若「没结局就消失」（formchange 换阶段顶掉 / HP·回合触发型条件没满足就过期），
-        //       既无 interrupt 也无 super，该行留空到 3min 过期——不会误标，只是没下文。
+        // 边界：一场战斗的最后一个预兆若未解除，其后没有更晚回合的预兆把它顶成「非当前」，会一直显示
+        //       「当前」直到 3min 过期——刻意取舍（不再用 super 兜底）。
         currentRaidId() {
             const url = window.location.href;
             if (!/[#/]raid/i.test(url)) return null;   // 不在战斗页则不展示/不记录
@@ -4904,14 +4906,12 @@
             const newTurn = (data.status && data.status.turn != null) ? Number(data.status.turn)
                 : (data.turn != null ? Number(data.turn) : prevTurn);
 
-            // 1) 结算预兆结果
+            // 1) 结算「解除」：special_skill_interrupt.label 形如 "break_standby_A"，去掉 break_ 得被解除
+            //    预兆的 pre_label → 按 pre_label 精确匹配那一行（不靠回合归属），解决延迟解除（信号晚到别
+            //    的回合）。「未解除」不在此标——改由渲染推断（见 renderOmenLog）。
             if (Array.isArray(data.scenario)) {
-                // 解除：special_skill_interrupt.label 形如 "break_standby_A"，去掉 break_ 得被解除预兆的
-                // pre_label → 按 pre_label 精确匹配那一行（不靠回合归属），解决延迟解除（信号晚到别的回合）
                 const interruptItem = data.scenario.find(i => i && i.cmd === 'special_skill_interrupt');
-                const bossSuper = data.scenario.some(i => i && i.cmd === 'super' && i.target === 'player');
                 if (interruptItem) this.resolveOmenByLabel(raidId, interruptItem.label, 'success');
-                else if (bossSuper) this.resolveEarliestOmen(raidId, 'fail');   // super 无 label，标最早一个未结算
             }
 
             // 2) 登记新预兆（归属操作后回合，结果留空，显示「当前」），带 pre_label 供解除时精确匹配
@@ -4957,19 +4957,6 @@
             this.renderOmenLog();
         }
 
-        // 没有 label 的结算（如 super 兑现）：标最早一个未结算
-        resolveEarliestOmen(raidId, result) {
-            const store = this.loadOmenStore();
-            const rows = store[raidId];
-            if (!rows) return;
-            const row = rows.find(r => r.result == null);
-            if (!row) return;
-            row.result = result;
-            row.ts = Date.now();   // 结算后重置过期计时，让结果完整展示
-            this.saveOmenStore(store);
-            this.renderOmenLog();
-        }
-
         renderOmenLog() {
             const el = document.getElementById('sb-omen-log');
             if (!el) return;
@@ -4980,14 +4967,15 @@
             const rows = (raidId && store[raidId]) ? store[raidId] : [];
             if (!rows.length) { el.innerHTML = ''; return; }
             const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            // 「当前」只属于最新回合（turn 最大，rows 已按 turn 升序）且未结算的那行，
-            // 避免历史上没拿到结果的行也显示多个「当前」
+            // 逐行结果：解除（存储 result='success'）准确直显；其余靠回合推断——
+            // 最新回合（turn 最大，rows 已按 turn 升序）且未标解除 → 「当前」（结果待定）；
+            // 已非当前且未标解除 → 「未解除」（被更晚回合的预兆顶下去，反向推断必为未解除）。
             const maxTurn = rows[rows.length - 1].turn;
             el.innerHTML = rows.map(r => {
-                const cur = (r.turn === maxTurn && r.result == null) ? '（当前）' : '';
-                let resultHtml = '';
+                let cur = '', resultHtml = '';
                 if (r.result === 'success') resultHtml = '<span class="sb-omen-success">解除</span>';
-                else if (r.result === 'fail') resultHtml = '<span class="sb-omen-fail">未解除</span>';
+                else if (r.turn === maxTurn) cur = '（当前）';
+                else resultHtml = '<span class="sb-omen-fail">未解除</span>';
                 return `<div class="sb-omen-row"><span class="sb-omen-turn">第${r.turn}回合${cur}</span>${esc(r.text)}${resultHtml}</div>`;
             }).join('');
             // 定时重渲染清理过期：取最近一条的剩余时间（≥1s，≤5s 兜底）
