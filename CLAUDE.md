@@ -24,6 +24,7 @@ git push github main      # 远程名是 github（不是 origin）
 - **存储后端是 `localStorage`，不是 GM_setValue**。`storage.setValue/getValue` 是对 `localStorage` 的封装（见文件顶部 `const storage`）。
 - 书签数组单独存：key `candymark-bookmarks-javascript`。
 - 其余设置以 `sb_` 前缀存储。
+- **前缀决定是否触发配置缓存失效**：`sb_*` 写入会 `invalidateConfigCache()`（见下）；`cm_*` 前缀**不会**（用于不进 `CONFIG` 的运行时状态，如 `cm_omen_log` 预兆浮层、`cm_chokuzen_target` 倒计时）。
 - **配置缓存陷阱**：`loadConfig()` 带缓存 `_configCache`；**任何 `sb_*` 写入都会 `invalidateConfigCache()`**，下次 `loadConfig()` 会重建一个新对象。而 `const CONFIG = loadConfig()` 在启动时只求值一次，**永久绑定初始对象**。
   - manager（面板/导入导出）统一读写全局 `CONFIG`；GameDetector 的触发逻辑用 `loadConfig()` 只读取值。
   - **若要在后台写入、又希望面板立即可见，必须直接写 `CONFIG`**（不要先 `setValue` 再 `loadConfig()`，否则拿到的是重建副本，写入进不了面板读取的 `CONFIG`，要等整页 reload 才可见）。`recordQuestSnapshot` 就是踩过这个坑后改成直接写 `CONFIG` 的。
@@ -41,6 +42,7 @@ git push github main      # 远程名是 github（不是 origin）
 - 自动导航触发（见下）。
 - 掉落检测（`/result(multi)/content/index` → `checkDropsFromResponse`）。
 - 直前倒计时（参照 Tarou：`data.turn_waiting` 是未来 epoch ms，持久化到 `cm_chokuzen_target`）。
+- 预兆解除检测（`detectOmen` → 底部浮层，见下）。
 
 ## 浮动书签导航
 
@@ -92,6 +94,16 @@ git push github main      # 远程名是 github（不是 origin）
 ## 掉落提醒
 
 `dropSubscriptions`（存 `sb_drop_subscriptions`，每项 `{itemId, kind, iconUrl}`）。用户从副本掉落预览页（`.prt-drop-item-list`）或战斗结算页（`.prt-item-list` 内 `data-key`）勾选订阅；结算响应命中时弹窗（`showDropHitModal`）。图标 URL 经 `imgSrcToKey` 归一化比对。
+
+## 预兆浮层
+
+战斗内底部浮层（`#sb-omen-log`），展示 boss 特殊技「预兆」的解除/未解除结果。落盘 `cm_omen_log`（`cm_` 前缀，不触发配置缓存失效），结构 `{ [raidId]: [{turn, text, preLabel, result, ts}] }`。每个战斗（raidId）只保留 3 条；每条出现/结算后 3min 过期；只在战斗页展示，后退/刷新后从落盘恢复。核心方法都在 GameDetector：`detectOmen` / `upsertOmen` / `resolveOmenByLabel` / `renderOmenLog`。
+
+**结算逻辑（解除写存储、未解除靠渲染推断，刻意不对称）：**
+- **解除** = `special_skill_interrupt`（带 `label`，如 `break_standby_A`）→ 去 `break_` 得被解除预兆的 `pre_label` → 找「最晚命中该 pre_label 且未结算」的行，写 `result='success'`。**这是唯一写入存储的结算结果**。按 pre_label 精确匹配（不靠回合归属），所以延迟解除（信号晚到别的回合，如土巫妖被动在奥义连锁后才发动）、pre_label 循环复用都不会标错。
+- **未解除** = **渲染时推断，不写存储**。依据：解除是准确的，一个预兆只有解除/未解除两种结局；故「未标解除、且回合数 < 当前回合」的行即未解除。不依赖 `super`。**关键好处**：未解除只是渲染态、存储仍是 `null`，所以延迟到达的 `interrupt` 仍能按 pre_label 把该行改写为 `success`——界面原地从「未解除」翻成「解除」，无需任何覆盖逻辑。
+- **当前** = `turn === 当前战斗回合`（`_omenCurTurn`，`detectOmen` 每个响应实时更新；它早于 `onTurnChange`，故不能用 `battleData.currentTurn`）且未标解除。回合一推进，回合数对不上的旧预兆立即去掉「当前」。
+- 边界：刷新/后退后、首个 ajax 响应到来前不知当前回合，暂以最大回合行充当「当前」，响应一到即校正。
 
 ## 配置导入导出
 
