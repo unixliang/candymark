@@ -3111,10 +3111,6 @@
         }
 
         // ===== 辅助设置（战斗，按副本）=====
-        questLobbyImg(questId) {
-            return `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/quest/assets/lobby/${questId}.png`;
-        }
-
         showAutoBattleModal() {
             this.hideAddMenu();
             const qs = CONFIG.questSettings || {};
@@ -3145,10 +3141,10 @@
                 grid.innerHTML = '';
                 return;
             }
-            hint.textContent = '点选要设置的副本（图为副本大厅图）。';
+            hint.textContent = '点选要设置的副本（图为 boss 图标）。';
             grid.innerHTML = ids.map(id => {
                 const sel = id === selectedId;
-                const img = (qs[id] && qs[id].questImg) || this.questLobbyImg(id);
+                const img = (qs[id] && qs[id].questImg) || '';
                 let tag = qs[id] ? '' : '未设置';
                 if (id === currentId) tag = '当前';
                 else if (id === lastId) tag = '上次';
@@ -3225,7 +3221,7 @@
             const summonIds = this._collectFilter('sb-bt-summon-grid', prev.summonChoices || [], 'imageId');
             const abilityIds = this._collectFilter('sb-bt-ability-grid', prev.abilityChoices || [], 'iconId');
             CONFIG.questSettings[questId] = {
-                questImg: prev.questImg || this.questLobbyImg(questId),
+                questImg: prev.questImg || '',
                 turnLte: { action: this.getRadioAction('sb-bt-turnLte'), count: clampCount(document.getElementById('sb-bt-turnLte-count').value) },
                 turnEq: { action: this.getRadioAction('sb-bt-turnEq'), count: clampCount(document.getElementById('sb-bt-turnEq-count').value) },
                 summon: { action: this.getRadioAction('sb-bt-summon'), ids: summonIds === null ? ((prev.summon && prev.summon.ids) || []) : summonIds },
@@ -4403,6 +4399,10 @@
                     currentTurn = data.turn;
                     this.battleData.startTime = Date.now();
                     this.battleData.questId = String(data.quest_id || '');
+                    // boss 图标 id（参照 Tarou：boss.param[0].cjs 形如 "enemy_8104023"，取末段）。
+                    // 用 boss 图替代副本大厅图——部分副本无大厅图。
+                    const bcjs = data.boss && data.boss.param && data.boss.param[0] && data.boss.param[0].cjs;
+                    this.battleData.bossImgId = bcjs ? String(bcjs).split('_').pop() : '';
                     // 缓存当前战斗的技能 / 召唤列表，供"技能后" / "召唤后"过滤器使用
                     this.cacheAbilityList(data);
                     this.cacheSummonList(data);
@@ -4840,7 +4840,10 @@
                 summonChoices: [],
                 abilityChoices: []
             };
-            base.questImg = `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/quest/assets/lobby/${qid}.png`;
+            // boss 图标（部分副本无大厅图，故不用大厅图）
+            base.questImg = this.battleData.bossImgId
+                ? `https://prd-game-a-granbluefantasy.akamaized.net/assets/img/sp/assets/enemy/m/${this.battleData.bossImgId}.png`
+                : base.questImg;
             base.summonChoices = summonChoices.map(s => ({ imageId: s.imageId, icon: s.icon }));
             base.abilityChoices = abilityChoices.map(a => ({ iconId: a.iconId, icon: a.icon }));
             CONFIG.questSettings[qid] = base;

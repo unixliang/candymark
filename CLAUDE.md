@@ -65,7 +65,7 @@ git push github main      # 远程名是 github（不是 origin）
 - UI：`#sb-auto-normal-modal`，方法 `showAutoNormalModal` 等，id 前缀 `sb-nm-`，`data-action="auto-normal"`。
 
 ### 战斗内（按副本）
-- **副本标识 = `start.json` 的 `data.quest_id`**（参照 Tarou）。**副本大厅图** = `…/sp/quest/assets/lobby/{quest_id}.png`。
+- **副本标识 = `start.json` 的 `data.quest_id`**（参照 Tarou）。**副本图标用 boss 图**（部分副本无大厅图）：`boss.param[0].cjs`（形如 `enemy_8104023`）取末段为 enemy id，URL `…/sp/assets/enemy/m/{id}.png`（不再用大厅图）。
 - `CONFIG.questSettings`（存 `sb_quest_settings`）是 map：
   ```
   { [questId]: {
@@ -79,7 +79,7 @@ git push github main      # 远程名是 github（不是 origin）
   } }
   ```
 - `lastQuestId`（存 `sb_last_quest_id`）：最近进入的副本。
-- UI：`#sb-auto-battle-modal`，副本用大厅图网格选择（标注 当前/上次/未设置；列表只展示 当前 + 上次 + 已配置过动作的副本）。`renderAutoBattleScene(questId)` 渲染 4 个场景；`recordQuestSnapshot()` 在进副本时把召唤/技能候选快照进该副本并落盘。
+- UI：`#sb-auto-battle-modal`，副本用 boss 图标网格选择（标注 当前/上次/未设置；列表只展示 当前 + 上次 + 已配置过动作的副本）。`renderAutoBattleScene(questId)` 渲染 4 个场景；`recordQuestSnapshot()` 在进副本时把召唤/技能候选快照进该副本并落盘。
 
 ### 触发逻辑（`handleGameResponse`）
 - `start.json` → 记 `battleData.questId` + `recordQuestSnapshot()`。
