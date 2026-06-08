@@ -4877,7 +4877,7 @@
             let changed = false;
             for (const rid of Object.keys(store)) {
                 const orig = store[rid] || [];
-                const kept = orig.filter(r => r && (now - r.ts) <= 60000);
+                const kept = orig.filter(r => r && (now - r.ts) <= 180000);
                 if (kept.length !== orig.length) changed = true;
                 if (kept.length) store[rid] = kept;
                 else { delete store[rid]; changed = true; }
@@ -4949,14 +4949,14 @@
             el.innerHTML = rows.map(r => {
                 const cur = (r.turn === maxTurn && r.result == null) ? '（当前）' : '';
                 let resultHtml = '';
-                if (r.result === 'success') resultHtml = '<span class="sb-omen-success">成功</span>';
-                else if (r.result === 'fail') resultHtml = '<span class="sb-omen-fail">失败</span>';
+                if (r.result === 'success') resultHtml = '<span class="sb-omen-success">解除</span>';
+                else if (r.result === 'fail') resultHtml = '<span class="sb-omen-fail">未解除</span>';
                 return `<div class="sb-omen-row"><span class="sb-omen-turn">第${r.turn}回合${cur}</span>${esc(r.text)}${resultHtml}</div>`;
             }).join('');
             // 定时重渲染清理过期：取最近一条的剩余时间（≥1s，≤5s 兜底）
             const now = Date.now();
-            let minLeft = 60000;
-            rows.forEach(r => { minLeft = Math.min(minLeft, 60000 - (now - r.ts)); });
+            let minLeft = 180000;
+            rows.forEach(r => { minLeft = Math.min(minLeft, 180000 - (now - r.ts)); });
             this._omenRenderTimer = setTimeout(() => this.renderOmenLog(), Math.max(1000, Math.min(minLeft, 5000)));
         }
     }
