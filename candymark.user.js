@@ -4892,28 +4892,31 @@
             const newTurn = (data.status && data.status.turn != null) ? Number(data.status.turn)
                 : (data.turn != null ? Number(data.turn) : prevTurn);
 
-            // 1) 结算上一个预兆的结果（归属操作前回合）
+            // 1) 结算预兆结果
             if (Array.isArray(data.scenario)) {
-                const interrupted = data.scenario.some(i => i && i.cmd === 'special_skill_interrupt');
+                // 解除：special_skill_interrupt.label 形如 "break_standby_A"，去掉 break_ 得被解除预兆的
+                // pre_label → 按 pre_label 精确匹配那一行（不靠回合归属），解决延迟解除（信号晚到别的回合）
+                const interruptItem = data.scenario.find(i => i && i.cmd === 'special_skill_interrupt');
                 const bossSuper = data.scenario.some(i => i && i.cmd === 'super' && i.target === 'player');
-                if (interrupted) this.setOmenResult(raidId, prevTurn, 'success');
-                else if (bossSuper) this.setOmenResult(raidId, prevTurn, 'fail');
+                if (interruptItem) this.resolveOmenByLabel(raidId, interruptItem.label, 'success');
+                else if (bossSuper) this.resolveEarliestOmen(raidId, 'fail');   // super 无 label，标最早一个未结算
             }
 
-            // 2) 登记新预兆（归属操作后回合，结果留空，显示「当前」）
+            // 2) 登记新预兆（归属操作后回合，结果留空，显示「当前」），带 pre_label 供解除时精确匹配
             const ind = (data.status && data.status.special_skill_indicate) || data.special_skill_indicate;
-            const text = (ind && ind[0] && Array.isArray(ind[0].interrupt_display_text))
-                ? ind[0].interrupt_display_text.filter(Boolean).join(' / ') : '';
-            if (text) this.upsertOmen(raidId, newTurn, text);
+            const p = ind && ind[0];
+            const text = (p && Array.isArray(p.interrupt_display_text))
+                ? p.interrupt_display_text.filter(Boolean).join(' / ') : '';
+            if (text) this.upsertOmen(raidId, newTurn, text, (p && p.pre_label) || '');
         }
 
-        upsertOmen(raidId, turn, text) {
+        upsertOmen(raidId, turn, text, preLabel) {
             const store = this.loadOmenStore();
             const rows = store[raidId] || (store[raidId] = []);
             const row = rows.find(r => r.turn === turn);
-            if (row) { row.text = text; row.ts = Date.now(); }
+            if (row) { row.text = text; row.preLabel = preLabel; row.ts = Date.now(); }
             else {
-                rows.push({ turn, text, result: null, ts: Date.now() });
+                rows.push({ turn, text, preLabel, result: null, ts: Date.now() });
                 rows.sort((a, b) => a.turn - b.turn);   // 最新回合在最下
                 while (rows.length > 3) rows.shift();    // 每个战斗只保留 3 条
             }
@@ -4921,12 +4924,34 @@
             this.renderOmenLog();
         }
 
-        setOmenResult(raidId, turn, result) {
+        // 解除：按 pre_label 找「最晚命中且未结算」的那行（rows 按 turn 升序，从后往前取第一个匹配）。
+        // 这样即使 pre_label 循环复用，旧的同 pre_label 早已结算/过期，只会标到当前正在解的那个。
+        resolveOmenByLabel(raidId, label, result) {
             const store = this.loadOmenStore();
             const rows = store[raidId];
             if (!rows) return;
-            const row = rows.find(r => r.turn === turn);
-            if (!row || row.result) return;
+            const target = (typeof label === 'string') ? label.replace(/^break_/, '') : '';
+            let row = null;
+            if (target) {
+                for (let k = rows.length - 1; k >= 0; k--) {
+                    if (rows[k].result == null && rows[k].preLabel === target) { row = rows[k]; break; }
+                }
+            }
+            if (!row) row = rows.find(r => r.result == null);   // 兜底：label 缺失/未匹配 → 退回最早一个未结算
+            if (!row) return;
+            row.result = result;
+            row.ts = Date.now();
+            this.saveOmenStore(store);
+            this.renderOmenLog();
+        }
+
+        // 没有 label 的结算（如 super 兑现）：标最早一个未结算
+        resolveEarliestOmen(raidId, result) {
+            const store = this.loadOmenStore();
+            const rows = store[raidId];
+            if (!rows) return;
+            const row = rows.find(r => r.result == null);
+            if (!row) return;
             row.result = result;
             row.ts = Date.now();   // 结算后重置过期计时，让结果完整展示
             this.saveOmenStore(store);
