@@ -4861,13 +4861,14 @@
         //          （信号晚到别的回合，如奥义连锁后才发动的被动技伤）、pre_label 循环复用都不会标错。
         //          这是唯一写入存储的结算结果。
         //   未解除 = 渲染时推断，不写存储。依据：解除是准确的，一个预兆只有「解除 / 未解除」两种结局，每回合
-        //          都应落到其一。所以「未被标解除、且已非当前（被更晚回合的预兆顶下去）」的行即未解除。
+        //          都应落到其一。所以「未被标解除、且回合数已对不上当前回合（回合已推进过它）」的行即未解除。
         //          不依赖 super（未解除未必伴随 super）。延迟解除也安全——未解除只是渲染推断，存储仍是 null，
         //          迟到的 interrupt 仍能按 pre_label 把该行改写为 success，渲染随之从「未解除」变「解除」。
-        //   登记新预兆 → 用 status.turn 当回合。登记到更高回合时，旧的当前行自动变「非当前」→ 渲染为未解除。
+        //   当前 = 回合数 === 当前战斗回合（_omenCurTurn，detectOmen 实时更新）且未标解除。回合一推进，
+        //          回合数对不上的旧预兆立即去掉「当前」（不靠下一个预兆来顶）。
+        //   登记新预兆 → 用 status.turn 当回合。
         //
-        // 边界：一场战斗的最后一个预兆若未解除，其后没有更晚回合的预兆把它顶成「非当前」，会一直显示
-        //       「当前」直到 3min 过期——刻意取舍（不再用 super 兜底）。
+        // 边界：刷新/后退后首个 ajax 响应到来前不知当前回合，暂以最大回合行充当「当前」，响应一到即校正。
         currentRaidId() {
             const url = window.location.href;
             if (!/[#/]raid/i.test(url)) return null;   // 不在战斗页则不展示/不记录
@@ -4906,12 +4907,19 @@
             const newTurn = (data.status && data.status.turn != null) ? Number(data.status.turn)
                 : (data.turn != null ? Number(data.turn) : prevTurn);
 
+            // 记录「当前战斗回合」供渲染判定「当前」：回合推进后，回合数对不上的旧预兆即非当前
+            // （不靠下一个预兆来顶）。detectOmen 早于 onTurnChange，battleData.currentTurn 还是上一拍，
+            // 故单独存 _omenCurTurn。
+            const turnChanged = (this._omenCurTurn !== newTurn);
+            this._omenCurTurn = newTurn;
+
             // 1) 结算「解除」：special_skill_interrupt.label 形如 "break_standby_A"，去掉 break_ 得被解除
             //    预兆的 pre_label → 按 pre_label 精确匹配那一行（不靠回合归属），解决延迟解除（信号晚到别
             //    的回合）。「未解除」不在此标——改由渲染推断（见 renderOmenLog）。
+            let rendered = false;
             if (Array.isArray(data.scenario)) {
                 const interruptItem = data.scenario.find(i => i && i.cmd === 'special_skill_interrupt');
-                if (interruptItem) this.resolveOmenByLabel(raidId, interruptItem.label, 'success');
+                if (interruptItem) { this.resolveOmenByLabel(raidId, interruptItem.label, 'success'); rendered = true; }
             }
 
             // 2) 登记新预兆（归属操作后回合，结果留空，显示「当前」），带 pre_label 供解除时精确匹配
@@ -4919,7 +4927,10 @@
             const p = ind && ind[0];
             const text = (p && Array.isArray(p.interrupt_display_text))
                 ? p.interrupt_display_text.filter(Boolean).join(' / ') : '';
-            if (text) this.upsertOmen(raidId, newTurn, text, (p && p.pre_label) || '');
+            if (text) { this.upsertOmen(raidId, newTurn, text, (p && p.pre_label) || ''); rendered = true; }
+
+            // 回合推进但本响应没动到任何记录时，也要重渲染，让旧「当前」按新回合落位
+            if (turnChanged && !rendered) this.renderOmenLog();
         }
 
         upsertOmen(raidId, turn, text, preLabel) {
@@ -4967,14 +4978,15 @@
             const rows = (raidId && store[raidId]) ? store[raidId] : [];
             if (!rows.length) { el.innerHTML = ''; return; }
             const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            // 逐行结果：解除（存储 result='success'）准确直显；其余靠回合推断——
-            // 最新回合（turn 最大，rows 已按 turn 升序）且未标解除 → 「当前」（结果待定）；
-            // 已非当前且未标解除 → 「未解除」（被更晚回合的预兆顶下去，反向推断必为未解除）。
-            const maxTurn = rows[rows.length - 1].turn;
+            // 逐行结果：解除（存储 result='success'）准确直显；其余靠当前战斗回合判断——
+            // 回合数 === 当前回合且未标解除 → 「当前」（结果待定）；
+            // 回合数 < 当前回合且未标解除 → 「未解除」（回合已推进过它，反向推断必为未解除）。
+            // _omenCurTurn 为当前回合（detectOmen 实时更新）；刷新后首个响应到来前回退到最大回合行。
+            const curTurn = (this._omenCurTurn != null) ? this._omenCurTurn : rows[rows.length - 1].turn;
             el.innerHTML = rows.map(r => {
                 let cur = '', resultHtml = '';
                 if (r.result === 'success') resultHtml = '<span class="sb-omen-success">解除</span>';
-                else if (r.turn === maxTurn) cur = '（当前）';
+                else if (r.turn === curTurn) cur = '（当前）';
                 else resultHtml = '<span class="sb-omen-fail">未解除</span>';
                 return `<div class="sb-omen-row"><span class="sb-omen-turn">第${r.turn}回合${cur}</span>${esc(r.text)}${resultHtml}</div>`;
             }).join('');
