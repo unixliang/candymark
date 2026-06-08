@@ -4943,8 +4943,11 @@
             const rows = (raidId && store[raidId]) ? store[raidId] : [];
             if (!rows.length) { el.innerHTML = ''; return; }
             const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            // 「当前」只属于最新回合（turn 最大，rows 已按 turn 升序）且未结算的那行，
+            // 避免历史上没拿到结果的行也显示多个「当前」
+            const maxTurn = rows[rows.length - 1].turn;
             el.innerHTML = rows.map(r => {
-                const cur = r.result == null ? '（当前）' : '';   // 未结算 = 当前
+                const cur = (r.turn === maxTurn && r.result == null) ? '（当前）' : '';
                 let resultHtml = '';
                 if (r.result === 'success') resultHtml = '<span class="sb-omen-success">成功</span>';
                 else if (r.result === 'fail') resultHtml = '<span class="sb-omen-fail">失败</span>';
