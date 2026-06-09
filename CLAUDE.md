@@ -102,7 +102,7 @@ git push github main      # 远程名是 github（不是 origin）
 **结算逻辑（解除写存储、未解除靠渲染推断，刻意不对称）：**
 - **解除** = `special_skill_interrupt`（带 `label`，如 `break_standby_A`）→ 去 `break_` 得被解除预兆的 `pre_label` → 找「最晚命中该 pre_label 且未结算」的行，写 `result='success'`。**这是唯一写入存储的结算结果**。按 pre_label 精确匹配（不靠回合归属），所以延迟解除（信号晚到别的回合，如土巫妖被动在奥义连锁后才发动）、pre_label 循环复用都不会标错。
 - **未解除** = **渲染时推断，不写存储**。依据：解除是准确的，一个预兆只有解除/未解除两种结局；故「未标解除、且回合数 < 当前回合」的行即未解除。不依赖 `super`。**关键好处**：未解除只是渲染态、存储仍是 `null`，所以延迟到达的 `interrupt` 仍能按 pre_label 把该行改写为 `success`——界面原地从「未解除」翻成「解除」，无需任何覆盖逻辑。
-- **当前** = `turn === 当前战斗回合`（`_omenCurTurn`，`detectOmen` 每个响应实时更新；它早于 `onTurnChange`，故不能用 `battleData.currentTurn`）且未标解除。回合一推进，回合数对不上的旧预兆立即去掉「当前」。
+- **当前** = `turn === 当前战斗回合`（`_omenCurTurn`，`detectOmen` 每个响应实时更新；它早于 `onTurnChange`，故不能用 `battleData.currentTurn`），与是否已解除独立。回合一推进，回合数对不上的旧预兆立即去掉「当前」。
 - 边界：刷新/后退后、首个 ajax 响应到来前不知当前回合，暂以最大回合行充当「当前」，响应一到即校正。
 
 ## 配置导入导出

@@ -4864,7 +4864,7 @@
         //          都应落到其一。所以「未被标解除、且回合数已对不上当前回合（回合已推进过它）」的行即未解除。
         //          不依赖 super（未解除未必伴随 super）。延迟解除也安全——未解除只是渲染推断，存储仍是 null，
         //          迟到的 interrupt 仍能按 pre_label 把该行改写为 success，渲染随之从「未解除」变「解除」。
-        //   当前 = 回合数 === 当前战斗回合（_omenCurTurn，detectOmen 实时更新）且未标解除。回合一推进，
+        //   当前 = 回合数 === 当前战斗回合（_omenCurTurn，detectOmen 实时更新），与解除结果独立。回合一推进，
         //          回合数对不上的旧预兆立即去掉「当前」（不靠下一个预兆来顶）。
         //   登记新预兆 → 用 status.turn 当回合。
         //
@@ -4978,16 +4978,16 @@
             const rows = (raidId && store[raidId]) ? store[raidId] : [];
             if (!rows.length) { el.innerHTML = ''; return; }
             const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            // 逐行结果：解除（存储 result='success'）准确直显；其余靠当前战斗回合判断——
-            // 回合数 === 当前回合且未标解除 → 「当前」（结果待定）；
+            // 逐行结果：解除（存储 result='success'）准确直显；「当前」只看战斗回合，与解除结果独立——
+            // 回合数 === 当前回合 → 「当前」（若已解除，则同时显示「解除」）；
             // 回合数 < 当前回合且未标解除 → 「未解除」（回合已推进过它，反向推断必为未解除）。
             // _omenCurTurn 为当前回合（detectOmen 实时更新）；刷新后首个响应到来前回退到最大回合行。
             const curTurn = (this._omenCurTurn != null) ? this._omenCurTurn : rows[rows.length - 1].turn;
             el.innerHTML = rows.map(r => {
-                let cur = '', resultHtml = '';
+                const cur = (r.turn === curTurn) ? '（当前）' : '';
+                let resultHtml = '';
                 if (r.result === 'success') resultHtml = '<span class="sb-omen-success">解除</span>';
-                else if (r.turn === curTurn) cur = '（当前）';
-                else resultHtml = '<span class="sb-omen-fail">未解除</span>';
+                else if (r.turn !== curTurn) resultHtml = '<span class="sb-omen-fail">未解除</span>';
                 return `<div class="sb-omen-row"><span class="sb-omen-turn">第${r.turn}回合${cur}</span>${esc(r.text)}${resultHtml}</div>`;
             }).join('');
             // 定时重渲染清理过期：取最近一条的剩余时间（≥1s，≤5s 兜底）
