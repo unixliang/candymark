@@ -4216,7 +4216,7 @@
             };
             // 直前倒计时（参照 Tarou：turn_waiting 是服务端给的未来 ms 时间戳）
             this.chokuzenTimer = null;
-            // 预兆信息浮层：信息落盘 cm_omen_log（按 raidId 分组，每战斗≤3 条，每条 1min 过期）
+            // 预兆信息浮层：信息落盘 cm_omen_log（按 raidId 分组，每战斗≤2 条，每条 10min 过期）
             this._omenRenderTimer = null;
             this.init();
         }
@@ -4853,7 +4853,7 @@
 
         // ===== 预兆信息浮层（落盘版）=====
         // 落盘在 cm_omen_log（cm_ 前缀，不触发配置缓存失效），结构 { [raidId]: [{turn,text,preLabel,result,ts}] }
-        // 每个战斗(raidId)只保留 3 条；每条出现/结算后 3min 过期；只在战斗页展示，后退/刷新后从落盘恢复。
+        // 每个战斗(raidId)只保留 2 条；每条出现/结算后 10min 过期；只在战斗页展示，后退/刷新后从落盘恢复。
         //
         // 结算逻辑（解除写存储、未解除靠渲染推断）：
         //   解除 = special_skill_interrupt（带 label，如 "break_standby_A"）→ 去 break_ 得被解除预兆的
@@ -4886,13 +4886,13 @@
             storage.setValue('cm_omen_log', JSON.stringify(store));
         }
 
-        // 删除所有过期(>60s)记录；返回是否有改动
+        // 删除所有过期(>10min)记录；返回是否有改动
         pruneOmenStore(store) {
             const now = Date.now();
             let changed = false;
             for (const rid of Object.keys(store)) {
                 const orig = store[rid] || [];
-                const kept = orig.filter(r => r && (now - r.ts) <= 180000);
+                const kept = orig.filter(r => r && (now - r.ts) <= 600000);
                 if (kept.length !== orig.length) changed = true;
                 if (kept.length) store[rid] = kept;
                 else { delete store[rid]; changed = true; }
@@ -4941,7 +4941,7 @@
             else {
                 rows.push({ turn, text, preLabel, result: null, ts: Date.now() });
                 rows.sort((a, b) => a.turn - b.turn);   // 最新回合在最下
-                while (rows.length > 3) rows.shift();    // 每个战斗只保留 3 条
+                while (rows.length > 2) rows.shift();    // 每个战斗只保留 2 条
             }
             this.saveOmenStore(store);
             this.renderOmenLog();
@@ -4992,8 +4992,8 @@
             }).join('');
             // 定时重渲染清理过期：取最近一条的剩余时间（≥1s，≤5s 兜底）
             const now = Date.now();
-            let minLeft = 180000;
-            rows.forEach(r => { minLeft = Math.min(minLeft, 180000 - (now - r.ts)); });
+            let minLeft = 600000;
+            rows.forEach(r => { minLeft = Math.min(minLeft, 600000 - (now - r.ts)); });
             this._omenRenderTimer = setTimeout(() => this.renderOmenLog(), Math.max(1000, Math.min(minLeft, 5000)));
         }
     }

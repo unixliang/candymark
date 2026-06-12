@@ -97,7 +97,7 @@ git push github main      # 远程名是 github（不是 origin）
 
 ## 预兆浮层
 
-战斗内底部浮层（`#sb-omen-log`），展示 boss 特殊技「预兆」的解除/未解除结果。落盘 `cm_omen_log`（`cm_` 前缀，不触发配置缓存失效），结构 `{ [raidId]: [{turn, text, preLabel, result, ts}] }`。每个战斗（raidId）只保留 3 条；每条出现/结算后 3min 过期；只在战斗页展示，后退/刷新后从落盘恢复。核心方法都在 GameDetector：`detectOmen` / `upsertOmen` / `resolveOmenByLabel` / `renderOmenLog`。
+战斗内底部浮层（`#sb-omen-log`），展示 boss 特殊技「预兆」的解除/未解除结果。落盘 `cm_omen_log`（`cm_` 前缀，不触发配置缓存失效），结构 `{ [raidId]: [{turn, text, preLabel, result, ts}] }`。每个战斗（raidId）只保留 2 条；每条出现/结算后 10min 过期；只在战斗页展示，后退/刷新后从落盘恢复。核心方法都在 GameDetector：`detectOmen` / `upsertOmen` / `resolveOmenByLabel` / `renderOmenLog`。
 
 **结算逻辑（解除写存储、未解除靠渲染推断，刻意不对称）：**
 - **解除** = `special_skill_interrupt`（带 `label`，如 `break_standby_A`）→ 去 `break_` 得被解除预兆的 `pre_label` → 找「最晚命中该 pre_label 且未结算」的行，写 `result='success'`。**这是唯一写入存储的结算结果**。按 pre_label 精确匹配（不靠回合归属），所以延迟解除（信号晚到别的回合，如土巫妖被动在奥义连锁后才发动）、pre_label 循环复用都不会标错。
