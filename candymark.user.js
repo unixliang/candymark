@@ -189,7 +189,7 @@
             white-space: nowrap;
         }
         #sb-chokuzen-countdown.active { display: flex; }
-        /* 预兆信息浮层：底部 bar 上方，最多 3 行，新行在下，每行 10s 消失 */
+        /* 预兆信息浮层：底部 bar 上方，最多 2 行，新行在下，每行 10min 过期 */
         #sb-omen-log {
             position: fixed;
             left: 10px;
@@ -1600,9 +1600,6 @@
             this.pendingSave = false;
             this.lastSaveTime = 0;
             
-            // 掉落监听间隔
-            this.dropCheckInterval = null;
-            
             // 优化渲染性能的缓存
             this.bookmarkCache = new Map();
             
@@ -1626,18 +1623,6 @@
         // 创建替代菜单访问方式
         createAlternativeMenu() {
             // 移除了双击设置功能
-        }
-        
-        // 导出标签数据
-        exportBookmarks() {
-            const data = JSON.stringify(this.bookmarks, null, 2);
-            const blob = new Blob([data], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'candymark-data.json';
-            a.click();
-            URL.revokeObjectURL(url);
         }
         
         // 导出配置
@@ -1717,7 +1702,7 @@
                                 if (!bookmark.hasOwnProperty('url')) {
                                     throw new Error(`标签数据格式不正确：第${i+1}个标签缺少url字段`);
                                 }
-                                if (bookmark.url === null || bookmark.url === undefined) {
+                                if (bookmark.url === null || bookmark.url === undefined || bookmark.url === '') {
                                     throw new Error(`标签数据格式不正确：第${i+1}个标签的url不能为空`);
                                 }
                             }
@@ -1730,7 +1715,7 @@
                                 // 如果有设置信息，则导入设置
                                 if (settings) {
                                     // 保存设置到localStorage
-                                    if (settings.bookmarkSize) {
+                                    if (typeof settings.bookmarkSize === 'number' && settings.bookmarkSize >= 1 && settings.bookmarkSize <= 10) {
                                         storage.setValue('sb_bookmark_size', settings.bookmarkSize.toString());
                                         CONFIG.bookmarkSize = settings.bookmarkSize;
                                         updateBookmarkSize(settings.bookmarkSize);
@@ -1740,27 +1725,27 @@
                                         CONFIG.bookmarkOpacity = settings.bookmarkOpacity;
                                         updateBookmarkOpacity(settings.bookmarkOpacity);
                                     }
-                                    if (settings.enabled !== undefined) {
+                                    if (typeof settings.enabled === 'boolean') {
                                         storage.setValue('sb_enabled', settings.enabled.toString());
                                         CONFIG.enabled = settings.enabled;
                                     }
-                                    if (settings.showTrigger !== undefined) {
+                                    if (typeof settings.showTrigger === 'boolean') {
                                         storage.setValue('sb_show_trigger', settings.showTrigger.toString());
                                         CONFIG.showTrigger = settings.showTrigger;
                                     }
-                                    if (settings.maxBookmarks) {
+                                    if (typeof settings.maxBookmarks === 'number' && settings.maxBookmarks > 0) {
                                         storage.setValue('sb_max_bookmarks', settings.maxBookmarks.toString());
                                         CONFIG.maxBookmarks = settings.maxBookmarks;
                                     }
-                                    if (settings.shortcutKey) {
+                                    if (typeof settings.shortcutKey === 'string' && settings.shortcutKey) {
                                         storage.setValue('sb_shortcut_key', settings.shortcutKey);
                                         CONFIG.shortcutKey = settings.shortcutKey;
                                     }
-                                    if (settings.blacklist && Array.isArray(settings.blacklist)) {
+                                    if (Array.isArray(settings.blacklist)) {
                                         storage.setValue('sb_blacklist', JSON.stringify(settings.blacklist));
                                         CONFIG.blacklist = settings.blacklist;
                                     }
-                                    if (settings.bookmarksVisible !== undefined) {
+                                    if (typeof settings.bookmarksVisible === 'boolean') {
                                         storage.setValue('sb_bookmarks_visible', settings.bookmarksVisible.toString());
                                         CONFIG.bookmarksVisible = settings.bookmarksVisible;
                                     }
@@ -1877,13 +1862,13 @@
                     if (!bookmark || typeof bookmark !== 'object') {
                         throw new Error(`第${i + 1}个标签不是有效的对象`);
                     }
-                    if (!bookmark.id) {
+                    if (bookmark.id === null || bookmark.id === undefined) {
                         throw new Error(`第${i + 1}个标签缺少 id 字段`);
                     }
                     if (bookmark.name === null || bookmark.name === undefined) {
                         bookmark.name = '';
                     }
-                    if (!bookmark.url) {
+                    if (bookmark.url === null || bookmark.url === undefined || bookmark.url === '') {
                         throw new Error(`第${i + 1}个标签缺少 url 字段`);
                     }
                 }
@@ -1895,7 +1880,7 @@
                     
                     // 导入设置（如果有）
                     if (settings) {
-                        if (typeof settings.bookmarkSize === 'number' && settings.bookmarkSize > 0) {
+                        if (typeof settings.bookmarkSize === 'number' && settings.bookmarkSize >= 1 && settings.bookmarkSize <= 10) {
                             CONFIG.bookmarkSize = settings.bookmarkSize;
                             storage.setValue('sb_bookmark_size', settings.bookmarkSize.toString());
                         }
@@ -1915,7 +1900,7 @@
                             CONFIG.maxBookmarks = settings.maxBookmarks;
                             storage.setValue('sb_max_bookmarks', settings.maxBookmarks.toString());
                         }
-                        if (typeof settings.shortcutKey === 'string') {
+                        if (typeof settings.shortcutKey === 'string' && settings.shortcutKey) {
                             CONFIG.shortcutKey = settings.shortcutKey;
                             storage.setValue('sb_shortcut_key', settings.shortcutKey);
                         }
@@ -2226,7 +2211,7 @@
                     
                     e.stopPropagation();
                     const url = bookmark.getAttribute('data-bookmark-url');
-                    this.handleBookmarkClick(url, bookmark);
+                    this.handleBookmarkClick(url);
                 }
             }, { passive: true });
             
@@ -2267,7 +2252,7 @@
                         }
                         
                         const url = bookmark.getAttribute('data-bookmark-url');
-                        this.handleBookmarkClick(url, bookmark);
+                        this.handleBookmarkClick(url);
                     }
                 }
             }, { passive: true });
@@ -2280,10 +2265,8 @@
             }, { passive: true });
         }
         
-        handleBookmarkClick(url, element) {
-            // 触发点击动画
-            this.triggerClickAnimation(element);
-
+        handleBookmarkClick(url) {
+            // 点击动画由事件委托处调用方触发，这里不再重复
             // 特殊URL（back, reload等）已通过onclick属性处理
             // 这里只处理普通URL；若已经在目标 URL，直接刷新以更新页面状态
             if (url === window.location.href) {
@@ -2699,43 +2682,56 @@
             this.sliderDragging = false;
             const track = document.querySelector('.sb-size-slider-track');
             const thumb = document.getElementById('sb-size-slider-thumb');
-            
+
             if (!track || !thumb) return;
-            
+
             // 设置初始位置
             const trackWidth = track.offsetWidth - thumb.offsetWidth;
             const position = ((this.currentSizeLevel - 1) / 9) * trackWidth;
             thumb.style.left = `${position}px`;
-            
+
+            // handler 只 bind 一次，保证 cleanup 时能用同一引用解绑
+            if (!this.sizeSliderHandlers) {
+                this.sizeSliderHandlers = {
+                    start: this.startSizeSliderDrag.bind(this),
+                    click: this.handleSizeSliderClick.bind(this),
+                    move: this.handleSizeSliderMove.bind(this),
+                    end: this.endSizeSliderDrag.bind(this)
+                };
+            }
+            const h = this.sizeSliderHandlers;
+
             // 绑定事件
-            thumb.addEventListener('mousedown', this.startSizeSliderDrag.bind(this));
-            track.addEventListener('click', this.handleSizeSliderClick.bind(this));
-            document.addEventListener('mousemove', this.handleSizeSliderMove.bind(this));
-            document.addEventListener('mouseup', this.endSizeSliderDrag.bind(this));
-            
+            thumb.addEventListener('mousedown', h.start);
+            track.addEventListener('click', h.click);
+            document.addEventListener('mousemove', h.move);
+            document.addEventListener('mouseup', h.end);
+
             // 触摸事件支持
-            thumb.addEventListener('touchstart', this.startSizeSliderDrag.bind(this), { passive: false });
-            track.addEventListener('touchstart', this.handleSizeSliderClick.bind(this), { passive: false });
-            document.addEventListener('touchmove', this.handleSizeSliderMove.bind(this), { passive: false });
-            document.addEventListener('touchend', this.endSizeSliderDrag.bind(this));
+            thumb.addEventListener('touchstart', h.start, { passive: false });
+            track.addEventListener('touchstart', h.click, { passive: false });
+            document.addEventListener('touchmove', h.move, { passive: false });
+            document.addEventListener('touchend', h.end);
         }
-        
+
         cleanupSizeSlider() {
+            if (!this.sizeSliderHandlers) return;
+            const h = this.sizeSliderHandlers;
             const thumb = document.getElementById('sb-size-slider-thumb');
             const track = document.querySelector('.sb-size-slider-track');
-            
+
             if (thumb) {
-                thumb.removeEventListener('mousedown', this.startSizeSliderDrag.bind(this));
-                thumb.removeEventListener('touchstart', this.startSizeSliderDrag.bind(this));
+                thumb.removeEventListener('mousedown', h.start);
+                thumb.removeEventListener('touchstart', h.start);
             }
             if (track) {
-                track.removeEventListener('click', this.handleSizeSliderClick.bind(this));
-                track.removeEventListener('touchstart', this.handleSizeSliderClick.bind(this));
+                track.removeEventListener('click', h.click);
+                track.removeEventListener('touchstart', h.click);
             }
-            document.removeEventListener('mousemove', this.handleSizeSliderMove.bind(this));
-            document.removeEventListener('mouseup', this.endSizeSliderDrag.bind(this));
-            document.removeEventListener('touchmove', this.handleSizeSliderMove.bind(this));
-            document.removeEventListener('touchend', this.endSizeSliderDrag.bind(this));
+            document.removeEventListener('mousemove', h.move);
+            document.removeEventListener('mouseup', h.end);
+            document.removeEventListener('touchmove', h.move);
+            document.removeEventListener('touchend', h.end);
         }
         
         startSizeSliderDrag(e) {
@@ -2869,35 +2865,48 @@
             const position = ((this.currentOpacityLevel - 1) / 9) * trackWidth;
             thumb.style.left = `${position}px`;
             
+            // handler 只 bind 一次，保证 cleanup 时能用同一引用解绑
+            if (!this.opacitySliderHandlers) {
+                this.opacitySliderHandlers = {
+                    start: this.startOpacitySliderDrag.bind(this),
+                    click: this.handleOpacitySliderClick.bind(this),
+                    move: this.handleOpacitySliderMove.bind(this),
+                    end: this.endOpacitySliderDrag.bind(this)
+                };
+            }
+            const h = this.opacitySliderHandlers;
+
             // 绑定事件
-            thumb.addEventListener('mousedown', this.startOpacitySliderDrag.bind(this));
-            track.addEventListener('click', this.handleOpacitySliderClick.bind(this));
-            document.addEventListener('mousemove', this.handleOpacitySliderMove.bind(this));
-            document.addEventListener('mouseup', this.endOpacitySliderDrag.bind(this));
-            
+            thumb.addEventListener('mousedown', h.start);
+            track.addEventListener('click', h.click);
+            document.addEventListener('mousemove', h.move);
+            document.addEventListener('mouseup', h.end);
+
             // 触摸事件支持
-            thumb.addEventListener('touchstart', this.startOpacitySliderDrag.bind(this), { passive: false });
-            track.addEventListener('touchstart', this.handleOpacitySliderClick.bind(this), { passive: false });
-            document.addEventListener('touchmove', this.handleOpacitySliderMove.bind(this), { passive: false });
-            document.addEventListener('touchend', this.endOpacitySliderDrag.bind(this));
+            thumb.addEventListener('touchstart', h.start, { passive: false });
+            track.addEventListener('touchstart', h.click, { passive: false });
+            document.addEventListener('touchmove', h.move, { passive: false });
+            document.addEventListener('touchend', h.end);
         }
-        
+
         cleanupOpacitySlider() {
+            if (!this.opacitySliderHandlers) return;
+            const h = this.opacitySliderHandlers;
             const thumb = document.getElementById('sb-opacity-slider-thumb');
             const track = document.querySelector('.sb-opacity-slider-track');
-            
+
             if (thumb) {
-                thumb.removeEventListener('mousedown', this.startOpacitySliderDrag.bind(this));
-                thumb.removeEventListener('touchstart', this.startOpacitySliderDrag.bind(this));
+                thumb.removeEventListener('mousedown', h.start);
+                thumb.removeEventListener('touchstart', h.start);
             }
             if (track) {
-                track.removeEventListener('click', this.handleOpacitySliderClick.bind(this));
-                track.removeEventListener('touchstart', this.handleOpacitySliderClick.bind(this));
+                track.removeEventListener('click', h.click);
+                track.removeEventListener('touchstart', h.click);
             }
-            document.removeEventListener('mousemove', this.handleOpacitySliderMove.bind(this));
-            document.removeEventListener('mouseup', this.endOpacitySliderDrag.bind(this));
-            document.removeEventListener('touchmove', this.handleOpacitySliderMove.bind(this));
-            document.removeEventListener('touchend', this.endOpacitySliderDrag.bind(this));
+            document.removeEventListener('mousemove', h.move);
+            document.removeEventListener('mouseup', h.end);
+            document.removeEventListener('touchmove', h.move);
+            document.removeEventListener('touchend', h.end);
         }
         
         startOpacitySliderDrag(e) {
@@ -3313,15 +3322,6 @@
                 }
             });
             return items;
-        }
-
-        // === 召唤过滤器（按 imageId 唯一）===
-        // 列表包含 5 个自携栏位 + 友方借召（如有）
-        _currentSummonChoices() {
-            const bd = (gameDetectorInstance && gameDetectorInstance.battleData) || {};
-            const list = (bd.summonList || []).slice();
-            if (bd.supporterSummon) list.push(bd.supporterSummon);
-            return list;
         }
 
         showDropSubscribeModal() {
@@ -4189,8 +4189,6 @@
     // 游戏检测中心
     class GameDetector {
         constructor() {
-            this.previousTurn = null;
-            this.turnChangeCallback = null;
             this.battleData = {
                 currentTurn: 0,
                 maxTurn: 0,
@@ -4527,31 +4525,6 @@
             } else if (oldTurn === null) {
                 //console.log(`✅ [CandyMark] 初始化TURN: ${newTurn}`);
             }
-        }
-
-        /**
-         * 设置TURN变化回调函数（已废弃，直接在内部处理）
-         * @deprecated 后退逻辑已内置到onTurnChange中
-         */
-        setTurnChangeCallback(callback) {
-            // 保持空方法以兼容旧代码
-            if (typeof callback === 'function') {
-                //console.log('⚠️ [CandyMark] TURN变化回调已废弃，使用内置后退逻辑');
-            }
-        }
-
-        /**
-         * 重置战斗数据
-         */
-        resetBattleData() {
-            //console.log('🔄 [CandyMark] 重置战斗数据');
-            this.previousTurn = null;
-            this.battleData = {
-                currentTurn: 0,
-                maxTurn: 0,
-                startTime: null,
-                lastUpdateTime: null
-            };
         }
 
         getBattleStats() {
