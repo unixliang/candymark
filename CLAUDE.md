@@ -89,7 +89,7 @@ git push github main      # 远程名是 github（不是 origin）
 - `attack_result` → 按当前副本设置：**`turnEq`（=N）优先于 `turnLte`（≤N）**。
 - `summon_result` / `ability_result` → 按副本设置，`matchesSummonFilter` / `matchesAbilityFilter` 收窄（把请求体的栏位下标 / ability_id 用 **当前战斗的** battleData 翻译成 imageId / iconId 再比对——所以触发判断必须用内存实时列表，不能用落盘快照）。
 - 结算（`result content/index`）→ 先检查掉落订阅命中（弹窗），否则 `triggerAutoBack()` 走 `autoDropAction`（按 raidId 去重）。
-- 统一执行：`runAutoAction(action, config)` / `doAutoJump(config)`，所有动作统一延迟 100ms。
+- 统一执行：`runAutoAction(action, config)` / `doAutoJump(config)`，所有动作统一延迟 130ms。
 
 ## 掉落提醒
 

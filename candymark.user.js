@@ -4761,15 +4761,15 @@
             return (config.questSettings || {})[qid] || null;
         }
 
-        // 执行一个自动动作：jump/refresh/back/none。返回是否执行了动作。所有动作统一延迟 100ms。
+        // 执行一个自动动作：jump/refresh/back/none。返回是否执行了动作。所有动作统一延迟 130ms。
         runAutoAction(action, cachedConfig) {
             if (action === 'jump') return this.doAutoJump(cachedConfig);
             if (action === 'refresh') {
-                setTimeout(() => { location.reload(); }, 100);
+                setTimeout(() => { location.reload(); }, 130);
                 return true;
             }
             if (action === 'back') {
-                setTimeout(() => { if (window.history.length > 1) history.back(); }, 100);
+                setTimeout(() => { if (window.history.length > 1) history.back(); }, 130);
                 return true;
             }
             return false;
@@ -4788,7 +4788,7 @@
             }
             if (!target || !target.url) return false;
             if (target.url === 'back' || target.url === 'click-through-back' || target.url === 'reload') return false;
-            setTimeout(() => { location.href = target.url; }, 100);
+            setTimeout(() => { location.href = target.url; }, 130);
             return true;
         }
 
