@@ -171,8 +171,8 @@
 
         #sb-chokuzen-countdown {
             position: fixed;
-            top: 0;
-            left: calc(0.5cm + 6px);
+            top: calc(1cm + 12px);
+            left: 0;
             height: 0.5cm;
             padding: 0 6px;
             display: none;
