@@ -189,6 +189,26 @@
             white-space: nowrap;
         }
         #sb-chokuzen-countdown.active { display: flex; }
+        #sb-contribution-display {
+            position: fixed;
+            top: calc(0.5cm + 6px);
+            left: 0;
+            height: 0.5cm;
+            padding: 0 6px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: #ffd76a;
+            background: rgba(0, 0, 0, 0.55);
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+            line-height: 1;
+            z-index: 999998;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        #sb-contribution-display.active { display: flex; }
         /* 预兆信息浮层：底部 bar 上方，最多 2 行，新行在下，每行 10min 过期 */
         #sb-omen-log {
             position: fixed;
@@ -1266,6 +1286,7 @@
     container.innerHTML = `
         <div id="sb-trigger" title="点击添加标签 (${CONFIG.shortcutKey.replace('Key', 'Ctrl+')})"></div>
         <div id="sb-chokuzen-countdown"></div>
+        <div id="sb-contribution-display"></div>
         <div id="sb-omen-log"></div>
         <div id="sb-menu">
             <div class="sb-menu-item" data-action="drag">🖱️ 拖拽移动</div>
@@ -4214,6 +4235,8 @@
             };
             // 直前倒计时（参照 Tarou：turn_waiting 是服务端给的未来 ms 时间戳）
             this.chokuzenTimer = null;
+            // 贡献值浮层：显示本次响应增加的 contribution.amount，显示 10s
+            this.contributionTimer = null;
             // 预兆信息浮层：信息落盘 cm_omen_log（按 raidId 分组，每战斗≤2 条，每条 10min 过期）
             this._omenRenderTimer = null;
             this.init();
@@ -4222,7 +4245,88 @@
         init() {
             this.setupUrlMonitoring();
             this.restoreChokuzen();
+            this.restoreContributionDisplay();
             this.renderOmenLog();   // 后退/刷新后从落盘恢复展示当前战斗的预兆
+        }
+
+        // ====== 贡献值浮层 ======
+        loadContributionState() {
+            try {
+                const obj = JSON.parse(storage.getValue('cm_contribution_state', '{}'));
+                return (obj && typeof obj === 'object') ? obj : {};
+            } catch (e) {
+                return {};
+            }
+        }
+
+        saveContributionState(amount, expiresAt) {
+            const state = {
+                amount: amount || 0,
+                expiresAt: expiresAt || 0
+            };
+            if (!state.amount) {
+                storage.removeValue('cm_contribution_state');
+                return;
+            }
+            storage.setValue('cm_contribution_state', JSON.stringify(state));
+        }
+
+        restoreContributionDisplay() {
+            const state = this.loadContributionState();
+            const amount = Number(state.amount) || 0;
+            const expiresAt = Number(state.expiresAt) || 0;
+            if (amount <= 0 || expiresAt <= Date.now()) return;
+
+            this.showContribution(amount, expiresAt);
+        }
+
+        collectContribution(data) {
+            if (!data || !Array.isArray(data.scenario)) return;
+            let amount = 0;
+            for (const action of data.scenario) {
+                if (!action || action.cmd !== 'contribution') continue;
+                const n = Number(action.amount);
+                if (isFinite(n) && n > 0) amount += n;
+            }
+            if (amount <= 0) return;
+
+            const expiresAt = Date.now() + 10000;
+            this.saveContributionState(amount, expiresAt);
+            this.showContribution(amount, expiresAt);
+        }
+
+        showContribution(amount, expiresAt) {
+            const el = document.getElementById('sb-contribution-display');
+            if (!el) return;
+
+            const n = Math.floor(Number(amount) || 0);
+            if (n <= 0) return;
+
+            el.textContent = `+ ${n.toLocaleString()}`;
+            el.classList.add('active');
+
+            if (this.contributionTimer) {
+                clearTimeout(this.contributionTimer);
+                this.contributionTimer = null;
+            }
+
+            const delay = Math.max(0, (Number(expiresAt) || 0) - Date.now());
+            this.contributionTimer = setTimeout(() => {
+                this.hideContribution();
+            }, delay);
+        }
+
+        hideContribution() {
+            if (this.contributionTimer) {
+                clearTimeout(this.contributionTimer);
+                this.contributionTimer = null;
+            }
+            const el = document.getElementById('sb-contribution-display');
+            if (el) {
+                el.classList.remove('active');
+                el.textContent = '';
+            }
+            storage.removeValue('cm_contribution_state');
         }
 
         // ====== 直前倒计时 ======
@@ -4430,6 +4534,10 @@
                 } else if (data.status && data.status.turn !== undefined) {
                     currentTurn = data.status.turn;
                 }
+
+                // Tarou 同款来源：直接读取 scenario 中服务端返回的 contribution.amount，
+                // 不用伤害估算；这里只显示本次增加值，离开战斗后仍按 10s 计时消失。
+                this.collectContribution(data);
 
                 // 战斗结束（Tarou: scenario.some(item => item.cmd === 'win' && item.is_last_raid)）
                 // 只看 attack/ability/summon 三个动作响应里的 data.scenario。
