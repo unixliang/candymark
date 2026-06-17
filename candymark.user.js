@@ -212,7 +212,7 @@
         /* 预兆信息浮层：底部 bar 上方，最多 2 行，新行在下，每行 10min 过期 */
         #sb-omen-log {
             position: fixed;
-            left: 10px;
+            left: 0;
             bottom: 40px;
             display: flex;
             flex-direction: column;
@@ -225,9 +225,9 @@
         .sb-omen-row {
             background: rgba(0, 0, 0, 0.72);
             color: #fff;
-            font-size: 13px;
+            font-size: 12px;
             line-height: 1.3;
-            padding: 4px 10px;
+            padding: 4px 6px;
             border-radius: 6px;
             max-width: 92vw;
             white-space: normal;
