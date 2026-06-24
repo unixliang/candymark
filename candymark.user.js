@@ -5023,9 +5023,10 @@
                 ? p.interrupt_display_text.filter(Boolean).join(' / ') : '';
             if (text) { this.upsertOmen(raidId, newTurn, text, (p && p.pre_label) || ''); rendered = true; }
 
-            // 3) 连续观测到回合推进 → 把被越过（prevObservedTurn..newTurn）且仍未解除的旧预兆标 passed=true，
-            //    作为「确实未解除」的依据。仅连续观测成立：reload/后退后首个响应（firstObservation）不标，故
-            //    reload 前丢失的解除信号不会被误判为未解除——那些行保持 result=null 且无 passed，渲染为「未知」。
+            // 3) 收到该预兆回合的攻击回包 → 标 passed=true：让回合从 prevObservedTurn 推进到 newTurn 的那个响应，
+            //    正是「结束被越过回合的攻击回包」；它若不含解除信号，则那些回合的预兆即「确实未解除」。
+            //    仅连续观测成立：reload/后退后首个响应（firstObservation）不标——旧回合的攻击回包不会再补发，故
+            //    reload 前丢失的解除信号不会被误判为未解除，那些行保持 result=null 且无 passed，渲染为「未知」。
             //    只标「刚被越过」的回合区间，不回溯更早的行，避免把 reload 前留下的「未知」行也染成「未解除」。
             if (!firstObservation && newTurn > prevObservedTurn) {
                 this.markOmenPassed(raidId, prevObservedTurn, newTurn);
@@ -5096,10 +5097,11 @@
             const rows = (raidId && store[raidId]) ? store[raidId] : [];
             if (!rows.length) { el.innerHTML = ''; return; }
             const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            // 逐行结果：解除（存储 result='success'）准确直显；「当前」只看战斗回合，与解除结果独立——
-            // 回合数 === 当前回合 → 「当前」（若已解除，则同时显示「解除」）；
-            // r.passed（连续观测到回合越过、确实没解除）→ 「未解除」；
-            // 回合数 < 当前回合但无 passed（reload 后跳变、解除信号可能丢了）→ 「未知」（不武断判未解除）。
+            // 逐行结果（判据：非当前回合 + 没收到解除信号时——收到过该预兆回合的攻击回包→未解除，否则→未知）：
+            //   result==='success'（收到 special_skill_interrupt）→ 「解除」，准确直显；
+            //   r.turn === 当前回合 → 「当前」（与是否已解除独立；已解除则并显「解除」）；
+            //   r.passed（已收到该预兆回合的攻击回包，其中没有解除信号）→ 「未解除」；
+            //   非当前回合且无 passed（没收到过该回合的攻击回包，多因 reload/秒退丢包）→ 「未知」，不武断判未解除。
             // _omenCurTurn 为当前回合（detectOmen 实时更新）；刷新后首个响应到来前回退到最大回合行。
             const curTurn = (this._omenCurTurn != null) ? this._omenCurTurn : rows[rows.length - 1].turn;
             el.innerHTML = rows.map(r => {
