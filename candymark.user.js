@@ -248,6 +248,11 @@
             font-weight: 700;
             margin-left: 6px;
         }
+        .sb-omen-row .sb-omen-unknown {
+            color: #9aa0a6;
+            font-weight: 700;
+            margin-left: 6px;
+        }
 
         .sb-bookmark {
             position: absolute;
@@ -4941,10 +4946,14 @@
         //          pre_label → 找「最晚命中该 pre_label 且未结算」的行，写 result='success'。精确：延迟解除
         //          （信号晚到别的回合，如奥义连锁后才发动的被动技伤）、pre_label 循环复用都不会标错。
         //          这是唯一写入存储的结算结果。
-        //   未解除 = 渲染时推断，不写存储。依据：解除是准确的，一个预兆只有「解除 / 未解除」两种结局，每回合
-        //          都应落到其一。所以「未被标解除、且回合数已对不上当前回合（回合已推进过它）」的行即未解除。
-        //          不依赖 super（未解除未必伴随 super）。延迟解除也安全——未解除只是渲染推断，存储仍是 null，
-        //          迟到的 interrupt 仍能按 pre_label 把该行改写为 success，渲染随之从「未解除」变「解除」。
+        //   未解除 = 仅在「连续观测到回合越过」时认定：detectOmen 看到回合从 prevObservedTurn 推进到 newTurn 时，
+        //          把被越过且未结算的行标 passed=true（markOmenPassed，落盘）→ 渲染「未解除」。passed 不动 result
+        //          （仍为 null），故延迟解除的 interrupt 仍能按 pre_label 把该行改写为 success，界面从「未解除」翻「解除」。
+        //          不依赖 super（未解除未必伴随 super）。
+        //   未知 = 回合数已落后当前回合、却没 passed 的行。出现于 reload/后退后跳回合：解除信号（在攻击响应里）随
+        //          那次响应一起丢了，我们没连续看到这次推进，无法断言解除还是未解除，故显示灰色「未知」而非武断的
+        //          「未解除」。（修了「攻击后秒退、错过解除信号 → 误判未解除」的 bug。）firstObservation 即 reload
+        //          后首个带回合的响应，此时不标 passed。
         //   当前 = 回合数 === 当前战斗回合（_omenCurTurn，detectOmen 实时更新），与解除结果独立。回合一推进，
         //          回合数对不上的旧预兆立即去掉「当前」（不靠下一个预兆来顶）。
         //   登记新预兆 → 用 status.turn 当回合。
@@ -4991,6 +5000,10 @@
             // 记录「当前战斗回合」供渲染判定「当前」：回合推进后，回合数对不上的旧预兆即非当前
             // （不靠下一个预兆来顶）。detectOmen 早于 onTurnChange，battleData.currentTurn 还是上一拍，
             // 故单独存 _omenCurTurn。
+            // firstObservation：本会话（脚本本次加载）首个带回合的响应——reload/后退后即为 true。此前的回合
+            // 推进我们没连续看到，故不能据此推断「未解除」（解除信号可能在 reload 前就丢了）。
+            const firstObservation = (this._omenCurTurn == null);
+            const prevObservedTurn = this._omenCurTurn;
             const turnChanged = (this._omenCurTurn !== newTurn);
             this._omenCurTurn = newTurn;
 
@@ -5010,6 +5023,14 @@
                 ? p.interrupt_display_text.filter(Boolean).join(' / ') : '';
             if (text) { this.upsertOmen(raidId, newTurn, text, (p && p.pre_label) || ''); rendered = true; }
 
+            // 3) 连续观测到回合推进 → 把被越过（prevObservedTurn..newTurn）且仍未解除的旧预兆标 passed=true，
+            //    作为「确实未解除」的依据。仅连续观测成立：reload/后退后首个响应（firstObservation）不标，故
+            //    reload 前丢失的解除信号不会被误判为未解除——那些行保持 result=null 且无 passed，渲染为「未知」。
+            //    只标「刚被越过」的回合区间，不回溯更早的行，避免把 reload 前留下的「未知」行也染成「未解除」。
+            if (!firstObservation && newTurn > prevObservedTurn) {
+                this.markOmenPassed(raidId, prevObservedTurn, newTurn);
+            }
+
             // 回合推进但本响应没动到任何记录时，也要重渲染，让旧「当前」按新回合落位
             if (turnChanged && !rendered) this.renderOmenLog();
         }
@@ -5020,7 +5041,7 @@
             const row = rows.find(r => r.turn === turn);
             if (row) { row.text = text; row.preLabel = preLabel; row.ts = Date.now(); }
             else {
-                rows.push({ turn, text, preLabel, result: null, ts: Date.now() });
+                rows.push({ turn, text, preLabel, result: null, passed: false, ts: Date.now() });
                 rows.sort((a, b) => a.turn - b.turn);   // 最新回合在最下
                 while (rows.length > 2) rows.shift();    // 每个战斗只保留 2 条
             }
@@ -5049,6 +5070,22 @@
             this.renderOmenLog();
         }
 
+        // 把 [fromTurn, toTurn) 内仍未结算的预兆标 passed=true（确实未解除）。落盘，使 reload 后仍显示
+        // 「未解除」。不动 result（仍为 null），故延迟解除的 interrupt 仍能按 pre_label 把它改写成 success。
+        markOmenPassed(raidId, fromTurn, toTurn) {
+            const store = this.loadOmenStore();
+            const rows = store[raidId];
+            if (!rows) return;
+            let changed = false;
+            for (const r of rows) {
+                if (r.result == null && !r.passed && r.turn >= fromTurn && r.turn < toTurn) {
+                    r.passed = true;
+                    changed = true;
+                }
+            }
+            if (changed) { this.saveOmenStore(store); this.renderOmenLog(); }
+        }
+
         renderOmenLog() {
             const el = document.getElementById('sb-omen-log');
             if (!el) return;
@@ -5061,14 +5098,16 @@
             const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             // 逐行结果：解除（存储 result='success'）准确直显；「当前」只看战斗回合，与解除结果独立——
             // 回合数 === 当前回合 → 「当前」（若已解除，则同时显示「解除」）；
-            // 回合数 < 当前回合且未标解除 → 「未解除」（回合已推进过它，反向推断必为未解除）。
+            // r.passed（连续观测到回合越过、确实没解除）→ 「未解除」；
+            // 回合数 < 当前回合但无 passed（reload 后跳变、解除信号可能丢了）→ 「未知」（不武断判未解除）。
             // _omenCurTurn 为当前回合（detectOmen 实时更新）；刷新后首个响应到来前回退到最大回合行。
             const curTurn = (this._omenCurTurn != null) ? this._omenCurTurn : rows[rows.length - 1].turn;
             el.innerHTML = rows.map(r => {
                 const cur = (r.turn === curTurn) ? '（当前）' : '';
                 let resultHtml = '';
                 if (r.result === 'success') resultHtml = '<span class="sb-omen-success">解除</span>';
-                else if (r.turn !== curTurn) resultHtml = '<span class="sb-omen-fail">未解除</span>';
+                else if (r.passed) resultHtml = '<span class="sb-omen-fail">未解除</span>';
+                else if (r.turn !== curTurn) resultHtml = '<span class="sb-omen-unknown" title="未连续观测到该回合结束，结果未知（可能后退/刷新丢了解除信号）">未知</span>';
                 return `<div class="sb-omen-row"><span class="sb-omen-turn">第${r.turn}回合${cur}</span>${esc(r.text)}${resultHtml}</div>`;
             }).join('');
             // 定时重渲染清理过期：取最近一条的剩余时间（≥1s，≤5s 兜底）
