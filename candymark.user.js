@@ -152,6 +152,7 @@
             left: 0;
             width: 0.5cm;
             height: 0.5cm;
+            box-sizing: border-box;
             background: rgba(102, 126, 234, 0.1);
             border: 2px dashed rgba(102, 126, 234, 0.4);
             cursor: pointer;
@@ -193,14 +194,14 @@
         #sb-chokuzen-countdown.active { display: flex; }
         #sb-battle-counter-display {
             position: fixed;
-            top: calc(0.5cm + 6px);
+            top: calc(0.5cm + 2px);
             left: 0;
             display: none;
             align-items: flex-start;
             color: #fff;
             font-size: 12px;
             font-family: monospace;
-            line-height: 1.15;
+            line-height: 1;
             z-index: 999998;
             pointer-events: none;
             white-space: nowrap;
@@ -230,13 +231,11 @@
             color: #fff;
             font-weight: 700;
             background: rgba(0, 0, 0, 0.72);
-            box-shadow:
-                0 2px 9px rgba(0, 0, 0, 0.48),
-                0 0 0 1px rgba(255, 215, 106, 0.34);
+            box-shadow: 0 2px 9px rgba(0, 0, 0, 0.48);
         }
         #sb-contribution-display {
             position: fixed;
-            top: calc(1.5cm + 18px);
+            top: calc(1.5cm + 14px);
             left: 0;
             height: 0.5cm;
             padding: 0 6px;
