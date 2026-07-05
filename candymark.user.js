@@ -189,6 +189,28 @@
             white-space: nowrap;
         }
         #sb-chokuzen-countdown.active { display: flex; }
+        #sb-battle-counter-display {
+            position: fixed;
+            top: calc(1.5cm + 18px);
+            left: 0;
+            display: none;
+            flex-direction: column;
+            gap: 2px;
+            align-items: flex-start;
+            color: #fff;
+            font-size: 12px;
+            font-family: monospace;
+            line-height: 1.15;
+            z-index: 999998;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        #sb-battle-counter-display.active { display: flex; }
+        #sb-battle-counter-display .sb-battle-counter-row {
+            padding: 3px 6px;
+            background: rgba(0, 0, 0, 0.55);
+            border-radius: 4px;
+        }
         #sb-contribution-display {
             position: fixed;
             top: calc(0.5cm + 6px);
@@ -1291,6 +1313,7 @@
     container.innerHTML = `
         <div id="sb-trigger" title="点击添加标签 (${CONFIG.shortcutKey.replace('Key', 'Ctrl+')})"></div>
         <div id="sb-chokuzen-countdown"></div>
+        <div id="sb-battle-counter-display"></div>
         <div id="sb-contribution-display"></div>
         <div id="sb-omen-log"></div>
         <div id="sb-menu">
@@ -4225,6 +4248,13 @@
                 summonList: [],      // {id, imageId, icon}[]，按 summon_id 1-based 顺序排列
                 supporterSummon: null // {id, imageId, icon} —— 友方借召
             };
+            this.battleCounters = {
+                ta: 0,
+                ougi: 0,
+                db: 0,
+                hit: 0,
+                dead: 0
+            };
             // "结算后" 触发去重 —— 按 raidId 记录已经触发过的战斗
             // 同一场在 result_multi/N ↔ result_multi/empty/N 之间反复切 hash 时不会重复触发；
             // 连续收菜（多场不同 raidId）时每场会各自触发一次；不依赖 start.json
@@ -4240,8 +4270,8 @@
             };
             // 直前倒计时（参照 Tarou：turn_waiting 是服务端给的未来 ms 时间戳）
             this.chokuzenTimer = null;
-            // 贡献值浮层：显示本次响应增加的 contribution.amount，显示 10s
-            this.contributionTimer = null;
+            // 动作摘要浮层：贡献值 + 明细，共用一个 10s 生命周期
+            this.actionSummaryTimer = null;
             // 预兆信息浮层：信息落盘 cm_omen_log（按 raidId 分组，每战斗≤2 条，每条 10min 过期）
             this._omenRenderTimer = null;
             this.init();
@@ -4250,88 +4280,276 @@
         init() {
             this.setupUrlMonitoring();
             this.restoreChokuzen();
-            this.restoreContributionDisplay();
+            this.restoreActionSummaryDisplay();
             this.renderOmenLog();   // 后退/刷新后从落盘恢复展示当前战斗的预兆
         }
 
-        // ====== 贡献值浮层 ======
-        loadContributionState() {
+        // ====== 动作摘要浮层（贡献值 + 明细，共用展示生命周期）======
+        readJsonStorage(key) {
             try {
-                const obj = JSON.parse(storage.getValue('cm_contribution_state', '{}'));
+                const obj = JSON.parse(storage.getValue(key, '{}'));
                 return (obj && typeof obj === 'object') ? obj : {};
             } catch (e) {
                 return {};
             }
         }
 
-        saveContributionState(amount, expiresAt) {
-            const state = {
-                amount: amount || 0,
-                expiresAt: expiresAt || 0
+        normalizeBattleCounters(source) {
+            const s = source || {};
+            return {
+                ta: Math.max(0, Math.floor(Number(s.ta) || 0)),
+                ougi: Math.max(0, Math.floor(Number(s.ougi) || 0)),
+                db: Math.max(0, Math.floor(Number(s.db) || 0)),
+                hit: Math.max(0, Math.floor(Number(s.hit) || 0)),
+                dead: Math.max(0, Math.floor(Number(s.dead) || 0))
             };
-            if (!state.amount) {
-                storage.removeValue('cm_contribution_state');
+        }
+
+        loadActionSummaryState() {
+            const state = this.readJsonStorage('cm_action_summary_state');
+            if (state.amount != null || state.counters || state.expiresAt != null) {
+                return {
+                    amount: Math.max(0, Math.floor(Number(state.amount) || 0)),
+                    counters: this.normalizeBattleCounters(state.counters),
+                    expiresAt: Number(state.expiresAt) || 0
+                };
+            }
+
+            const contributionState = this.readJsonStorage('cm_contribution_state');
+            const counterState = this.readJsonStorage('cm_battle_counter_state');
+            return {
+                amount: Math.max(0, Math.floor(Number(contributionState.amount) || 0)),
+                counters: this.normalizeBattleCounters(counterState),
+                expiresAt: Number(contributionState.expiresAt) || 0
+            };
+        }
+
+        saveActionSummaryState(amount, counters, expiresAt) {
+            const state = {
+                amount: Math.max(0, Math.floor(Number(amount) || 0)),
+                counters: this.normalizeBattleCounters(counters),
+                expiresAt: Number(expiresAt) || 0
+            };
+            if (state.amount <= 0 || state.expiresAt <= 0) {
+                this.clearActionSummaryStorage();
                 return;
             }
-            storage.setValue('cm_contribution_state', JSON.stringify(state));
+
+            storage.setValue('cm_action_summary_state', JSON.stringify(state));
+            storage.removeValue('cm_contribution_state');
+            storage.removeValue('cm_battle_counter_state');
         }
 
-        restoreContributionDisplay() {
-            const state = this.loadContributionState();
-            const amount = Number(state.amount) || 0;
-            const expiresAt = Number(state.expiresAt) || 0;
-            if (amount <= 0 || expiresAt <= Date.now()) return;
-
-            this.showContribution(amount, expiresAt);
+        clearActionSummaryStorage() {
+            storage.removeValue('cm_action_summary_state');
+            storage.removeValue('cm_contribution_state');
+            storage.removeValue('cm_battle_counter_state');
         }
 
-        collectContribution(data) {
+        restoreActionSummaryDisplay() {
+            const state = this.loadActionSummaryState();
+            if (state.amount <= 0 || state.expiresAt <= Date.now()) return;
+
+            this.battleCounters = this.normalizeBattleCounters(state.counters);
+            this.showActionSummary(state.amount, state.expiresAt);
+        }
+
+        collectActionSummary(data, url) {
             if (!data || !Array.isArray(data.scenario)) return;
+
+            const counters = this.updateBattleCountersFromScenario(data.scenario, url);
+            const amount = this.extractContributionAmount(data.scenario);
+            if (amount <= 0) return;
+
+            const expiresAt = Date.now() + 10000;
+            this.saveActionSummaryState(amount, counters, expiresAt);
+            this.showActionSummary(amount, expiresAt);
+        }
+
+        extractContributionAmount(scenario) {
             let amount = 0;
-            for (const action of data.scenario) {
+            for (const action of scenario || []) {
                 if (!action || action.cmd !== 'contribution') continue;
                 const n = Number(action.amount);
                 if (isFinite(n) && n > 0) amount += n;
             }
-            if (amount <= 0) return;
-
-            const expiresAt = Date.now() + 10000;
-            this.saveContributionState(amount, expiresAt);
-            this.showContribution(amount, expiresAt);
+            return amount;
         }
 
-        showContribution(amount, expiresAt) {
-            const el = document.getElementById('sb-contribution-display');
+        resetBattleCounters() {
+            this.battleCounters = { ta: 0, ougi: 0, db: 0, hit: 0, dead: 0 };
+            this.hideActionSummary();
+        }
+
+        updateBattleCountersFromScenario(scenario, url) {
+            const counters = this.battleCounters || (this.battleCounters = { ta: 0, ougi: 0, db: 0, hit: 0, dead: 0 });
+            const isActionResultUrl = url.includes('attack_result')
+                || url.includes('ability_result')
+                || url.includes('summon_result');
+            if (!isActionResultUrl) return counters;
+
+            counters.hit = this.countTarouHits(scenario);
+            counters.dead = this.countActionDead(scenario);
+            for (let i = 0; i < scenario.length; i++) {
+                const action = scenario[i];
+                if (!action || typeof action !== 'object') continue;
+
+                if (action.cmd === 'attack' && action.from === 'player' && Number(action.total_attack_num) === 3) {
+                    counters.ta += 1;
+                }
+
+                if (action.cmd === 'special' || action.cmd === 'special_npc') {
+                    counters.ougi += 1;
+                }
+
+                if (action.cmd === 'message' && action.data && action.data.boss) {
+                    this.forEachMessageEntry(action.data.boss, item => {
+                        if (!item || typeof item !== 'object') return;
+                        const hasStatus = item.status != null && String(item.status) !== '';
+                        const hasMiss = item.miss != null && String(item.miss) !== '' && String(item.miss) !== '0';
+                        if (hasStatus || hasMiss) {
+                            counters.db += 1;
+                        }
+                    });
+                }
+            }
+            return counters;
+        }
+
+        countTarouHits(scenario) {
+            if (!Array.isArray(scenario)) return 0;
+
+            let hit = 0;
+            for (let index = 0; index < scenario.length; index++) {
+                const action = scenario[index];
+                if (!action || typeof action !== 'object') continue;
+
+                if (action.cmd === 'attack' && action.from === 'player') {
+                    for (const damageList of Object.values(action.damage || {})) {
+                        if (!Array.isArray(damageList)) continue;
+                        for (const damage of damageList) {
+                            if (Number(damage && damage.value)) hit++;
+                        }
+                    }
+                }
+
+                if (action.cmd === 'special' || action.cmd === 'special_npc') {
+                    if (!action.list) continue;
+                    hit += (action.total || []).filter(item => item && item.split && item.split[0] !== '0').length;
+                }
+
+                if (action.cmd === 'damage' && action.to === 'boss') {
+                    const list = Array.isArray(action.list) ? action.list : [];
+                    for (let i = 0; i < list.length; i++) {
+                        if (Number(list[i] && list[i].value)) hit++;
+                    }
+                }
+
+                if (action.cmd === 'loop_damage' && action.to === 'boss') {
+                    const list = Array.isArray(action.list) ? action.list : [];
+                    for (let i = 0; i < list.length; i++) {
+                        const damageList = Array.isArray(list[i]) ? list[i] : [];
+                        for (let j = 0; j < damageList.length; j++) {
+                            if (Number(damageList[j] && damageList[j].value)) hit++;
+                        }
+                    }
+                }
+
+                if (action.cmd === 'turn' && action.mode === 'boss') break;
+            }
+            return hit;
+        }
+
+        countActionDead(scenario) {
+            if (!Array.isArray(scenario)) return 0;
+
+            let dead = 0;
+            for (let i = 0; i < scenario.length; i++) {
+                const action = scenario[i];
+                if (action && action.cmd === 'die' && action.to === 'player') {
+                    dead++;
+                }
+            }
+            return dead;
+        }
+
+        forEachMessageEntry(raw, callback) {
+            if (!raw || typeof callback !== 'function') return;
+            if (Array.isArray(raw)) {
+                raw.forEach(group => {
+                    if (Array.isArray(group)) {
+                        group.forEach(item => callback(item));
+                    } else if (group && typeof group === 'object') {
+                        Object.values(group).forEach(value => this.forEachMessageEntry(value, callback));
+                    }
+                });
+                return;
+            }
+            if (raw && typeof raw === 'object') {
+                Object.values(raw).forEach(value => this.forEachMessageEntry(value, callback));
+            }
+        }
+
+        renderBattleCounters() {
+            const el = document.getElementById('sb-battle-counter-display');
             if (!el) return;
 
+            const counters = this.normalizeBattleCounters(this.battleCounters);
+            el.innerHTML = [
+                `<div class="sb-battle-counter-row">TA ${counters.ta}</div>`,
+                `<div class="sb-battle-counter-row">奥义 ${counters.ougi}</div>`,
+                `<div class="sb-battle-counter-row">DB ${counters.db}</div>`,
+                `<div class="sb-battle-counter-row">hit ${counters.hit}</div>`,
+                `<div class="sb-battle-counter-row">阵亡 ${counters.dead}</div>`
+            ].join('');
+        }
+
+        showActionSummary(amount, expiresAt) {
             const n = Math.floor(Number(amount) || 0);
             if (n <= 0) return;
 
-            el.textContent = `+ ${n.toLocaleString()}`;
-            el.classList.add('active');
+            const contributionEl = document.getElementById('sb-contribution-display');
+            if (contributionEl) {
+                contributionEl.textContent = `+ ${n.toLocaleString()}`;
+                contributionEl.classList.add('active');
+            }
 
-            if (this.contributionTimer) {
-                clearTimeout(this.contributionTimer);
-                this.contributionTimer = null;
+            this.renderBattleCounters();
+            const counterEl = document.getElementById('sb-battle-counter-display');
+            if (counterEl) {
+                counterEl.classList.add('active');
+            }
+
+            if (this.actionSummaryTimer) {
+                clearTimeout(this.actionSummaryTimer);
+                this.actionSummaryTimer = null;
             }
 
             const delay = Math.max(0, (Number(expiresAt) || 0) - Date.now());
-            this.contributionTimer = setTimeout(() => {
-                this.hideContribution();
+            this.actionSummaryTimer = setTimeout(() => {
+                this.hideActionSummary();
             }, delay);
         }
 
-        hideContribution() {
-            if (this.contributionTimer) {
-                clearTimeout(this.contributionTimer);
-                this.contributionTimer = null;
+        hideActionSummary() {
+            if (this.actionSummaryTimer) {
+                clearTimeout(this.actionSummaryTimer);
+                this.actionSummaryTimer = null;
             }
-            const el = document.getElementById('sb-contribution-display');
-            if (el) {
-                el.classList.remove('active');
-                el.textContent = '';
+
+            const contributionEl = document.getElementById('sb-contribution-display');
+            if (contributionEl) {
+                contributionEl.classList.remove('active');
+                contributionEl.textContent = '';
             }
-            storage.removeValue('cm_contribution_state');
+
+            const counterEl = document.getElementById('sb-battle-counter-display');
+            if (counterEl) {
+                counterEl.classList.remove('active');
+                counterEl.textContent = '';
+            }
+
+            this.clearActionSummaryStorage();
         }
 
         // ====== 直前倒计时 ======
@@ -4506,6 +4724,7 @@
                     currentTurn = data.turn;
                     this.battleData.startTime = Date.now();
                     this.battleData.questId = String(data.quest_id || '');
+                    this.resetBattleCounters();
                     // boss 图标 id（参照 Tarou：boss.param[0].cjs 形如 "enemy_8104023"，取末段）。
                     // 用 boss 图替代副本大厅图——部分副本无大厅图。
                     const bcjs = data.boss && data.boss.param && data.boss.param[0] && data.boss.param[0].cjs;
@@ -4542,7 +4761,7 @@
 
                 // Tarou 同款来源：直接读取 scenario 中服务端返回的 contribution.amount，
                 // 不用伤害估算；这里只显示本次增加值，离开战斗后仍按 10s 计时消失。
-                this.collectContribution(data);
+                this.collectActionSummary(data, url);
 
                 // 战斗结束（Tarou: scenario.some(item => item.cmd === 'win' && item.is_last_raid)）
                 // 只看 attack/ability/summon 三个动作响应里的 data.scenario。
