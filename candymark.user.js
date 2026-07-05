@@ -193,7 +193,7 @@
         #sb-chokuzen-countdown.active { display: flex; }
         #sb-battle-counter-display {
             position: fixed;
-            top: calc(1.5cm + 18px);
+            top: calc(0.5cm + 6px);
             left: 0;
             display: none;
             align-items: flex-start;
@@ -236,7 +236,7 @@
         }
         #sb-contribution-display {
             position: fixed;
-            top: calc(0.5cm + 6px);
+            top: calc(1.5cm + 18px);
             left: 0;
             height: 0.5cm;
             padding: 0 6px;
