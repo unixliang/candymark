@@ -229,7 +229,6 @@
         }
         #sb-battle-counter-display .sb-battle-counter-item.is-nonzero {
             color: #fff;
-            font-weight: 700;
             background: rgba(0, 0, 0, 0.72);
             box-shadow: 0 2px 9px rgba(0, 0, 0, 0.48);
         }
