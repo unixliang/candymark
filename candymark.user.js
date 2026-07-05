@@ -4417,7 +4417,9 @@
                 const action = scenario[i];
                 if (!action || typeof action !== 'object') continue;
 
-                if (action.cmd === 'attack' && action.from === 'player' && Number(action.total_attack_num) === 3) {
+                const nextAction = scenario[i + 1];
+                const isTaEnd = nextAction && nextAction.cmd === 'normal_attack_end';
+                if (action.cmd === 'attack' && action.from === 'player' && Number(action.total_attack_num) === 3 && isTaEnd) {
                     counters.ta += 1;
                 }
 
