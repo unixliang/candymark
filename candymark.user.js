@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         CandyMark - 移动端标签导航
 // @namespace    https://github.com/unixliang/candymark
-// @version      2.0.0
-// @description  移动端网页标签导航工具，支持悬浮标签、拖拽移动、本地存储等功能
+// @version      2.2.0
+// @description  移动端网页标签导航工具，支持悬浮标签、键盘与手柄快捷键、拖拽移动、本地存储等功能
 // @author       unixliang
 // @match        *://game.granbluefantasy.jp/*
 // @match        *://gbf.game.mbga.jp/*
@@ -550,6 +550,123 @@
             transition: all 0.2s;
             min-width: 80px;
         }
+
+        /* 标签快捷键设置 */
+        #sb-shortcut-modal > .sb-modal-content {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #sb-shortcut-modal .sb-shortcut-list {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sb-shortcut-hint,
+        .sb-shortcut-message,
+        .sb-shortcut-empty {
+            color: #666;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .sb-shortcut-hint {
+            margin: -8px 0 12px;
+        }
+
+        .sb-shortcut-message {
+            min-height: 20px;
+            margin-bottom: 8px;
+            color: #d35400;
+        }
+
+        .sb-shortcut-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+
+        .sb-shortcut-summary {
+            display: flex;
+            align-items: center;
+            flex: 1 1 auto;
+            min-width: 0;
+            gap: 10px;
+        }
+
+        .sb-shortcut-icon {
+            flex: 0 0 auto;
+            opacity: var(--sb-bookmark-opacity, 1);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
+        }
+
+        .sb-shortcut-info {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .sb-shortcut-name,
+        .sb-shortcut-target {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sb-shortcut-name {
+            color: #333;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .sb-shortcut-target {
+            margin-top: 3px;
+            color: #888;
+            font-size: 12px;
+        }
+
+        .sb-shortcut-controls {
+            display: flex;
+            flex: 0 0 auto;
+            gap: 6px;
+        }
+
+        #sb-shortcut-modal .sb-shortcut-record,
+        #sb-shortcut-modal .sb-shortcut-clear {
+            min-width: 0;
+            padding: 8px 10px;
+            white-space: nowrap;
+        }
+
+        #sb-shortcut-modal .sb-shortcut-record {
+            min-width: 96px;
+            background: #667eea;
+            color: white;
+        }
+
+        #sb-shortcut-modal .sb-shortcut-record.is-recording {
+            background: #e67e22;
+            box-shadow: 0 0 0 2px rgba(230, 126, 34, 0.2);
+        }
+
+        #sb-shortcut-modal .sb-shortcut-clear {
+            background: #f1f3f5;
+            color: #555;
+        }
+
+        #sb-shortcut-modal .sb-shortcut-clear:disabled {
+            opacity: 0.45;
+            cursor: default;
+        }
         
         .sb-btn-primary {
             background: #667eea;
@@ -603,6 +720,21 @@
             .sb-menu-item {
                 padding: 14px 16px;
                 font-size: 16px;
+            }
+
+            .sb-shortcut-row {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .sb-shortcut-controls,
+            .sb-shortcut-summary,
+            #sb-shortcut-modal .sb-shortcut-record {
+                width: 100%;
+            }
+
+            #sb-shortcut-modal .sb-shortcut-record {
+                flex: 1 1 auto;
             }
             
         }
@@ -1353,6 +1485,7 @@
             <div class="sb-menu-item" data-action="add-bookmark">➕ 增加标签</div>
             <div class="sb-menu-item" data-action="adjust-size">📏 调整标签大小</div>
             <div class="sb-menu-item" data-action="adjust-opacity">🌓 调整标签透明度</div>
+            <div class="sb-menu-item" data-action="shortcut-settings">⌨️ 快捷键设置</div>
             <div class="sb-menu-item" data-action="auto-normal">🌐 辅助设置（常态）</div>
             <div class="sb-menu-item" data-action="auto-battle">⚔️ 辅助设置（战斗）</div>
             <div class="sb-menu-item" data-action="subscribe-from-drop-list">🔔 掉落通知</div>
@@ -1394,6 +1527,18 @@
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-interval-confirm">确认</button>
                     <button class="sb-btn-secondary" id="sb-interval-cancel">取消</button>
+                </div>
+            </div>
+        </div>
+        <div id="sb-shortcut-modal" class="sb-modal">
+            <div class="sb-modal-content">
+                <h3>快捷键设置</h3>
+                <div class="sb-shortcut-hint">点击标签右侧的按键框，再按下键盘按键或虚拟手柄按钮。Esc 可取消本次录入。</div>
+                <div class="sb-shortcut-message" id="sb-shortcut-message"></div>
+                <div class="sb-shortcut-list" id="sb-shortcut-list"></div>
+                <div class="sb-modal-buttons">
+                    <button class="sb-btn-primary" id="sb-shortcut-confirm">确认</button>
+                    <button class="sb-btn-secondary" id="sb-shortcut-cancel">取消</button>
                 </div>
             </div>
         </div>
@@ -1652,6 +1797,11 @@
             this.touchStartTime = 0;
             this.longPressTimeout = null;
             this.hasBookmarks = false;
+            this.shortcutDraft = new Map();
+            this.capturingShortcutBookmarkId = null;
+            this.gamepadFrameId = null;
+            this.gamepadButtonStates = new Map();
+            this.boundGamepadPoll = this.pollGamepads.bind(this);
             
             // 预绑定拖拽事件处理函数以避免重复创建
             this.boundDragHandlers = {
@@ -1683,6 +1833,7 @@
             this.updateTriggerVisibility();
             this.registerMenuCommands();
             this.setupClickThroughDetection();
+            this.updateGamepadMonitoring();
         }
         
         registerMenuCommands() {
@@ -1698,7 +1849,7 @@
         // 导出配置
         exportConfig() {
             const configData = {
-                version: '2.0.0',
+                version: '2.2.0',
                 exportTime: new Date().toISOString(),
                 bookmarks: this.bookmarks,
                 settings: {
@@ -1850,6 +2001,7 @@
                                 updateBookmarkOpacity(CONFIG.bookmarkOpacity);
                                 this.renderBookmarks(true);
                                 this.updateTriggerVisibility();
+                                this.updateGamepadMonitoring();
                                 
                                 const message = settings ? '导入成功！标签和设置已更新。' : '导入成功！仅标签数据已更新。';
                                 alert(message);
@@ -1868,7 +2020,7 @@
         async exportToClipboard() {
             try {
                 const configData = {
-                    version: '2.0.0',
+                    version: '2.2.0',
                     exportTime: new Date().toISOString(),
                     bookmarks: this.bookmarks,
                     settings: {
@@ -2014,6 +2166,7 @@
                     updateBookmarkOpacity(CONFIG.bookmarkOpacity);
                     this.renderBookmarks(true);
                     this.updateTriggerVisibility();
+                    this.updateGamepadMonitoring();
                     
                     alert('配置导入成功！');
                 }
@@ -2093,28 +2246,43 @@
                 this.showAddMenu(e);
             });
             
-            // 快捷键支持
+            // 快捷键支持。使用捕获阶段，以便命中标签快捷键后阻止页面继续处理同一按键。
             document.addEventListener('keydown', (e) => {
-                if (e.ctrlKey && e.code === CONFIG.shortcutKey) {
-                    e.preventDefault();
-                    // 在屏幕中心显示添加菜单
-                    const fakeEvent = {
-                        clientX: window.innerWidth / 2,
-                        clientY: window.innerHeight / 2
-                    };
-                    this.showAddMenu(fakeEvent);
+                if (this.capturingShortcutBookmarkId !== null) {
+                    this.captureShortcutFromEvent(e);
+                    return;
                 }
-                
+
                 if (e.key === 'Escape') {
                     this.hideMenu();
                     this.hideAddMenu();
                     this.hideAddModal();
                     this.hideEditModal();
                     this.hideIntervalModal();
+                    this.hideShortcutModal();
                     this.cancelSizeChange();
                     this.cancelOpacityChange();
+                    return;
                 }
-            });
+
+                if (e.defaultPrevented || e.repeat || e.isComposing || e.keyCode === 229) return;
+                if (document.querySelector('.sb-modal.show')) return;
+
+                if (this.isMainMenuShortcutEvent(e)) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    // 在屏幕中心显示添加菜单
+                    const fakeEvent = {
+                        clientX: window.innerWidth / 2,
+                        clientY: window.innerHeight / 2
+                    };
+                    this.showAddMenu(fakeEvent);
+                    return;
+                }
+
+                if (this.isEditableShortcutTarget(e.target)) return;
+                this.handleBookmarkShortcutEvent(e);
+            }, true);
             
             // 添加标签
             document.getElementById('sb-confirm').addEventListener('click', () => {
@@ -2141,6 +2309,26 @@
             
             document.getElementById('sb-interval-cancel').addEventListener('click', () => {
                 this.hideIntervalModal();
+            });
+
+            // 标签快捷键设置
+            document.getElementById('sb-shortcut-confirm').addEventListener('click', () => {
+                this.confirmShortcutSettings();
+            });
+
+            document.getElementById('sb-shortcut-cancel').addEventListener('click', () => {
+                this.hideShortcutModal();
+            });
+
+            document.getElementById('sb-shortcut-list').addEventListener('click', (e) => {
+                const button = e.target.closest('[data-shortcut-action]');
+                if (!button) return;
+                const bookmarkId = button.dataset.bookmarkId;
+                if (button.dataset.shortcutAction === 'record') {
+                    this.startShortcutCapture(bookmarkId);
+                } else if (button.dataset.shortcutAction === 'clear') {
+                    this.clearShortcutDraft(bookmarkId);
+                }
             });
             
             // 标签大小调整
@@ -2658,6 +2846,9 @@
                 case 'adjust-opacity':
                     this.showOpacityModal();
                     break;
+                case 'shortcut-settings':
+                    this.showShortcutModal();
+                    break;
                 case 'auto-normal':
                     this.showAutoNormalModal();
                     break;
@@ -2727,6 +2918,491 @@
             const modal = document.getElementById('sb-interval-modal');
             modal.classList.remove('show');
             document.getElementById('sb-interval-input').value = '';
+        }
+
+        normalizeShortcut(shortcut) {
+            if (!shortcut || typeof shortcut !== 'object') return null;
+
+            if (shortcut.type === 'gamepad') {
+                const button = Number(shortcut.button);
+                if (!Number.isInteger(button) || button < 0 || button > 63) return null;
+                return {
+                    type: 'gamepad',
+                    button: button,
+                    label: typeof shortcut.label === 'string' && shortcut.label
+                        ? shortcut.label
+                        : this.gamepadButtonLabel(button)
+                };
+            }
+
+            if (typeof shortcut.code !== 'string' || !shortcut.code || shortcut.code === 'Unidentified') return null;
+            return {
+                type: 'keyboard',
+                code: shortcut.code,
+                key: typeof shortcut.key === 'string' ? shortcut.key : '',
+                ctrlKey: shortcut.ctrlKey === true,
+                altKey: shortcut.altKey === true,
+                shiftKey: shortcut.shiftKey === true,
+                metaKey: shortcut.metaKey === true
+            };
+        }
+
+        shortcutFromEvent(e) {
+            const modifierCodes = new Set([
+                'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight',
+                'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'
+            ]);
+            if (!e.code || e.code === 'Unidentified' || modifierCodes.has(e.code)) return null;
+            return this.normalizeShortcut({
+                type: 'keyboard',
+                code: e.code,
+                key: e.key,
+                ctrlKey: e.ctrlKey,
+                altKey: e.altKey,
+                shiftKey: e.shiftKey,
+                metaKey: e.metaKey
+            });
+        }
+
+        shortcutSignature(shortcut) {
+            const normalized = this.normalizeShortcut(shortcut);
+            if (!normalized) return '';
+            if (normalized.type === 'gamepad') return `gamepad:${normalized.button}`;
+            return [
+                'keyboard',
+                normalized.ctrlKey ? '1' : '0',
+                normalized.altKey ? '1' : '0',
+                normalized.shiftKey ? '1' : '0',
+                normalized.metaKey ? '1' : '0',
+                normalized.code
+            ].join(':');
+        }
+
+        shortcutKeyLabel(shortcut) {
+            const code = shortcut.code;
+            if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+            if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+            if (/^F([1-9]|1[0-2])$/.test(code)) return code;
+
+            const labels = {
+                Space: '空格', Enter: 'Enter', Tab: 'Tab', Escape: 'Esc',
+                Backspace: 'Backspace', Delete: 'Delete', Insert: 'Insert',
+                Home: 'Home', End: 'End', PageUp: 'PageUp', PageDown: 'PageDown',
+                ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+                Backquote: '`', Minus: '-', Equal: '=', BracketLeft: '[',
+                BracketRight: ']', Backslash: '\\', Semicolon: ';', Quote: "'",
+                Comma: ',', Period: '.', Slash: '/', CapsLock: 'CapsLock',
+                NumpadAdd: 'Num +', NumpadSubtract: 'Num -', NumpadMultiply: 'Num *',
+                NumpadDivide: 'Num /', NumpadDecimal: 'Num .', NumpadEnter: 'Num Enter'
+            };
+            if (labels[code]) return labels[code];
+            if (/^Numpad[0-9]$/.test(code)) return `Num ${code.slice(6)}`;
+            return shortcut.key && shortcut.key.trim() ? shortcut.key : code;
+        }
+
+        formatShortcut(shortcut) {
+            const normalized = this.normalizeShortcut(shortcut);
+            if (!normalized) return '未设置';
+            if (normalized.type === 'gamepad') {
+                return `手柄 ${normalized.label || this.gamepadButtonLabel(normalized.button)}`;
+            }
+            const parts = [];
+            if (normalized.ctrlKey) parts.push('Ctrl');
+            if (normalized.altKey) parts.push('Alt');
+            if (normalized.shiftKey) parts.push('Shift');
+            if (normalized.metaKey) parts.push('Meta');
+            parts.push(this.shortcutKeyLabel(normalized));
+            return parts.join(' + ');
+        }
+
+        isMainMenuShortcut(shortcut) {
+            const normalized = this.normalizeShortcut(shortcut);
+            return !!normalized &&
+                normalized.type === 'keyboard' &&
+                normalized.ctrlKey &&
+                !normalized.altKey &&
+                !normalized.shiftKey &&
+                !normalized.metaKey &&
+                normalized.code === CONFIG.shortcutKey;
+        }
+
+        isMainMenuShortcutEvent(e) {
+            return this.isMainMenuShortcut(this.shortcutFromEvent(e));
+        }
+
+        gamepadButtonLabel(buttonIndex) {
+            const labels = [
+                'A', 'B', 'X', 'Y',
+                'LB', 'RB', 'LT', 'RT',
+                'Select', 'Start', 'L3', 'R3',
+                '方向上', '方向下', '方向左', '方向右',
+                'Home'
+            ];
+            return labels[buttonIndex] || `按钮 ${buttonIndex}`;
+        }
+
+        isEditableShortcutTarget(target) {
+            return !!(target && target.closest && target.closest(
+                'input, textarea, select, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]'
+            ));
+        }
+
+        bookmarkActionLabel(bookmark) {
+            if (bookmark.url === 'back') return '后退';
+            if (bookmark.url === 'reload') return '刷新';
+            if (bookmark.url === 'click-through-back') return '穿透后退（快捷键仅执行延迟后退）';
+            return bookmark.url;
+        }
+
+        setShortcutMessage(message) {
+            const element = document.getElementById('sb-shortcut-message');
+            if (element) element.textContent = message || '';
+        }
+
+        hasGamepadShortcuts() {
+            return this.bookmarks.some(bookmark => {
+                const shortcut = bookmark && bookmark.shortcut;
+                const button = shortcut && Number(shortcut.button);
+                return shortcut && shortcut.type === 'gamepad' &&
+                    Number.isInteger(button) && button >= 0 && button <= 63;
+            });
+        }
+
+        shouldMonitorGamepads() {
+            return typeof navigator.getGamepads === 'function' &&
+                typeof window.requestAnimationFrame === 'function' &&
+                (this.capturingShortcutBookmarkId !== null || this.hasGamepadShortcuts());
+        }
+
+        updateGamepadMonitoring() {
+            if (this.shouldMonitorGamepads()) {
+                this.startGamepadMonitoring();
+            } else {
+                this.stopGamepadMonitoring();
+            }
+        }
+
+        startGamepadMonitoring() {
+            if (this.gamepadFrameId !== null || !this.shouldMonitorGamepads()) return;
+            this.gamepadButtonStates.clear();
+            this.gamepadFrameId = window.requestAnimationFrame(this.boundGamepadPoll);
+        }
+
+        stopGamepadMonitoring() {
+            if (this.gamepadFrameId !== null) {
+                window.cancelAnimationFrame(this.gamepadFrameId);
+                this.gamepadFrameId = null;
+            }
+            this.gamepadButtonStates.clear();
+        }
+
+        pollGamepads() {
+            this.gamepadFrameId = null;
+            if (!this.shouldMonitorGamepads()) return;
+
+            let gamepads = [];
+            try {
+                gamepads = navigator.getGamepads() || [];
+            } catch (e) {
+                this.stopGamepadMonitoring();
+                return;
+            }
+
+            const nextStates = new Map();
+            const newPresses = [];
+            for (const gamepad of gamepads) {
+                if (!gamepad || !gamepad.buttons) continue;
+                gamepad.buttons.forEach((button, buttonIndex) => {
+                    const stateKey = `${gamepad.index}:${buttonIndex}`;
+                    const pressed = !!(button && (button.pressed || button.value > 0.5));
+                    const wasPressed = this.gamepadButtonStates.get(stateKey) === true;
+                    nextStates.set(stateKey, pressed);
+                    if (pressed && !wasPressed) {
+                        newPresses.push({ buttonIndex, gamepad });
+                    }
+                });
+            }
+            this.gamepadButtonStates = nextStates;
+
+            for (const press of newPresses) {
+                if (this.handleGamepadButtonPress(press.buttonIndex, press.gamepad)) break;
+            }
+
+            if (this.shouldMonitorGamepads() && this.gamepadFrameId === null) {
+                this.gamepadFrameId = window.requestAnimationFrame(this.boundGamepadPoll);
+            }
+        }
+
+        handleGamepadButtonPress(buttonIndex) {
+            const shortcut = this.normalizeShortcut({
+                type: 'gamepad',
+                button: buttonIndex,
+                label: this.gamepadButtonLabel(buttonIndex)
+            });
+            if (!shortcut) return false;
+
+            if (this.capturingShortcutBookmarkId !== null) {
+                return this.assignCapturedShortcut(shortcut);
+            }
+
+            if (document.querySelector('.sb-modal.show') || this.isDragMode()) return false;
+            const signature = this.shortcutSignature(shortcut);
+            const bookmark = this.bookmarks.find(item =>
+                this.shortcutSignature(item.shortcut) === signature
+            );
+            if (!bookmark) return false;
+
+            this.hideMenu();
+            this.hideAddMenu();
+            this.hideConfigMenu();
+            this.executeBookmarkAction(bookmark);
+            return true;
+        }
+
+        showShortcutModal() {
+            this.capturingShortcutBookmarkId = null;
+            this.shortcutDraft = new Map();
+            this.bookmarks.forEach(bookmark => {
+                this.shortcutDraft.set(String(bookmark.id), this.normalizeShortcut(bookmark.shortcut));
+            });
+            this.setShortcutMessage('');
+            this.renderShortcutSettings();
+            document.getElementById('sb-shortcut-modal').classList.add('show');
+        }
+
+        hideShortcutModal() {
+            const modal = document.getElementById('sb-shortcut-modal');
+            if (modal) modal.classList.remove('show');
+            this.capturingShortcutBookmarkId = null;
+            this.shortcutDraft = new Map();
+            this.setShortcutMessage('');
+            this.updateGamepadMonitoring();
+        }
+
+        renderShortcutSettings() {
+            const list = document.getElementById('sb-shortcut-list');
+            if (!list) return;
+            list.innerHTML = '';
+
+            if (!this.bookmarks.length) {
+                const empty = document.createElement('div');
+                empty.className = 'sb-shortcut-empty';
+                empty.textContent = '还没有标签，请先新增标签。';
+                list.appendChild(empty);
+                return;
+            }
+
+            this.bookmarks.forEach(bookmark => {
+                const bookmarkId = String(bookmark.id);
+                const shortcut = this.shortcutDraft.get(bookmarkId);
+                const isRecording = this.capturingShortcutBookmarkId === bookmarkId;
+
+                const row = document.createElement('div');
+                row.className = 'sb-shortcut-row';
+
+                const summary = document.createElement('div');
+                summary.className = 'sb-shortcut-summary';
+
+                const colorIndex = (bookmark.colorIndex !== undefined ? bookmark.colorIndex : 0) % this.colorPresets.length;
+                const icon = document.createElement('div');
+                icon.className = `sb-shortcut-icon sb-bookmark-pick-icon sb-bookmark--color-${colorIndex}`;
+                icon.textContent = bookmark.name || '';
+                icon.title = `${bookmark.name || '未命名标签'}\n${this.bookmarkActionLabel(bookmark)}`;
+
+                const info = document.createElement('div');
+                info.className = 'sb-shortcut-info';
+
+                const name = document.createElement('div');
+                name.className = 'sb-shortcut-name';
+                name.textContent = bookmark.name || '未命名标签';
+                name.title = bookmark.name || '未命名标签';
+
+                const target = document.createElement('div');
+                target.className = 'sb-shortcut-target';
+                target.textContent = this.bookmarkActionLabel(bookmark);
+                target.title = this.bookmarkActionLabel(bookmark);
+                info.append(name, target);
+                summary.append(icon, info);
+
+                const controls = document.createElement('div');
+                controls.className = 'sb-shortcut-controls';
+
+                const recordButton = document.createElement('button');
+                recordButton.type = 'button';
+                recordButton.className = `sb-shortcut-record${isRecording ? ' is-recording' : ''}`;
+                recordButton.dataset.shortcutAction = 'record';
+                recordButton.dataset.bookmarkId = bookmarkId;
+                recordButton.textContent = isRecording ? '请按快捷键…' : this.formatShortcut(shortcut);
+
+                const clearButton = document.createElement('button');
+                clearButton.type = 'button';
+                clearButton.className = 'sb-shortcut-clear';
+                clearButton.dataset.shortcutAction = 'clear';
+                clearButton.dataset.bookmarkId = bookmarkId;
+                clearButton.textContent = '清除';
+                clearButton.disabled = !shortcut;
+
+                controls.append(recordButton, clearButton);
+                row.append(summary, controls);
+                list.appendChild(row);
+            });
+        }
+
+        startShortcutCapture(bookmarkId) {
+            if (!this.shortcutDraft.has(bookmarkId)) return;
+            this.capturingShortcutBookmarkId = bookmarkId;
+            if (typeof navigator.getGamepads === 'function') {
+                this.setShortcutMessage('请按下键盘快捷键或虚拟手柄按钮；只按修饰键不会完成录入。');
+            } else {
+                this.setShortcutMessage('当前浏览器未提供手柄接口，请按下键盘快捷键。');
+            }
+            this.renderShortcutSettings();
+            this.updateGamepadMonitoring();
+        }
+
+        clearShortcutDraft(bookmarkId) {
+            if (!this.shortcutDraft.has(bookmarkId)) return;
+            this.shortcutDraft.set(bookmarkId, null);
+            if (this.capturingShortcutBookmarkId === bookmarkId) {
+                this.capturingShortcutBookmarkId = null;
+            }
+            this.setShortcutMessage('');
+            this.renderShortcutSettings();
+            this.updateGamepadMonitoring();
+        }
+
+        captureShortcutFromEvent(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
+            if (e.key === 'Escape') {
+                this.capturingShortcutBookmarkId = null;
+                this.renderShortcutSettings();
+                this.setShortcutMessage('已取消本次录入。');
+                this.updateGamepadMonitoring();
+                return;
+            }
+
+            const shortcut = this.shortcutFromEvent(e);
+            if (!shortcut) {
+                this.setShortcutMessage('请在修饰键之外，再按一个按键。');
+                return;
+            }
+
+            this.assignCapturedShortcut(shortcut);
+        }
+
+        assignCapturedShortcut(shortcut) {
+            if (this.capturingShortcutBookmarkId === null) return false;
+
+            if (this.isMainMenuShortcut(shortcut)) {
+                this.setShortcutMessage(`${this.formatShortcut(shortcut)} 已保留给左上角菜单，请换一个快捷键。`);
+                return false;
+            }
+
+            const signature = this.shortcutSignature(shortcut);
+            for (const [bookmarkId, existing] of this.shortcutDraft.entries()) {
+                if (bookmarkId === this.capturingShortcutBookmarkId) continue;
+                if (this.shortcutSignature(existing) !== signature) continue;
+                const owner = this.bookmarks.find(bookmark => String(bookmark.id) === bookmarkId);
+                this.setShortcutMessage(`该快捷键已被“${owner && owner.name ? owner.name : '未命名标签'}”使用。`);
+                return false;
+            }
+
+            this.shortcutDraft.set(this.capturingShortcutBookmarkId, shortcut);
+            this.capturingShortcutBookmarkId = null;
+            this.renderShortcutSettings();
+            this.setShortcutMessage(`已录入 ${this.formatShortcut(shortcut)}。`);
+            this.updateGamepadMonitoring();
+            return true;
+        }
+
+        validateShortcutDraft() {
+            const seen = new Map();
+            for (const bookmark of this.bookmarks) {
+                const shortcut = this.shortcutDraft.get(String(bookmark.id));
+                if (!shortcut) continue;
+                if (this.isMainMenuShortcut(shortcut)) {
+                    return `${this.formatShortcut(shortcut)} 已保留给左上角菜单。`;
+                }
+                const signature = this.shortcutSignature(shortcut);
+                if (seen.has(signature)) {
+                    return `“${seen.get(signature)}”与“${bookmark.name || '未命名标签'}”使用了相同快捷键。`;
+                }
+                seen.set(signature, bookmark.name || '未命名标签');
+            }
+            return '';
+        }
+
+        confirmShortcutSettings() {
+            const validationError = this.validateShortcutDraft();
+            if (validationError) {
+                this.setShortcutMessage(validationError);
+                return;
+            }
+
+            this.bookmarks.forEach(bookmark => {
+                const shortcut = this.shortcutDraft.get(String(bookmark.id));
+                if (shortcut) {
+                    bookmark.shortcut = { ...shortcut };
+                } else {
+                    delete bookmark.shortcut;
+                }
+            });
+            this.saveBookmarks(true);
+            this.hideShortcutModal();
+        }
+
+        handleBookmarkShortcutEvent(e) {
+            if (this.isDragMode()) return false;
+            const pressed = this.shortcutFromEvent(e);
+            if (!pressed) return false;
+            const signature = this.shortcutSignature(pressed);
+            const bookmark = this.bookmarks.find(item =>
+                this.shortcutSignature(item.shortcut) === signature
+            );
+            if (!bookmark) return false;
+
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            this.hideMenu();
+            this.hideAddMenu();
+            this.hideConfigMenu();
+            this.executeBookmarkAction(bookmark);
+            return true;
+        }
+
+        executeBookmarkAction(bookmark) {
+            if (!bookmark || !bookmark.url) return false;
+
+            if (bookmark.url === 'back') {
+                window.history.back();
+                return true;
+            }
+
+            if (bookmark.url === 'reload') {
+                window.location.reload();
+                return true;
+            }
+
+            if (bookmark.url === 'click-through-back') {
+                // 键盘没有可穿透的指针坐标：只执行标签定义的延迟后退，不合成点击事件。
+                if (this.backPending) return true;
+                this.backPending = true;
+                const delay = bookmark.clickThroughDelay || 300;
+                setTimeout(() => {
+                    this.backPending = false;
+                    window.history.back();
+                }, delay);
+                return true;
+            }
+
+            if (bookmark.url === window.location.href) {
+                window.location.reload();
+            } else {
+                window.location.href = bookmark.url;
+            }
+            return true;
         }
         
         showSizeModal() {
@@ -3716,6 +4392,7 @@
                 this.saveBookmarks(true); // 删除标签立即保存
                 this.renderBookmarks();
                 this.updateTriggerVisibility();
+                this.updateGamepadMonitoring();
             }
         }
         
