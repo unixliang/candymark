@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CandyMark - 移动端标签导航
 // @namespace    https://github.com/unixliang/candymark
-// @version      2.2.0
+// @version      2.2.1
 // @description  移动端网页标签导航工具，支持悬浮标签、键盘与手柄快捷键、拖拽移动、本地存储等功能
 // @author       unixliang
 // @match        *://game.granbluefantasy.jp/*
@@ -584,6 +584,16 @@
             margin-bottom: 8px;
             color: #d35400;
         }
+
+        .sb-gamepad-status {
+            margin: -4px 0 10px;
+            color: #777;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .sb-gamepad-status.is-connected { color: #238636; }
+        .sb-gamepad-status.is-error { color: #cf222e; }
 
         .sb-shortcut-row {
             display: flex;
@@ -1535,6 +1545,7 @@
                 <h3>快捷键设置</h3>
                 <div class="sb-shortcut-hint">点击标签右侧的按键框，再按下键盘按键或虚拟手柄按钮。Esc 可取消本次录入。</div>
                 <div class="sb-shortcut-message" id="sb-shortcut-message"></div>
+                <div class="sb-gamepad-status" id="sb-gamepad-status"></div>
                 <div class="sb-shortcut-list" id="sb-shortcut-list"></div>
                 <div class="sb-modal-buttons">
                     <button class="sb-btn-primary" id="sb-shortcut-confirm">确认</button>
@@ -1802,6 +1813,8 @@
             this.gamepadFrameId = null;
             this.gamepadButtonStates = new Map();
             this.boundGamepadPoll = this.pollGamepads.bind(this);
+            this.boundGamepadConnected = this.handleGamepadConnected.bind(this);
+            this.boundGamepadDisconnected = this.handleGamepadDisconnected.bind(this);
             
             // 预绑定拖拽事件处理函数以避免重复创建
             this.boundDragHandlers = {
@@ -1849,7 +1862,7 @@
         // 导出配置
         exportConfig() {
             const configData = {
-                version: '2.2.0',
+                version: '2.2.1',
                 exportTime: new Date().toISOString(),
                 bookmarks: this.bookmarks,
                 settings: {
@@ -2020,7 +2033,7 @@
         async exportToClipboard() {
             try {
                 const configData = {
-                    version: '2.2.0',
+                    version: '2.2.1',
                     exportTime: new Date().toISOString(),
                     bookmarks: this.bookmarks,
                     settings: {
@@ -2245,6 +2258,12 @@
                 e.stopPropagation();
                 this.showAddMenu(e);
             });
+
+            // iOS Safari 的辅助功能虚拟手柄会先通过连接事件暴露给页面。
+            window.addEventListener('gamepadconnected', this.boundGamepadConnected);
+            window.addEventListener('gamepaddisconnected', this.boundGamepadDisconnected);
+            window.addEventListener('webkitgamepadconnected', this.boundGamepadConnected);
+            window.addEventListener('webkitgamepaddisconnected', this.boundGamepadDisconnected);
             
             // 快捷键支持。使用捕获阶段，以便命中标签快捷键后阻止页面继续处理同一按键。
             document.addEventListener('keydown', (e) => {
@@ -3059,6 +3078,42 @@
             if (element) element.textContent = message || '';
         }
 
+        setGamepadStatus(message, state = '') {
+            const element = document.getElementById('sb-gamepad-status');
+            if (!element) return;
+            if (element.textContent !== message) element.textContent = message;
+            element.classList.toggle('is-connected', state === 'connected');
+            element.classList.toggle('is-error', state === 'error');
+        }
+
+        refreshGamepadStatus(gamepads = null) {
+            const modal = document.getElementById('sb-shortcut-modal');
+            if (!modal || !modal.classList.contains('show')) return;
+            if (typeof navigator.getGamepads !== 'function') {
+                this.setGamepadStatus('手柄：当前浏览器不支持 Gamepad API', 'error');
+                return;
+            }
+
+            try {
+                const pads = gamepads || navigator.getGamepads() || [];
+                const connected = [];
+                for (let i = 0; i < pads.length; i++) {
+                    const gamepad = pads[i];
+                    if (gamepad) connected.push(gamepad);
+                }
+                if (connected.length) {
+                    const names = connected.map(gamepad => gamepad.id || `控制器 ${gamepad.index}`).join('、');
+                    this.setGamepadStatus(`手柄：已检测到 ${names}`, 'connected');
+                } else if (this.capturingShortcutBookmarkId !== null) {
+                    this.setGamepadStatus('手柄：等待输入；首次按键可能用于唤醒控制器');
+                } else {
+                    this.setGamepadStatus('手柄：尚未检测到控制器');
+                }
+            } catch (error) {
+                this.setGamepadStatus(`手柄：读取失败（${error.name || '未知错误'}）`, 'error');
+            }
+        }
+
         hasGamepadShortcuts() {
             return this.bookmarks.some(bookmark => {
                 const shortcut = bookmark && bookmark.shortcut;
@@ -3096,36 +3151,66 @@
             this.gamepadButtonStates.clear();
         }
 
+        collectGamepadButtonStates(gamepad, nextStates, newPresses) {
+            if (!gamepad || !gamepad.buttons) return;
+            // Safari 的 buttons 在部分版本中不是完整 Array，使用索引读取而非 forEach。
+            for (let buttonIndex = 0; buttonIndex < gamepad.buttons.length; buttonIndex++) {
+                const button = gamepad.buttons[buttonIndex];
+                const stateKey = `${gamepad.index}:${buttonIndex}`;
+                const pressed = !!(button && (button.pressed || button.value > 0.5));
+                const wasPressed = this.gamepadButtonStates.get(stateKey) === true;
+                nextStates.set(stateKey, pressed);
+                if (pressed && !wasPressed) newPresses.push({ buttonIndex, gamepad });
+            }
+        }
+
+        handleGamepadConnected(event) {
+            const gamepad = event && event.gamepad;
+            if (!gamepad) return;
+            this.refreshGamepadStatus([gamepad]);
+            if (!this.shouldMonitorGamepads()) return;
+
+            const newPresses = [];
+            this.collectGamepadButtonStates(gamepad, this.gamepadButtonStates, newPresses);
+            for (const press of newPresses) {
+                if (this.handleGamepadButtonPress(press.buttonIndex, press.gamepad)) break;
+            }
+            this.updateGamepadMonitoring();
+        }
+
+        handleGamepadDisconnected(event) {
+            const gamepad = event && event.gamepad;
+            if (gamepad) {
+                const prefix = `${gamepad.index}:`;
+                for (const stateKey of this.gamepadButtonStates.keys()) {
+                    if (stateKey.startsWith(prefix)) this.gamepadButtonStates.delete(stateKey);
+                }
+            }
+            this.refreshGamepadStatus();
+            this.updateGamepadMonitoring();
+        }
+
         pollGamepads() {
             this.gamepadFrameId = null;
             if (!this.shouldMonitorGamepads()) return;
 
-            let gamepads = [];
             try {
-                gamepads = navigator.getGamepads() || [];
-            } catch (e) {
+                const gamepads = navigator.getGamepads() || [];
+                const nextStates = new Map();
+                const newPresses = [];
+                for (let i = 0; i < gamepads.length; i++) {
+                    this.collectGamepadButtonStates(gamepads[i], nextStates, newPresses);
+                }
+                this.gamepadButtonStates = nextStates;
+                this.refreshGamepadStatus(gamepads);
+
+                for (const press of newPresses) {
+                    if (this.handleGamepadButtonPress(press.buttonIndex, press.gamepad)) break;
+                }
+            } catch (error) {
+                this.setGamepadStatus(`手柄：读取失败（${error.name || '未知错误'}）`, 'error');
                 this.stopGamepadMonitoring();
                 return;
-            }
-
-            const nextStates = new Map();
-            const newPresses = [];
-            for (const gamepad of gamepads) {
-                if (!gamepad || !gamepad.buttons) continue;
-                gamepad.buttons.forEach((button, buttonIndex) => {
-                    const stateKey = `${gamepad.index}:${buttonIndex}`;
-                    const pressed = !!(button && (button.pressed || button.value > 0.5));
-                    const wasPressed = this.gamepadButtonStates.get(stateKey) === true;
-                    nextStates.set(stateKey, pressed);
-                    if (pressed && !wasPressed) {
-                        newPresses.push({ buttonIndex, gamepad });
-                    }
-                });
-            }
-            this.gamepadButtonStates = nextStates;
-
-            for (const press of newPresses) {
-                if (this.handleGamepadButtonPress(press.buttonIndex, press.gamepad)) break;
             }
 
             if (this.shouldMonitorGamepads() && this.gamepadFrameId === null) {
@@ -3167,7 +3252,9 @@
             });
             this.setShortcutMessage('');
             this.renderShortcutSettings();
-            document.getElementById('sb-shortcut-modal').classList.add('show');
+            const modal = document.getElementById('sb-shortcut-modal');
+            modal.classList.add('show');
+            this.refreshGamepadStatus();
         }
 
         hideShortcutModal() {
@@ -3176,6 +3263,7 @@
             this.capturingShortcutBookmarkId = null;
             this.shortcutDraft = new Map();
             this.setShortcutMessage('');
+            this.setGamepadStatus('');
             this.updateGamepadMonitoring();
         }
 
@@ -3258,6 +3346,7 @@
             }
             this.renderShortcutSettings();
             this.updateGamepadMonitoring();
+            this.refreshGamepadStatus();
         }
 
         clearShortcutDraft(bookmarkId) {
