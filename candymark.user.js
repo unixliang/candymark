@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CandyMark - 移动端标签导航
 // @namespace    https://github.com/unixliang/candymark
-// @version      2.2.1
+// @version      2.2.2
 // @description  移动端网页标签导航工具，支持悬浮标签、键盘与手柄快捷键、拖拽移动、本地存储等功能
 // @author       unixliang
 // @match        *://game.granbluefantasy.jp/*
@@ -132,6 +132,22 @@
     if (!CONFIG.enabled || isBlacklisted()) {
         return;
     }
+
+    // 与 gamepadtest 一样在 document-start 就监听连接事件，避免管理器等到 DOMContentLoaded
+    // 才初始化时，丢失 iOS 辅助功能虚拟控制器的首次唤醒事件。
+    const earlyGamepadEvents = [];
+    const bufferEarlyGamepadEvent = (event) => {
+        if (!event || !event.gamepad) return;
+        earlyGamepadEvents.push({ type: event.type, gamepad: event.gamepad });
+        if (earlyGamepadEvents.length > 16) earlyGamepadEvents.shift();
+    };
+    const gamepadEventNames = [
+        'gamepadconnected', 'gamepaddisconnected',
+        'webkitgamepadconnected', 'webkitgamepaddisconnected'
+    ];
+    gamepadEventNames.forEach(eventName => {
+        window.addEventListener(eventName, bufferEarlyGamepadEvent);
+    });
     
     // 样式定义
     const CSS = `
@@ -1811,6 +1827,7 @@
             this.shortcutDraft = new Map();
             this.capturingShortcutBookmarkId = null;
             this.gamepadFrameId = null;
+            this.gamepadControllers = new Map();
             this.gamepadButtonStates = new Map();
             this.boundGamepadPoll = this.pollGamepads.bind(this);
             this.boundGamepadConnected = this.handleGamepadConnected.bind(this);
@@ -1862,7 +1879,7 @@
         // 导出配置
         exportConfig() {
             const configData = {
-                version: '2.2.1',
+                version: '2.2.2',
                 exportTime: new Date().toISOString(),
                 bookmarks: this.bookmarks,
                 settings: {
@@ -2033,7 +2050,7 @@
         async exportToClipboard() {
             try {
                 const configData = {
-                    version: '2.2.1',
+                    version: '2.2.2',
                     exportTime: new Date().toISOString(),
                     bookmarks: this.bookmarks,
                     settings: {
@@ -2259,11 +2276,17 @@
                 this.showAddMenu(e);
             });
 
-            // iOS Safari 的辅助功能虚拟手柄会先通过连接事件暴露给页面。
-            window.addEventListener('gamepadconnected', this.boundGamepadConnected);
-            window.addEventListener('gamepaddisconnected', this.boundGamepadDisconnected);
-            window.addEventListener('webkitgamepadconnected', this.boundGamepadConnected);
-            window.addEventListener('webkitgamepaddisconnected', this.boundGamepadDisconnected);
+            // 接管 document-start 阶段暂存的手柄事件，再处理初始化期间已发生的连接。
+            gamepadEventNames.forEach(eventName => {
+                window.removeEventListener(eventName, bufferEarlyGamepadEvent);
+                const isDisconnect = eventName.includes('disconnected');
+                window.addEventListener(eventName,
+                    isDisconnect ? this.boundGamepadDisconnected : this.boundGamepadConnected);
+            });
+            earlyGamepadEvents.splice(0).forEach(event => {
+                const isDisconnect = event.type.includes('disconnected');
+                (isDisconnect ? this.boundGamepadDisconnected : this.boundGamepadConnected)(event);
+            });
             
             // 快捷键支持。使用捕获阶段，以便命中标签快捷键后阻止页面继续处理同一按键。
             document.addEventListener('keydown', (e) => {
@@ -3086,16 +3109,41 @@
             element.classList.toggle('is-error', state === 'error');
         }
 
+        getGamepadsReader() {
+            const reader = navigator.getGamepads || navigator.webkitGetGamepads;
+            return typeof reader === 'function' ? reader.bind(navigator) : null;
+        }
+
+        getGamepadFrameRequester() {
+            const requester = window.mozRequestAnimationFrame ||
+                window.webkitRequestAnimationFrame || window.requestAnimationFrame;
+            return typeof requester === 'function' ? requester.bind(window) : null;
+        }
+
+        getGamepadFrameCanceller() {
+            const canceller = window.mozCancelAnimationFrame ||
+                window.webkitCancelAnimationFrame || window.cancelAnimationFrame;
+            return typeof canceller === 'function' ? canceller.bind(window) : null;
+        }
+
+        scanGamepads() {
+            const reader = this.getGamepadsReader();
+            if (reader) {
+                const gamepads = reader() || [];
+                for (let i = 0; i < gamepads.length; i++) {
+                    const gamepad = gamepads[i];
+                    if (gamepad) this.gamepadControllers.set(gamepad.index, gamepad);
+                }
+            }
+            return Array.from(this.gamepadControllers.values());
+        }
+
         refreshGamepadStatus(gamepads = null) {
             const modal = document.getElementById('sb-shortcut-modal');
             if (!modal || !modal.classList.contains('show')) return;
-            if (typeof navigator.getGamepads !== 'function') {
-                this.setGamepadStatus('手柄：当前浏览器不支持 Gamepad API', 'error');
-                return;
-            }
 
             try {
-                const pads = gamepads || navigator.getGamepads() || [];
+                const pads = gamepads || this.scanGamepads();
                 const connected = [];
                 for (let i = 0; i < pads.length; i++) {
                     const gamepad = pads[i];
@@ -3106,6 +3154,9 @@
                     this.setGamepadStatus(`手柄：已检测到 ${names}`, 'connected');
                 } else if (this.capturingShortcutBookmarkId !== null) {
                     this.setGamepadStatus('手柄：等待输入；首次按键可能用于唤醒控制器');
+                } else if (!this.getGamepadsReader() &&
+                    !('GamepadEvent' in window) && !('WebKitGamepadEvent' in window)) {
+                    this.setGamepadStatus('手柄：当前浏览器不支持 Gamepad API', 'error');
                 } else {
                     this.setGamepadStatus('手柄：尚未检测到控制器');
                 }
@@ -3124,8 +3175,8 @@
         }
 
         shouldMonitorGamepads() {
-            return typeof navigator.getGamepads === 'function' &&
-                typeof window.requestAnimationFrame === 'function' &&
+            const hasInputSource = this.gamepadControllers.size > 0 || !!this.getGamepadsReader();
+            return hasInputSource && !!this.getGamepadFrameRequester() &&
                 (this.capturingShortcutBookmarkId !== null || this.hasGamepadShortcuts());
         }
 
@@ -3140,12 +3191,13 @@
         startGamepadMonitoring() {
             if (this.gamepadFrameId !== null || !this.shouldMonitorGamepads()) return;
             this.gamepadButtonStates.clear();
-            this.gamepadFrameId = window.requestAnimationFrame(this.boundGamepadPoll);
+            this.gamepadFrameId = this.getGamepadFrameRequester()(this.boundGamepadPoll);
         }
 
         stopGamepadMonitoring() {
             if (this.gamepadFrameId !== null) {
-                window.cancelAnimationFrame(this.gamepadFrameId);
+                const cancelFrame = this.getGamepadFrameCanceller();
+                if (cancelFrame) cancelFrame(this.gamepadFrameId);
                 this.gamepadFrameId = null;
             }
             this.gamepadButtonStates.clear();
@@ -3157,7 +3209,10 @@
             for (let buttonIndex = 0; buttonIndex < gamepad.buttons.length; buttonIndex++) {
                 const button = gamepad.buttons[buttonIndex];
                 const stateKey = `${gamepad.index}:${buttonIndex}`;
-                const pressed = !!(button && (button.pressed || button.value > 0.5));
+                // 参考 gamepadtest：旧版 WebKit 返回 0/1，新版返回 GamepadButton 对象。
+                const pressed = typeof button === 'number'
+                    ? button > 0.5
+                    : !!(button && (button.pressed || button.value > 0.5));
                 const wasPressed = this.gamepadButtonStates.get(stateKey) === true;
                 nextStates.set(stateKey, pressed);
                 if (pressed && !wasPressed) newPresses.push({ buttonIndex, gamepad });
@@ -3167,13 +3222,15 @@
         handleGamepadConnected(event) {
             const gamepad = event && event.gamepad;
             if (!gamepad) return;
-            this.refreshGamepadStatus([gamepad]);
-            if (!this.shouldMonitorGamepads()) return;
+            this.gamepadControllers.set(gamepad.index, gamepad);
+            this.refreshGamepadStatus(Array.from(this.gamepadControllers.values()));
 
-            const newPresses = [];
-            this.collectGamepadButtonStates(gamepad, this.gamepadButtonStates, newPresses);
-            for (const press of newPresses) {
-                if (this.handleGamepadButtonPress(press.buttonIndex, press.gamepad)) break;
+            if (this.capturingShortcutBookmarkId !== null || this.hasGamepadShortcuts()) {
+                const newPresses = [];
+                this.collectGamepadButtonStates(gamepad, this.gamepadButtonStates, newPresses);
+                for (const press of newPresses) {
+                    if (this.handleGamepadButtonPress(press.buttonIndex, press.gamepad)) break;
+                }
             }
             this.updateGamepadMonitoring();
         }
@@ -3181,6 +3238,7 @@
         handleGamepadDisconnected(event) {
             const gamepad = event && event.gamepad;
             if (gamepad) {
+                this.gamepadControllers.delete(gamepad.index);
                 const prefix = `${gamepad.index}:`;
                 for (const stateKey of this.gamepadButtonStates.keys()) {
                     if (stateKey.startsWith(prefix)) this.gamepadButtonStates.delete(stateKey);
@@ -3195,7 +3253,7 @@
             if (!this.shouldMonitorGamepads()) return;
 
             try {
-                const gamepads = navigator.getGamepads() || [];
+                const gamepads = this.scanGamepads();
                 const nextStates = new Map();
                 const newPresses = [];
                 for (let i = 0; i < gamepads.length; i++) {
@@ -3214,7 +3272,7 @@
             }
 
             if (this.shouldMonitorGamepads() && this.gamepadFrameId === null) {
-                this.gamepadFrameId = window.requestAnimationFrame(this.boundGamepadPoll);
+                this.gamepadFrameId = this.getGamepadFrameRequester()(this.boundGamepadPoll);
             }
         }
 
@@ -3339,7 +3397,8 @@
         startShortcutCapture(bookmarkId) {
             if (!this.shortcutDraft.has(bookmarkId)) return;
             this.capturingShortcutBookmarkId = bookmarkId;
-            if (typeof navigator.getGamepads === 'function') {
+            if (this.getGamepadsReader() ||
+                'GamepadEvent' in window || 'WebKitGamepadEvent' in window) {
                 this.setShortcutMessage('请按下键盘快捷键或虚拟手柄按钮；只按修饰键不会完成录入。');
             } else {
                 this.setShortcutMessage('当前浏览器未提供手柄接口，请按下键盘快捷键。');

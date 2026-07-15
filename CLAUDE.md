@@ -56,7 +56,7 @@ git push github main      # 远程名是 github（不是 origin）
 
 - UI：`#sb-shortcut-modal`。每个标签可配置一个物理键盘按键 `code` 及 Ctrl / Alt / Shift / Meta 修饰键，或一个 Gamepad 按钮；`Ctrl+B` 保留给主菜单，同来源的重复快捷键不能保存。
 - 触发：document 捕获阶段监听 `keydown`，输入框 / textarea / select / contenteditable、其它模态框、拖拽状态下不触发，长按重复事件也不触发。
-- 手柄：监听标准及 WebKit 的连接/断开事件，并仅在正在录入或至少存在一个手柄快捷键时，用 `requestAnimationFrame` 轮询 `navigator.getGamepads()`。按钮集合按索引读取以兼容 Safari 的类数组实现；连接事件中的首次按键也会直接参与录入。缓存上帧按钮状态，仅在 `false → true` 时触发，所以长按不连发。标准按钮索引 0/1/2/3 显示为 A/B/X/Y。
+- 手柄：实现参照 `luser/gamepadtest`，在 `document-start` 即监听标准及 WebKit 的连接/断开事件，管理器初始化前的事件先进入 `earlyGamepadEvents`，随后将控制器保存在 `gamepadControllers`，并用 `requestAnimationFrame`（含 WebKit/Mozilla 前缀回退）持续更新。扫描同时支持 `navigator.getGamepads()` / `navigator.webkitGetGamepads()`；按钮集合按索引读取，并兼容数字 0/1 与 `GamepadButton` 对象。连接事件中的首次按键也会直接参与录入。缓存上帧按钮状态，仅在 `false → true` 时触发，所以长按不连发。标准按钮索引 0/1/2/3 显示为 A/B/X/Y。
 - 执行：`handleBookmarkShortcutEvent()` 命中后调用 `executeBookmarkAction(bookmark)`，直接执行 URL 导航、`history.back()` 或 `location.reload()`，不会调用 DOM `click()`。`click-through-back` 没有键盘坐标，快捷键只执行其延迟后退部分。
 
 ### 特殊链接
