@@ -22,7 +22,7 @@ git push github main      # 远程名是 github（不是 origin）
 ## 存储与配置（重要）
 
 - **存储后端是 `localStorage`，不是 GM_setValue**。`storage.setValue/getValue` 是对 `localStorage` 的封装（见文件顶部 `const storage`）。
-- 书签数组单独存：key `candymark-bookmarks-javascript`。每个书签可带 `shortcut`：键盘为 `{type:'keyboard',code,key,ctrlKey,altKey,shiftKey,metaKey}`（旧数据没有 `type` 也兼容），手柄为 `{type:'gamepad',button,label}`。因此快捷键随书签一起导入导出，不属于 `CONFIG`。
+- 书签数组单独存：key `candymark-bookmarks-javascript`。
 - 其余设置以 `sb_` 前缀存储。
 - **前缀决定是否触发配置缓存失效**：`sb_*` 写入会 `invalidateConfigCache()`（见下）；`cm_*` 前缀**不会**（用于不进 `CONFIG` 的运行时状态，如 `cm_omen_log` 预兆浮层、`cm_chokuzen_target` 倒计时）。
 - **配置缓存陷阱**：`loadConfig()` 带缓存 `_configCache`；**任何 `sb_*` 写入都会 `invalidateConfigCache()`**，下次 `loadConfig()` 会重建一个新对象。而 `const CONFIG = loadConfig()` 在启动时只求值一次，**永久绑定初始对象**。
@@ -50,14 +50,7 @@ git push github main      # 远程名是 github（不是 origin）
 - 拖拽定位、10 级大小 / 透明度、配色循环。
 - 菜单结构：
   - **书签长按菜单**（`sb-menu`）：拖拽 / 设置当前页 / 设置后退 / 设置刷新 / 设置穿透点击后退 / 穿透后退延迟 / 改名 / 删除 / **⚙️ 全局配置（打开左上角主菜单 `sb-add-menu`）** / 取消。
-  - **主菜单**（`sb-add-menu`，点左上角触发器）：增加标签 / 调整大小 / 调整透明度 / ⌨️ 快捷键设置 / 🌐 辅助设置（常态）/ ⚔️ 辅助设置（战斗）/ 🔔 掉落通知 / ⚙️ 配置管理 / 取消。
-
-### 标签快捷键
-
-- UI：`#sb-shortcut-modal`。每个标签可配置一个物理键盘按键 `code` 及 Ctrl / Alt / Shift / Meta 修饰键，或一个 Gamepad 按钮；`Ctrl+B` 保留给主菜单，同来源的重复快捷键不能保存。
-- 触发：document 捕获阶段监听 `keydown`，输入框 / textarea / select / contenteditable、其它模态框、拖拽状态下不触发，长按重复事件也不触发。
-- 手柄：实现参照 `luser/gamepadtest`，在 `document-start` 即监听标准及 WebKit 的连接/断开事件，管理器初始化前的事件先进入 `earlyGamepadEvents`，随后将控制器保存在 `gamepadControllers`，并用 `requestAnimationFrame`（含 WebKit/Mozilla 前缀回退）持续更新。扫描同时支持 `navigator.getGamepads()` / `navigator.webkitGetGamepads()`；按钮集合按索引读取，并兼容数字 0/1 与 `GamepadButton` 对象。连接事件中的首次按键也会直接参与录入。缓存上帧按钮状态，仅在 `false → true` 时触发，所以长按不连发。标准按钮索引 0/1/2/3 显示为 A/B/X/Y。
-- 执行：`handleBookmarkShortcutEvent()` 命中后调用 `executeBookmarkAction(bookmark)`，直接执行 URL 导航、`history.back()` 或 `location.reload()`，不会调用 DOM `click()`。`click-through-back` 没有键盘坐标，快捷键只执行其延迟后退部分。
+  - **主菜单**（`sb-add-menu`，点左上角触发器）：增加标签 / 调整大小 / 调整透明度 / 🌐 辅助设置（常态）/ ⚔️ 辅助设置（战斗）/ 🔔 掉落通知 / ⚙️ 配置管理 / 取消。
 
 ### 特殊链接
 书签 `url` 除普通 URL 外支持动作值：
